@@ -1,0 +1,2 @@
+org.springframework.beans.factory.aot.BeanFactoryInitializationAotProcessor=\
+  com.borjaglez.shop.eskit.EventTypeIndexAotProcessor

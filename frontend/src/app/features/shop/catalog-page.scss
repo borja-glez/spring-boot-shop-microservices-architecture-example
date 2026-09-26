@@ -1,0 +1,153 @@
+.catalog {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-areas:
+    'search search'
+    'refine results';
+  gap: 24px 32px;
+}
+
+.search {
+  grid-area: search;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.search h1 {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  letter-spacing: -0.01em;
+}
+
+.search form {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 360px;
+  max-width: 560px;
+}
+
+.search input {
+  flex: 1;
+}
+
+.refine {
+  grid-area: refine;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-self: start;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+
+.price {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.price legend {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step-1);
+  margin-bottom: 6px;
+}
+
+.range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.range label {
+  display: grid;
+  gap: 2px;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.results {
+  grid-area: results;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.count {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: 32px;
+  text-align: center;
+}
+
+.empty p {
+  color: var(--ink-soft);
+}
+
+.request {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.request code {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+}
+
+@media (max-width: 800px) {
+  .catalog {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'search'
+      'refine'
+      'results';
+  }
+}

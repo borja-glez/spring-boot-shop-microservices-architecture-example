@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:catalog}
+    username: ${DB_USER:catalog}
+    password: ${DB_PASSWORD:catalog}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000 # ms (Hikari binds a long, not a Duration)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    # Service migrations plus the es-kit event store (V1000).
+    locations: classpath:db/migration,classpath:db/eskit
+    # Service (V1, V2...) and es-kit (V1000, V1000.1...) migrations share one history, so a new
+    # service migration is numbered below es-kit's and must still be applied.
+    out-of-order: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+cqrs:
+  naming:
+    prefix: shop
+  kafka:
+    prefix: shop
+    # Kafka carries integration events only; commands and queries go over RabbitMQ.
+    commands:
+      enabled: false
+    queries:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      group:
+        # Kubernetes stops routing traffic while the database is unreachable.
+        readiness:
+          include: readinessState,db
+
+info:
+  service:
+    description: Product catalog, publishing, pricing and public search
+
+shop:
+  chaos:
+    # Demo fault injection (/api/catalog/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    service: catalog

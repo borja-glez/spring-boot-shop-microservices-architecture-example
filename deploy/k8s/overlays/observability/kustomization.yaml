@@ -1,0 +1,11 @@
+# The local overlay plus Grafana LGTM and OTLP export from every service.
+#   kubectl apply -k deploy/k8s/overlays/observability
+# Grafana at http://localhost:3000. With native images: overlays/native-observability.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../local
+
+components:
+  - ../../components/observability

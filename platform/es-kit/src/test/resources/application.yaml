@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: eskit-test
+  flyway:
+    locations: classpath:db/eskit
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+cqrs:
+  naming:
+    prefix: shop
+
+shop:
+  event-store:
+    event-packages: com.borjaglez.shop.eskit.fixtures
+  outbox:
+    relay:
+      # Tests drive the relay explicitly.
+      enabled: false

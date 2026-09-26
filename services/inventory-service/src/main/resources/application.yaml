@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: inventory-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:inventory}
+    username: ${DB_USER:inventory}
+    password: ${DB_PASSWORD:inventory}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000 # ms (Hikari binds a long, not a Duration)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50
+        # Stock rows are always updated in key order, so crossing reservations do not deadlock.
+        order_updates: true
+  flyway:
+    locations: classpath:db/migration,classpath:db/eskit
+    # Service (V1, V2...) and es-kit (V1000, V1000.1...) migrations share one history.
+    out-of-order: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:shop}
+    password: ${RABBIT_PASSWORD:shop-dev}
+
+server:
+  port: ${SERVER_PORT:8083}
+
+cqrs:
+  naming:
+    prefix: shop
+  kafka:
+    prefix: shop
+    # Kafka carries integration events only.
+    commands:
+      enabled: false
+    queries:
+      enabled: false
+  rabbitmq:
+    # RabbitMQ carries the commands of the checkout saga (request and reply).
+    prefix: shop
+    # Only the shared contracts and plain Java types may be deserialized (trusted-packages
+    # allow-list). Spring
+    # AMQP compares whole package names: subpackages must be listed one by one.
+    trusted-packages:
+      - com.borjaglez.shop.contracts.inventory
+      - com.borjaglez.shop.contracts.payments
+      - com.borjaglez.shop.contracts.orders
+      - java.util
+      - java.lang
+
+shop:
+  chaos:
+    # Demo fault injection (/api/inventory/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    service: inventory
+    messages: ReserveStock, ReleaseStock
+  inventory:
+    # Units a product starts with when the catalog publishes it.
+    initial-stock: ${INVENTORY_INITIAL_STOCK:25}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+
+info:
+  service:
+    description: Stock per product and all-or-nothing reservations for the checkout saga

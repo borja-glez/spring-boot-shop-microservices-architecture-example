@@ -1,0 +1,41 @@
+# Same as local, with the GraalVM native images (./gradlew buildImages -Pnative).
+# Native services start in a fraction of a second and need much less memory.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../local
+
+images:
+  - name: shop/catalog-service
+    newTag: 0.1.0-SNAPSHOT-native
+  - name: shop/orders-service
+    newTag: 0.1.0-SNAPSHOT-native
+  - name: shop/inventory-service
+    newTag: 0.1.0-SNAPSHOT-native
+  - name: shop/payments-service
+    newTag: 0.1.0-SNAPSHOT-native
+  # The Boot 3 service has no native build; it runs on the JVM here too.
+  - name: shop/notifications-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/reporting-service
+    newTag: 0.1.0-SNAPSHOT-native
+  - name: shop/gateway-service
+    newTag: 0.1.0-SNAPSHOT-native
+
+patches:
+  - target:
+      kind: Deployment
+      name: (catalog-service|orders-service|inventory-service|payments-service|reporting-service|gateway-service)
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/failureThreshold
+        value: 12

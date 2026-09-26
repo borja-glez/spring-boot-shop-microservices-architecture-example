@@ -1,0 +1,70 @@
+# At most one replica of each scaled service is evicted at a time (node drains, cluster upgrades).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-service
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: gateway-service
+    app.kubernetes.io/part-of: shop
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalog-service
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: catalog-service
+    app.kubernetes.io/part-of: shop
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: catalog-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orders-service
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: orders-service
+    app.kubernetes.io/part-of: shop
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orders-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: inventory-service
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: inventory-service
+    app.kubernetes.io/part-of: shop
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventory-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payments-service
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: payments-service
+    app.kubernetes.io/part-of: shop
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-service

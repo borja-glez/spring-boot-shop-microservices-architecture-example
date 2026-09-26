@@ -1,0 +1,23 @@
+# The local overlay with two replicas of the request path and the observability stack: the setup to
+# watch the platform scale out and survive the loss of a pod.
+#   kubectl apply -k deploy/k8s/overlays/scaled
+# Grafana at http://localhost:3000, shop at http://localhost:4200.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../local
+
+components:
+  - ../../components/observability
+  - ../../components/scaling
+
+# Fault injection stays off here: faults live in the memory of each instance, so with several
+# replicas a switch flipped through the gateway would reach only one of them. Use a single-replica
+# overlay (local, observability) or Compose for the chaos panel.
+configMapGenerator:
+  - name: shop-demo
+    namespace: shop
+    behavior: merge
+    literals:
+      - SHOP_CHAOS_ENABLED=false

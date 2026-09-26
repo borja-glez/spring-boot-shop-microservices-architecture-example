@@ -1,0 +1,59 @@
+# Traces, metrics and logs of every service in Grafana, with the shop dashboards and alert rules.
+# Add to an overlay with
+#   components: [../../components/observability]
+# Grafana at http://localhost:3000 > Dashboards > Shop.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - lgtm.yaml
+
+# Provisioning files, shared with deploy/compose/compose.observability.yaml.
+configMapGenerator:
+  - name: grafana-provisioning
+    namespace: shop
+    files:
+      - dashboards.yaml=grafana/dashboards.yaml
+      - shop-alerts.yaml=grafana/alerting/shop-alerts.yaml
+  - name: grafana-dashboards
+    namespace: shop
+    files:
+      - grafana/dashboards/shop-overview.json
+      - grafana/dashboards/shop-messaging.json
+
+patches:
+  # Boot 4 services: service-support turns this one variable into the OTLP settings.
+  - target:
+      kind: Deployment
+      name: (catalog-service|orders-service|inventory-service|payments-service|reporting-service|gateway-service)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://lgtm:4318
+  # Boot 3.5 names its OTLP properties differently.
+  - target:
+      kind: Deployment
+      name: notifications-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MANAGEMENT_OTLP_TRACING_ENDPOINT
+          value: http://lgtm:4318/v1/traces
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MANAGEMENT_OTLP_METRICS_EXPORT_URL
+          value: http://lgtm:4318/v1/metrics
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MANAGEMENT_OTLP_LOGGING_ENDPOINT
+          value: http://lgtm:4318/v1/logs

@@ -1,0 +1,10 @@
+# The native overlay plus Grafana LGTM and OTLP export from every service.
+#   ./gradlew buildImages -Pnative && kubectl apply -k deploy/k8s/overlays/native-observability
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../native
+
+components:
+  - ../../components/observability

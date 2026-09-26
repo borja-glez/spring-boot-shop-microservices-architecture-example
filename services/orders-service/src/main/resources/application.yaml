@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: orders-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:orders}
+    username: ${DB_USER:orders}
+    password: ${DB_PASSWORD:orders}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000 # ms (Hikari binds a long, not a Duration)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    # Service migrations plus the es-kit event store (V1000).
+    locations: classpath:db/migration,classpath:db/eskit
+    # Service (V1, V2...) and es-kit (V1000, V1000.1...) migrations share one history, so a new
+    # service migration is numbered below es-kit's and must still be applied.
+    out-of-order: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:shop}
+    password: ${RABBIT_PASSWORD:shop-dev}
+    template:
+      # How long a checkout step waits for inventory or payments before retrying.
+      reply-timeout: ${CHECKOUT_REPLY_TIMEOUT:5s}
+
+server:
+  port: ${SERVER_PORT:8082}
+
+cqrs:
+  naming:
+    prefix: shop
+  kafka:
+    prefix: shop
+    # Kafka carries integration events only; the checkout saga's commands go over RabbitMQ.
+    commands:
+      enabled: false
+    queries:
+      enabled: false
+  rabbitmq:
+    prefix: shop
+    # Only the shared contracts and plain Java types may be deserialized (trusted-packages
+    # allow-list). Spring
+    # AMQP compares whole package names: subpackages must be listed one by one.
+    trusted-packages:
+      - com.borjaglez.shop.contracts.inventory
+      - com.borjaglez.shop.contracts.payments
+      - com.borjaglez.shop.contracts.orders
+      - java.util
+      - java.lang
+
+shop:
+  chaos:
+    # Demo fault injection (/api/orders/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    service: orders
+  checkout:
+    # Each step is retried with growing waits; see CheckoutProperties.
+    max-attempts: ${CHECKOUT_MAX_ATTEMPTS:8}
+    compensation-max-attempts: ${CHECKOUT_COMPENSATION_MAX_ATTEMPTS:20}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+
+info:
+  service:
+    description: Event-sourced orders, checkout saga, catalog price projection and order read model

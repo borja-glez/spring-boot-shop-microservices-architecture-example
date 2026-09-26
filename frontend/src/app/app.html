@@ -1,0 +1,33 @@
+<header class="bar">
+  <a class="brand" routerLink="/">Mercado</a>
+  <nav aria-label="Sections">
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Shop</a>
+    <a routerLink="/orders" routerLinkActive="active">My orders</a>
+    <a routerLink="/event-store" routerLinkActive="active">Event store</a>
+    <a routerLink="/backoffice/stock" routerLinkActive="active">Stock</a>
+    <a routerLink="/backoffice/payments" routerLinkActive="active">Payments</a>
+    <a routerLink="/backoffice/reports" routerLinkActive="active">Reports</a>
+    <a routerLink="/lab" routerLinkActive="active">Filter lab</a>
+    <a routerLink="/chaos" routerLinkActive="active">Chaos</a>
+    <a routerLink="/cart" routerLinkActive="active" class="cart">
+      Cart
+      @if (cart.count()) {
+        <span class="badge" aria-label="items">{{ cart.count() }}</span>
+      }
+    </a>
+  </nav>
+  <app-notification-bell />
+  <app-user-switcher />
+</header>
+
+<main>
+  <router-outlet />
+</main>
+
+<footer>
+  An example of
+  <a href="https://github.com/borja-glez/spring-boot-cqrs">spring-boot-cqrs</a> and
+  <a href="https://github.com/borja-glez/spring-boot-specification-repository">
+    specification-repository</a
+  >. All data is fictional.
+</footer>

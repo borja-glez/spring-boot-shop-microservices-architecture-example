@@ -1,0 +1,182 @@
+# The whole platform: infrastructure, services and frontend.
+#   ./gradlew buildImages                      # JVM images (add -Pnative for native ones)
+#   docker compose -f deploy/compose/compose.yaml up -d
+# Shop:      http://localhost:4200
+# Gateway:   http://localhost:8080/api/catalog/products, http://localhost:8080/api/orders
+# RabbitMQ:  http://localhost:15672 (shop / shop-dev)
+# Kafka UI:  http://localhost:8090
+# Traces and metrics: add -f compose.observability.yaml (Grafana at http://localhost:3000)
+name: shop
+
+include:
+  - compose.infra.yaml
+
+# Paketo images size the JVM from the container memory limit. Requests run on virtual threads,
+# so the memory calculator only needs stacks for a few platform threads (its default is 250).
+x-service-env: &service-env
+  BPL_JVM_THREAD_COUNT: "50"
+  # Demo fault injection (/chaos in the shop), unauthenticated like the rest of this demo API.
+  # With SHOP_CHAOS_ENABLED=false the chaos endpoints answer 404 and no fault can be turned on.
+  SHOP_CHAOS_ENABLED: ${SHOP_CHAOS_ENABLED:-true}
+
+x-service: &service
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        memory: 768m
+
+services:
+  catalog-service:
+    <<: *service
+    image: shop/catalog-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: catalog
+      DB_USER: catalog
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  orders-service:
+    <<: *service
+    image: shop/orders-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: orders
+      DB_USER: orders
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+      RABBIT_HOST: rabbitmq
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-shop-dev}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  inventory-service:
+    <<: *service
+    image: shop/inventory-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: inventory
+      DB_USER: inventory
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+      RABBIT_HOST: rabbitmq
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-shop-dev}
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  payments-service:
+    <<: *service
+    image: shop/payments-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: payments
+      DB_USER: payments
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+      RABBIT_HOST: rabbitmq
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-shop-dev}
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notifications-service:
+    <<: *service
+    # Spring Boot 3 service: no native image, it runs on the JVM with SHOP_IMAGE_SUFFIX=-native too.
+    image: shop/notifications-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: notifications
+      DB_USER: notifications
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  reporting-service:
+    <<: *service
+    image: shop/reporting-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      DB_HOST: postgres
+      DB_NAME: reporting
+      DB_USER: reporting
+      DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  gateway-service:
+    <<: *service
+    image: shop/gateway-service:${SHOP_VERSION:-0.1.0-SNAPSHOT}${SHOP_IMAGE_SUFFIX:-}
+    environment:
+      <<: *service-env
+      CATALOG_URI: http://catalog-service:8081
+      ORDERS_URI: http://orders-service:8082
+      INVENTORY_URI: http://inventory-service:8083
+      PAYMENTS_URI: http://payments-service:8084
+      NOTIFICATIONS_URI: http://notifications-service:8085
+      REPORTING_URI: http://reporting-service:8086
+    ports:
+      - "8080:8080"
+    depends_on:
+      - catalog-service
+      - orders-service
+      - inventory-service
+      - payments-service
+      - notifications-service
+      - reporting-service
+
+  frontend:
+    image: shop/frontend:${SHOP_VERSION:-0.1.0-SNAPSHOT}
+    build:
+      context: ../../frontend
+    environment:
+      GATEWAY_URL: http://gateway-service:8080
+    ports:
+      - "4200:8080"
+    depends_on:
+      - gateway-service
+    restart: unless-stopped

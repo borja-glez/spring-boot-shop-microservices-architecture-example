@@ -1,0 +1,209 @@
+<section class="lab">
+  <header class="intro">
+    <h1>Filter lab</h1>
+    <p>
+      Build a search, see the exact query that reaches the API and the raw response. The suggested
+      fields are the ones the catalog allows; type any other to see how it gets rejected.
+    </p>
+  </header>
+
+  <div class="builder panel">
+    <datalist id="lab-fields">
+      @for (field of fields; track field) {
+        <option [value]="field"></option>
+      }
+    </datalist>
+
+    <h2>All of these must match</h2>
+    @for (row of required(); track row.id) {
+      <div class="row">
+        <input
+          class="field"
+          list="lab-fields"
+          aria-label="Field"
+          [value]="row.field"
+          (input)="editRow('required', row.id, { field: $any($event.target).value })"
+        />
+        <select
+          class="field"
+          aria-label="Operator"
+          [value]="row.operator"
+          (change)="editRow('required', row.id, { operator: $any($event.target).value })"
+        >
+          @for (op of operators; track op) {
+            <option [value]="op" [selected]="op === row.operator">{{ op }}</option>
+          }
+        </select>
+        @if (needsValue(row.operator)) {
+          <input
+            class="field"
+            aria-label="Value"
+            [placeholder]="isList(row.operator) ? 'comma-separated values' : 'value'"
+            [value]="row.value"
+            (input)="editRow('required', row.id, { value: $any($event.target).value })"
+          />
+        } @else {
+          <span class="no-value">no value</span>
+        }
+        <button
+          class="button secondary"
+          type="button"
+          aria-label="Remove condition"
+          (click)="removeRow('required', row.id)"
+        >
+          Remove
+        </button>
+      </div>
+    }
+    <button class="button secondary" type="button" (click)="addRow('required')">
+      Add condition
+    </button>
+
+    <h2>Any one of these is enough</h2>
+    @for (row of alternatives(); track row.id) {
+      <div class="row">
+        <input
+          class="field"
+          list="lab-fields"
+          aria-label="Field"
+          [value]="row.field"
+          (input)="editRow('alternatives', row.id, { field: $any($event.target).value })"
+        />
+        <select
+          class="field"
+          aria-label="Operator"
+          [value]="row.operator"
+          (change)="editRow('alternatives', row.id, { operator: $any($event.target).value })"
+        >
+          @for (op of operators; track op) {
+            <option [value]="op" [selected]="op === row.operator">{{ op }}</option>
+          }
+        </select>
+        @if (needsValue(row.operator)) {
+          <input
+            class="field"
+            aria-label="Value"
+            [value]="row.value"
+            (input)="editRow('alternatives', row.id, { value: $any($event.target).value })"
+          />
+        } @else {
+          <span class="no-value">no value</span>
+        }
+        <button
+          class="button secondary"
+          type="button"
+          aria-label="Remove alternative"
+          (click)="removeRow('alternatives', row.id)"
+        >
+          Remove
+        </button>
+      </div>
+    } @empty {
+      <p class="hint">No alternatives. Add two or more to build an <code>orFilter</code>.</p>
+    }
+    <button class="button secondary" type="button" (click)="addRow('alternatives')">
+      Add alternative
+    </button>
+
+    <h2>Sort and size</h2>
+    <div class="row sort">
+      <select
+        class="field"
+        aria-label="Sort by"
+        [value]="sortField()"
+        (change)="sortField.set($any($event.target).value); resetQuery()"
+      >
+        <option value="">Unsorted</option>
+        @for (field of sortableFields; track field) {
+          <option [value]="field" [selected]="field === sortField()">{{ field }}</option>
+        }
+      </select>
+      <select
+        class="field"
+        aria-label="Direction"
+        [value]="sortDirection()"
+        (change)="sortDirection.set($any($event.target).value); resetQuery()"
+      >
+        <option value="asc" [selected]="sortDirection() === 'asc'">ascending</option>
+        <option value="desc" [selected]="sortDirection() === 'desc'">descending</option>
+      </select>
+      <label class="size">
+        Results
+        <input
+          class="field"
+          type="number"
+          min="1"
+          max="100"
+          [value]="size()"
+          (change)="size.set(+$any($event.target).value || 5); resetQuery()"
+        />
+      </label>
+    </div>
+  </div>
+
+  <div class="request panel">
+    <h2>Query</h2>
+    @if (manualQuery() === null) {
+      @if (generated().error; as error) {
+        <p class="builder-error" role="alert">{{ error }}</p>
+      }
+    }
+    <label class="visually-hidden" for="lab-query">Query string</label>
+    <textarea
+      id="lab-query"
+      class="field query"
+      rows="3"
+      spellcheck="false"
+      [value]="effectiveQuery()"
+      (input)="editQuery($any($event.target).value)"
+    ></textarea>
+    <div class="actions">
+      <button class="button" type="button" [disabled]="sending()" (click)="send()">
+        {{ sending() ? 'Sending…' : 'Send request' }}
+      </button>
+      @if (manualQuery() !== null) {
+        <button class="button secondary" type="button" (click)="resetQuery()">
+          Back to the builder’s query
+        </button>
+      }
+    </div>
+
+    @if (activePreset(); as preset) {
+      <p class="expected">
+        <strong>{{ preset.title }}</strong> · {{ preset.expected }}
+      </p>
+    }
+
+    @if (response(); as r) {
+      <div class="response">
+        <p class="status" [class]="statusClass()">
+          <strong>{{ r.status || 'no response' }}</strong>
+          <span>{{ r.durationMs }} ms</span>
+          @if (r.correlationId) {
+            <span
+              >correlation <code>{{ r.correlationId }}</code></span
+            >
+          }
+        </p>
+        <pre>{{ r.body | json }}</pre>
+      </div>
+    }
+  </div>
+
+  <aside class="presets" aria-label="Example requests">
+    <h2>Example requests</h2>
+    <p class="hint">
+      Each example loads a query against <code>/api/catalog/products</code> and sends it. Use them
+      to learn the filter syntax and see how the API responds when something is invalid.
+    </p>
+    <ul>
+      @for (preset of presets; track preset.id) {
+        <li>
+          <button type="button" class="preset" (click)="loadPreset(preset)">
+            {{ preset.title }}
+          </button>
+        </li>
+      }
+    </ul>
+  </aside>
+</section>

@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    # Routes are static configuration; refresh scope also breaks AOT processing for native images
+    # (refresh scope is not supported in native images).
+    refresh:
+      enabled: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+shop:
+  gateway:
+    routes:
+      - id: catalog
+        path: /api/catalog/**
+        uri: ${CATALOG_URI:http://localhost:8081}
+      - id: orders
+        path: /api/orders/**
+        uri: ${ORDERS_URI:http://localhost:8082}
+      - id: inventory
+        path: /api/inventory/**
+        uri: ${INVENTORY_URI:http://localhost:8083}
+      - id: payments
+        path: /api/payments/**
+        uri: ${PAYMENTS_URI:http://localhost:8084}
+      - id: notifications
+        path: /api/notifications/**
+        uri: ${NOTIFICATIONS_URI:http://localhost:8085}
+      - id: reporting
+        path: /api/reporting/**
+        uri: ${REPORTING_URI:http://localhost:8086}
+
+info:
+  service:
+    description: Single public entry point that routes /api/** to the services

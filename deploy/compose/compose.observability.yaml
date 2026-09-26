@@ -1,0 +1,53 @@
+# Optional observability: traces, metrics and logs of every service in Grafana (Tempo, Prometheus,
+# Loki), with the shop dashboards and alert rules provisioned.
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.observability.yaml up -d
+# Grafana: http://localhost:3000 (anonymous admin) > Dashboards > Shop.
+name: shop
+
+x-otlp: &otlp
+  # Boot 4 services: service-support turns this one variable into the OTLP settings.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+
+services:
+  lgtm:
+    image: grafana/otel-lgtm:0.34.0
+    ports:
+      - "3000:3000"
+    # Same provisioning files as the Kubernetes observability component.
+    volumes:
+      - ../k8s/components/observability/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/shop.yaml:ro
+      - ../k8s/components/observability/grafana/dashboards:/otel-lgtm/shop-dashboards:ro
+      - ../k8s/components/observability/grafana/alerting/shop-alerts.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/shop-alerts.yaml:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          # Collector, Tempo, Prometheus, Loki and Grafana share this limit.
+          memory: 2g
+
+  catalog-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  orders-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  inventory-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  payments-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  reporting-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  gateway-service:
+    environment: *otlp
+    depends_on: [lgtm]
+  # Boot 3.5 names its OTLP properties differently and has no service-support.
+  notifications-service:
+    environment:
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://lgtm:4318/v1/traces
+      MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://lgtm:4318/v1/metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "true"
+      MANAGEMENT_OTLP_LOGGING_ENDPOINT: http://lgtm:4318/v1/logs
+    depends_on: [lgtm]

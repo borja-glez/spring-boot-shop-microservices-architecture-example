@@ -1,0 +1,27 @@
+# Everything the shop needs in one namespace. Use an overlay to deploy:
+#   kubectl apply -k deploy/k8s/overlays/local
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: shop
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: shop
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - infra
+  - apps
+
+# Development credentials. Real environments replace this generator in their overlay
+# (or use an external secret operator); never commit production secrets.
+secretGenerator:
+  - name: shop-credentials
+    literals:
+      - postgres-password=postgres-dev
+      - db-password=shop-dev
+      - rabbitmq-password=shop-dev
+generatorOptions:
+  disableNameSuffixHash: true

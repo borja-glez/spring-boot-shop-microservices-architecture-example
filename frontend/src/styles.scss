@@ -1,0 +1,170 @@
+/*
+ * Mercado · design tokens
+ * A market hall: glazed white tiles, cobalt azulejo blue for actions, and yellow price tags as
+ * the one loud element. Everything else stays quiet.
+ */
+:root {
+  --tile: #f6f8f7;
+  --tile-joint: #e2e7e9;
+  --surface: #ffffff;
+  --ink: #1b2430;
+  --ink-soft: #4d5a68;
+  --line: #d5dce1;
+  --cobalt: #1e4fa3;
+  --cobalt-deep: #163b7a;
+  --cobalt-wash: #e6edf8;
+  --tag: #f5c84c;
+  --tag-edge: #d9a92a;
+  --leaf: #2f7d4f;
+  --leaf-wash: #e3f1e8;
+  --amber: #9a6512;
+  --amber-wash: #f7ecd6;
+  --tomato: #b83a26;
+  --tomato-wash: #fbe4df;
+
+  --font-display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --font-body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.625rem;
+  --step-3: 2.25rem;
+
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --gutter: clamp(16px, 3vw, 32px);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  color: var(--ink);
+  background-color: var(--tile);
+  /* Tile joints every 48px: the market hall wall. */
+  background-image:
+    linear-gradient(var(--tile-joint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tile-joint) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--step-3);
+}
+
+h2 {
+  font-size: var(--step-2);
+}
+
+h3 {
+  font-size: var(--step-1);
+}
+
+a {
+  color: var(--cobalt);
+  text-underline-offset: 3px;
+}
+
+code,
+pre {
+  font-family: var(--font-code);
+  font-size: var(--step--1);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--cobalt);
+  background: var(--cobalt);
+  color: #fff;
+  border-radius: var(--radius-s);
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--cobalt-deep);
+}
+
+.button.secondary {
+  background: var(--surface);
+  color: var(--cobalt);
+}
+
+.button.secondary:hover {
+  background: var(--cobalt-wash);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.field {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-s);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -1,0 +1,136 @@
+<section class="catalog">
+  <header class="search">
+    <h1>From the market stall to your door</h1>
+    <form role="search" (submit)="submitText($event)">
+      <label class="visually-hidden" for="search-text">Search products</label>
+      <input
+        id="search-text"
+        class="field"
+        type="search"
+        placeholder="Try café, aceite de oliva, alpargatas…"
+        [value]="draftText()"
+        (input)="draftText.set($any($event.target).value)"
+      />
+      <button class="button" type="submit">Search</button>
+    </form>
+  </header>
+
+  <aside class="refine" aria-label="Refine results">
+    <app-facet-group
+      title="Categories"
+      [multiple]="false"
+      [values]="categoryFacet()"
+      [selected]="search().category ? [search().category!] : []"
+      (toggled)="toggleCategory($event)"
+    />
+    <app-facet-group
+      title="Sellers"
+      [values]="facetValues()?.sellers ?? []"
+      [selected]="search().sellers"
+      (toggled)="toggleSeller($event)"
+    />
+    <app-facet-group
+      title="Tags"
+      [values]="facetValues()?.tags ?? []"
+      [selected]="search().tags"
+      (toggled)="toggleTag($event)"
+    />
+    <fieldset class="price">
+      <legend>Price (€)</legend>
+      <div class="range">
+        <label>
+          From
+          <input
+            class="field"
+            type="number"
+            min="0"
+            step="1"
+            [placeholder]="facetValues()?.price?.min ?? ''"
+            (change)="setPrice('minPrice', $any($event.target).value)"
+          />
+        </label>
+        <label>
+          To
+          <input
+            class="field"
+            type="number"
+            min="0"
+            step="1"
+            [placeholder]="facetValues()?.price?.max ?? ''"
+            (change)="setPrice('maxPrice', $any($event.target).value)"
+          />
+        </label>
+      </div>
+    </fieldset>
+    @if (hasFilters()) {
+      <button class="button secondary" type="button" (click)="clear()">Clear filters</button>
+    }
+  </aside>
+
+  <div class="results">
+    <div class="toolbar">
+      <p class="count" aria-live="polite">
+        @if (resultsPage(); as page) {
+          {{ page.totalElements }} {{ page.totalElements === 1 ? 'product' : 'products' }}
+        } @else if (results.isLoading()) {
+          Searching…
+        }
+      </p>
+      <label>
+        Sort by
+        <select class="field" [value]="search().sort" (change)="setSort($any($event.target).value)">
+          @for (choice of sortChoices; track choice) {
+            <option [value]="choice" [selected]="choice === search().sort">
+              {{ sortLabels[choice] }}
+            </option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (problem(); as problem) {
+      <app-problem-alert [problem]="problem" />
+    }
+
+    @if (resultsPage(); as page) {
+      @if (page.content.length) {
+        <ul class="grid">
+          @for (product of page.content; track product.id) {
+            <li><app-product-card [product]="product" /></li>
+          }
+        </ul>
+        @if (page.totalPages > 1) {
+          <nav class="pager" aria-label="Pages">
+            <button
+              class="button secondary"
+              type="button"
+              [disabled]="page.page === 0"
+              (click)="goToPage(page.page - 1)"
+            >
+              Previous
+            </button>
+            <span>Page {{ page.page + 1 }} of {{ page.totalPages }}</span>
+            <button
+              class="button secondary"
+              type="button"
+              [disabled]="page.page + 1 >= page.totalPages"
+              (click)="goToPage(page.page + 1)"
+            >
+              Next
+            </button>
+          </nav>
+        }
+      } @else {
+        <div class="empty panel">
+          <h2>No stall has that right now</h2>
+          <p>Try another word or remove some filters.</p>
+        </div>
+      }
+    }
+
+    <details class="request">
+      <summary>Request sent to the API</summary>
+      <code>GET /api/catalog/products?{{ readableQuery() }}</code>
+    </details>
+  </div>
+</section>

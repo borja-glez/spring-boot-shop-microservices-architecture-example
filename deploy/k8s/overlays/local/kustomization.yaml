@@ -1,0 +1,61 @@
+# Local cluster (Kubernetes of Docker Desktop). Images come from the local Docker daemon:
+#   ./gradlew buildImages && docker build -t shop/frontend:0.1.0-SNAPSHOT frontend
+#   kubectl apply -k deploy/k8s/overlays/local
+# Shop at http://localhost:4200, gateway at http://localhost:8080.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Demo fault injection (/chaos in the shop): the chaos endpoints exist only with this flag.
+configMapGenerator:
+  - name: shop-demo
+    namespace: shop
+    literals:
+      - SHOP_CHAOS_ENABLED=true
+
+images:
+  - name: shop/catalog-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/orders-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/inventory-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/payments-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/notifications-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/reporting-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/gateway-service
+    newTag: 0.1.0-SNAPSHOT
+  - name: shop/frontend
+    newTag: 0.1.0-SNAPSHOT
+
+patches:
+  # Docker Desktop publishes LoadBalancer services on localhost.
+  - target:
+      kind: Service
+      name: (gateway-service|frontend)
+    patch: |-
+      - op: add
+        path: /spec/type
+        value: LoadBalancer
+  # Locally built images are never pulled from a registry.
+  - target:
+      kind: Deployment
+      name: (catalog-service|orders-service|inventory-service|payments-service|notifications-service|reporting-service|gateway-service|frontend)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: (catalog-service|orders-service|inventory-service|payments-service)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom
+        value:
+          - configMapRef:
+              name: shop-demo

@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="890" viewBox="0 0 1200 890" role="img" aria-labelledby="title desc">
+<title id="title">Mercado architecture</title>
+<desc id="desc">Browser, nginx frontend, Spring Cloud Gateway, six Spring Boot services each with its own PostgreSQL database, RabbitMQ commands for the checkout saga, Kafka integration events on shop.events, Server-Sent Events back to the browser and an OpenTelemetry observability stack.</desc>
+<defs>
+<filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.45"/></filter>
+<filter id="gl" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f141b"/><stop offset="1" stop-color="#0d1117"/></linearGradient>
+<marker id="a-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#58a6ff"/></marker><marker id="a-orange" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#f0883e"/></marker><marker id="a-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#d29922"/></marker><marker id="a-teal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#39c5bb"/></marker><marker id="a-purple" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#bc8cff"/></marker><marker id="a-green" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#3fb950"/></marker><marker id="a-red" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#f85149"/></marker><marker id="a-pink" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#db61a2"/></marker><marker id="a-muted" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#8b949e"/></marker><marker id="a-text" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#e6edf3"/></marker>
+</defs>
+<style>
+text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
+.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+.mu{fill:#8b949e}
+.b{font-weight:600}
+.flow{stroke-dasharray:6 5;animation:dash 1.1s linear infinite}
+.flowr{stroke-dasharray:6 5;animation:dashr 1.1s linear infinite}
+.slow{stroke-dasharray:3 5;animation:dash 2.2s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-11}}
+@keyframes dashr{to{stroke-dashoffset:11}}
+.pulse{animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.15}50%{opacity:.75}}
+</style>
+<rect x="0.5" y="0.5" width="1199" height="889" rx="16" fill="url(#panel)" stroke="#30363d"/>
+
+<text x="40" y="48" font-size="24" fill="#e6edf3" font-weight="700">Mercado</text>
+<text x="146" y="48" font-size="24" fill="#8b949e" font-weight="400">marketplace microservices</text>
+<text x="40" y="72" font-size="13" class="mu">Spring Boot 4 · database-per-service · CQRS + event sourcing · saga · transactional outbox</text>
+<rect x="894" y="40" width="266" height="20" rx="10.0" fill="#db61a2" fill-opacity="0.12" stroke="#db61a2" stroke-opacity="0.7" stroke-width="1"/><text x="1027.0" y="53.96" font-size="11" class="mono" fill="#db61a2" text-anchor="middle">spring-boot-specification-repository</text>
+<rect x="755" y="40" width="129" height="20" rx="10.0" fill="#3fb950" fill-opacity="0.12" stroke="#3fb950" stroke-opacity="0.7" stroke-width="1"/><text x="819.5" y="53.96" font-size="11" class="mono" fill="#3fb950" text-anchor="middle">spring-boot-cqrs</text>
+<rect x="45" y="650" width="1110" height="170" rx="14" fill="#14111c" stroke="#bc8cff" stroke-width="1" stroke-dasharray="4 4" />
+<path d="M235,118 H333" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M335,142 H237" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)" class="flow"/>
+<path d="M615,118 H713" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M715,142 H617" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)" class="flow"/>
+<path d="M815,162 V210" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M125,210 H1075" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="815" cy="210" r="3" fill="#58a6ff"/>
+<path d="M125,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M315,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M505,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M695,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M885,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M1075,210 V248" fill="none" stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-blue)"/>
+<path d="M375,380 V418" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M445,380 V418" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M565,380 V418" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M635,380 V418" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M125,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-orange)" class="flow"/>
+<path d="M265,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-orange)" marker-start="url(#a-orange)" class="flow"/>
+<path d="M499,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-orange)" marker-start="url(#a-orange)" class="flow"/>
+<path d="M745,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-orange)" class="flow"/>
+<path d="M885,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-start="url(#a-orange)" class="flow"/>
+<path d="M1075,382 V538" fill="none" stroke="#f0883e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-start="url(#a-orange)" class="flow"/>
+<path d="M60,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M250,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M511,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M760,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M820,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M1010,380 V618" stroke="#bc8cff" stroke-width="1.2" opacity=".55" stroke-dasharray="2 4"/>
+<path d="M60,618 H1010" stroke="#bc8cff" stroke-width="1.6" opacity=".8"/>
+<path d="M300,618 V690" fill="none" stroke="#bc8cff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M420,732 H470 V686 H518" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M760,686 H810 V732 H858" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M420,732 H470 V734 H518" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M760,734 H810 V732 H858" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M420,732 H470 V782 H518" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<path d="M760,782 H810 V732 H858" fill="none" stroke="#bc8cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a-purple)"/>
+<circle r="4" fill="#58a6ff" filter="url(#gl)" opacity="0"><animateMotion dur="6.6s" begin="0s" repeatCount="indefinite" path="M140,118 L815,118 L815,210 L505,210 L505,280" keyPoints="0;1;1" keyTimes="0;1.159;1" calcMode="linear"/><animate attributeName="opacity" dur="6.6s" begin="0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;1.119;1.159;1"/></circle>
+<circle r="4" fill="#58a6ff" filter="url(#gl)" opacity="0"><animateMotion dur="6.6s" begin="2.2s" repeatCount="indefinite" path="M140,118 L815,118 L815,210 L125,210 L125,280" keyPoints="0;1;1" keyTimes="0;1.542;1" calcMode="linear"/><animate attributeName="opacity" dur="6.6s" begin="2.2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;1.502;1.542;1"/></circle>
+<circle r="4" fill="#58a6ff" filter="url(#gl)" opacity="0"><animateMotion dur="6.6s" begin="4.4s" repeatCount="indefinite" path="M140,118 L815,118 L815,210 L1075,210 L1075,280" keyPoints="0;1;1" keyTimes="0;1.108;1" calcMode="linear"/><animate attributeName="opacity" dur="6.6s" begin="4.4s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;1.068;1.108;1"/></circle>
+<circle r="3.5" fill="#a5d6ff" filter="url(#gl)" opacity="0"><animateMotion dur="6.6s" begin="3.3s" repeatCount="indefinite" path="M875,280 L875,218 L825,218 L825,142 L140,142" keyPoints="0;1;1" keyTimes="0;0.882;1" calcMode="linear"/><animate attributeName="opacity" dur="6.6s" begin="3.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.842;0.882;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="0.0s" repeatCount="indefinite" path="M60,380 L60,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.460;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="0.0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.420;0.460;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="1.3s" repeatCount="indefinite" path="M250,380 L250,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.302;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="1.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.262;0.302;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="2.6s" repeatCount="indefinite" path="M511,380 L511,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.436;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.396;0.436;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="3.9000000000000004s" repeatCount="indefinite" path="M760,380 L760,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.643;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="3.9000000000000004s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.603;0.643;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="5.2s" repeatCount="indefinite" path="M820,380 L820,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.693;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="5.2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.653;0.693;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="8s" begin="6.5s" repeatCount="indefinite" path="M1010,380 L1010,618 L300,618 L300,692" keyPoints="0;1;1" keyTimes="0;0.852;1" calcMode="linear"/><animate attributeName="opacity" dur="8s" begin="6.5s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.812;0.852;1"/></circle>
+<rect x="45" y="96" width="190" height="66" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="61" y="124" font-size="15" fill="#e6edf3" font-weight="600">Browser</text>
+<text x="61" y="145" font-size="12" class="mu">Angular SPA</text>
+<rect x="335" y="96" width="280" height="66" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="351" y="124" font-size="15" fill="#e6edf3" font-weight="600">frontend</text>
+<text x="424.2" y="124" font-size="12" class="mono" fill="#58a6ff">:4200</text>
+<text x="351" y="145" font-size="12" class="mu">nginx · Angular 22 SPA</text>
+<rect x="715" y="96" width="260" height="66" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="731" y="124" font-size="15" fill="#e6edf3" font-weight="600">gateway-service</text>
+<text x="863.0" y="124" font-size="12" class="mono" fill="#58a6ff">:8080</text>
+<text x="731" y="145" font-size="12" class="mu">Spring Cloud Gateway Server MVC</text>
+<rect x="712" y="93" width="266" height="72" rx="15" fill="none" stroke="#58a6ff" stroke-width="2" class="pulse" style="animation-delay:0s"/>
+<circle cx="931" cy="114" r="3.5" fill="#bc8cff"/>
+<text x="939" y="118" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="1000" y="96" width="160" height="66" rx="12" fill="#161b22" stroke="#39c5bb" stroke-width="1.1" filter="url(#sh)" />
+<path d="M1014,116.16 v25.68 a13.0,4.16 0 0 0 26,0 v-25.68" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="1027.0" cy="116.16" rx="13.0" ry="4.16" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="1050" y="125" font-size="13" fill="#e6edf3" font-weight="600">PostgreSQL</text>
+<text x="1050" y="143" font-size="11" class="mu">1 server · 1 DB</text>
+<text x="1050" y="156" font-size="11" class="mu">+ user per service</text>
+<text x="285" y="110" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">HTTPS</text>
+<text x="665" y="110" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">/api/**</text>
+<text x="285" y="158" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">SSE</text>
+<text x="665" y="158" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">SSE</text>
+<text x="825" y="194" font-size="11" class="mono" fill="#58a6ff">routes /api/** by path</text>
+<rect x="45" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="57" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">catalog-service</text>
+<text x="57" y="295" font-size="12" class="mono" fill="#58a6ff">:8081</text>
+<rect x="145" y="283" width="48" height="17" rx="8.5" fill="#58a6ff" fill-opacity=".12" stroke="#58a6ff" stroke-opacity=".8"/>
+<text x="169.0" y="295.5" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">Boot 4</text>
+<text x="57" y="314" font-size="11.5" class="mu">products · facets</text>
+<path d="M46,328 H204" stroke="#30363d"/>
+<path d="M59,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="70.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="89" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="89" y="367" font-size="12" class="mono" fill="#39c5bb">catalog</text>
+<circle cx="165" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="173" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="235" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="247" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">inventory-service</text>
+<text x="247" y="295" font-size="12" class="mono" fill="#58a6ff">:8083</text>
+<rect x="335" y="283" width="48" height="17" rx="8.5" fill="#58a6ff" fill-opacity=".12" stroke="#58a6ff" stroke-opacity=".8"/>
+<text x="359.0" y="295.5" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">Boot 4</text>
+<text x="247" y="314" font-size="11.5" class="mu">stock reservations</text>
+<path d="M236,328 H394" stroke="#30363d"/>
+<path d="M249,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="260.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="279" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="279" y="367" font-size="12" class="mono" fill="#39c5bb">inventory</text>
+<circle cx="355" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="363" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="425" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="437" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">orders-service</text>
+<text x="437" y="295" font-size="12" class="mono" fill="#58a6ff">:8082</text>
+<rect x="525" y="283" width="48" height="17" rx="8.5" fill="#58a6ff" fill-opacity=".12" stroke="#58a6ff" stroke-opacity=".8"/>
+<text x="549.0" y="295.5" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">Boot 4</text>
+<text x="437" y="314" font-size="11.5" class="mu">saga · event-sourced</text>
+<path d="M426,328 H584" stroke="#30363d"/>
+<path d="M439,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="450.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="469" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="469" y="367" font-size="12" class="mono" fill="#39c5bb">orders</text>
+<circle cx="545" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="553" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="615" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="627" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">payments-service</text>
+<text x="627" y="295" font-size="12" class="mono" fill="#58a6ff">:8084</text>
+<rect x="715" y="283" width="48" height="17" rx="8.5" fill="#58a6ff" fill-opacity=".12" stroke="#58a6ff" stroke-opacity=".8"/>
+<text x="739.0" y="295.5" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">Boot 4</text>
+<text x="627" y="314" font-size="11.5" class="mu">event-sourced</text>
+<path d="M616,328 H774" stroke="#30363d"/>
+<path d="M629,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="640.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="659" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="659" y="367" font-size="12" class="mono" fill="#39c5bb">payments</text>
+<circle cx="735" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="743" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="805" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="817" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">notifications-service</text>
+<text x="817" y="295" font-size="12" class="mono" fill="#58a6ff">:8085</text>
+<rect x="895" y="283" width="58" height="17" rx="8.5" fill="#8b949e" fill-opacity=".12" stroke="#8b949e" stroke-opacity=".8"/>
+<text x="924.0" y="295.5" font-size="10" class="mono" fill="#e6edf3" text-anchor="middle">Boot 3.5</text>
+<text x="817" y="314" font-size="11.5" class="mu">SSE push · Jackson 2</text>
+<path d="M806,328 H964" stroke="#30363d"/>
+<path d="M819,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="830.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="849" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="849" y="367" font-size="12" class="mono" fill="#39c5bb">notifications</text>
+<circle cx="925" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="933" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="995" y="250" width="160" height="130" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
+<text x="1007" y="275" font-size="13.5" fill="#e6edf3" font-weight="600">reporting-service</text>
+<text x="1007" y="295" font-size="12" class="mono" fill="#58a6ff">:8086</text>
+<rect x="1095" y="283" width="48" height="17" rx="8.5" fill="#58a6ff" fill-opacity=".12" stroke="#58a6ff" stroke-opacity=".8"/>
+<text x="1119.0" y="295.5" font-size="10" class="mono" fill="#58a6ff" text-anchor="middle">Boot 4</text>
+<text x="1007" y="314" font-size="11.5" class="mu">replayable reports</text>
+<path d="M996,328 H1154" stroke="#30363d"/>
+<path d="M1009,341.52 v22.96 a11.0,3.52 0 0 0 22,0 v-22.96" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="1020.0" cy="341.52" rx="11.0" ry="3.52" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/>
+<text x="1039" y="352" font-size="10" class="mu">PostgreSQL</text>
+<text x="1039" y="367" font-size="12" class="mono" fill="#39c5bb">reporting</text>
+<circle cx="1115" cy="348" r="3.5" fill="#bc8cff"/>
+<text x="1123" y="352" font-size="10" class="mono" fill="#bc8cff">otel</text>
+<rect x="422" y="247" width="166" height="136" rx="15" fill="none" stroke="#58a6ff" stroke-width="2" class="pulse" style="animation-delay:1.2s"/>
+<rect x="285" y="418" width="203" height="100" rx="12" fill="#1a1712" stroke="#d29922" stroke-width="1.2" filter="url(#sh)" />
+<rect x="320.5" y="444" width="132" height="20" rx="5" fill="#d29922" fill-opacity="0.10" stroke="#d29922" stroke-opacity="0.55"/><text x="386.5" y="457.96" font-size="11" class="mono" fill="#d29922" text-anchor="middle">ReserveStock</text>
+<rect x="320.5" y="469" width="132" height="20" rx="5" fill="#d29922" fill-opacity="0.10" stroke="#d29922" stroke-opacity="0.55"/><text x="386.5" y="482.96" font-size="11" class="mono" fill="#d29922" text-anchor="middle">ReleaseStock</text>
+<text x="386.5" y="508" font-size="11" fill="#d29922" text-anchor="middle">RabbitMQ · request / reply</text>
+<rect x="522" y="418" width="203" height="100" rx="12" fill="#1a1712" stroke="#d29922" stroke-width="1.2" filter="url(#sh)" />
+<rect x="557.5" y="444" width="132" height="20" rx="5" fill="#d29922" fill-opacity="0.10" stroke="#d29922" stroke-opacity="0.55"/><text x="623.5" y="457.96" font-size="11" class="mono" fill="#d29922" text-anchor="middle">AuthorizePayment</text>
+<rect x="557.5" y="469" width="132" height="20" rx="5" fill="#d29922" fill-opacity="0.10" stroke="#d29922" stroke-opacity="0.55"/><text x="623.5" y="482.96" font-size="11" class="mono" fill="#d29922" text-anchor="middle">RefundPayment</text>
+<text x="623.5" y="508" font-size="11" fill="#d29922" text-anchor="middle">RabbitMQ · request / reply</text>
+<rect x="45" y="540" width="1110" height="56" rx="12" fill="#1b1510" stroke="#f0883e" stroke-width="1.2" filter="url(#sh)" />
+<path d="M60,550 H1140" stroke="#f0883e" stroke-width="1.2" opacity=".55" class="flow"/>
+<text x="600" y="570" font-size="14" fill="#f0883e" font-weight="600" text-anchor="middle">Kafka  ·  topic shop.events</text>
+<text x="600" y="587" font-size="11" class="mu" text-anchor="middle">integration events · written through the transactional outbox (event_store → OutboxRelay) · at-least-once · idempotent consumers</text>
+<text x="135" y="470" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">produces</text>
+<text x="135" y="485" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">product events</text>
+<text x="895" y="470" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">order + payment</text>
+<text x="895" y="485" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">events → SSE</text>
+<text x="1085" y="470" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">order events</text>
+<text x="1085" y="485" font-size="10.5" class="mono" fill="#f0883e" opacity="0.9">replay from 0</text>
+<text x="310" y="640" font-size="11" class="mono" fill="#bc8cff">OTLP/HTTP :4318 · traces · metrics · logs</text>
+<text x="1139" y="672" font-size="12" fill="#bc8cff" font-weight="600" text-anchor="end">Observability · grafana/otel-lgtm</text>
+<rect x="180" y="692" width="240" height="80" rx="12" fill="#161b22" stroke="#bc8cff" stroke-width="1.2" filter="url(#sh)" />
+<text x="300" y="726" font-size="14" fill="#e6edf3" font-weight="600" text-anchor="middle">OpenTelemetry Collector</text>
+<text x="300" y="747" font-size="11" class="mu" text-anchor="middle">receives OTLP from every service</text>
+<rect x="520" y="666" width="240" height="40" rx="12" fill="#161b22" stroke="#bc8cff" stroke-width="1.2" filter="url(#sh)" />
+<text x="536" y="691" font-size="13.5" fill="#e6edf3" font-weight="600">Tempo</text>
+<text x="744" y="691" font-size="12" class="mono" fill="#bc8cff" text-anchor="end">traces</text>
+<rect x="520" y="714" width="240" height="40" rx="12" fill="#161b22" stroke="#bc8cff" stroke-width="1.2" filter="url(#sh)" />
+<text x="536" y="739" font-size="13.5" fill="#e6edf3" font-weight="600">Prometheus</text>
+<text x="744" y="739" font-size="12" class="mono" fill="#bc8cff" text-anchor="end">metrics</text>
+<rect x="520" y="762" width="240" height="40" rx="12" fill="#161b22" stroke="#bc8cff" stroke-width="1.2" filter="url(#sh)" />
+<text x="536" y="787" font-size="13.5" fill="#e6edf3" font-weight="600">Loki</text>
+<text x="744" y="787" font-size="12" class="mono" fill="#bc8cff" text-anchor="end">logs</text>
+<rect x="860" y="692" width="240" height="80" rx="12" fill="#161b22" stroke="#bc8cff" stroke-width="1.2" filter="url(#sh)" />
+<text x="880" y="718" font-size="14" fill="#e6edf3" font-weight="600">Grafana</text>
+<text x="944" y="718" font-size="12" class="mono" fill="#bc8cff">:3000</text>
+<text x="880" y="738" font-size="11.5" class="mu">dashboards · alert rules</text>
+<text x="880" y="756" font-size="11.5" class="mu">trace ↔ logs ↔ metrics</text>
+<rect x="857" y="689" width="246" height="86" rx="15" fill="none" stroke="#bc8cff" stroke-width="2" class="pulse" style="animation-delay:0.6s"/>
+<text x="61" y="800" font-size="11" class="mono" fill="#bc8cff">one order = one distributed trace</text>
+<text x="61" y="784" font-size="11" class="mono" fill="#bc8cff">logs carry trace_id</text>
+<path d="M375,380 V430 H445 V380" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linejoin="round"/>
+<circle cx="375" cy="430" r="2.6" fill="#d29922"/>
+<circle cx="445" cy="430" r="2.6" fill="#d29922"/>
+<path d="M565,380 V430 H635 V380" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linejoin="round"/>
+<circle cx="565" cy="430" r="2.6" fill="#d29922"/>
+<circle cx="635" cy="430" r="2.6" fill="#d29922"/>
+<circle r="4" fill="#d29922" filter="url(#gl)" opacity="0"><animateMotion dur="6s" begin="0.8s" repeatCount="indefinite" path="M445,374 L445,430 L375,430 L375,374" keyPoints="0;1;1" keyTimes="0;0.220;1" calcMode="linear"/><animate attributeName="opacity" dur="6s" begin="0.8s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.180;0.220;1"/></circle>
+<circle r="3" fill="#f2cc60" filter="url(#gl)" opacity="0"><animateMotion dur="6s" begin="2.3s" repeatCount="indefinite" path="M375,374 L375,430 L445,430 L445,374" keyPoints="0;1;1" keyTimes="0;0.220;1" calcMode="linear"/><animate attributeName="opacity" dur="6s" begin="2.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.180;0.220;1"/></circle>
+<circle r="4" fill="#d29922" filter="url(#gl)" opacity="0"><animateMotion dur="6s" begin="3.8s" repeatCount="indefinite" path="M565,374 L565,430 L635,430 L635,374" keyPoints="0;1;1" keyTimes="0;0.220;1" calcMode="linear"/><animate attributeName="opacity" dur="6s" begin="3.8s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.180;0.220;1"/></circle>
+<circle r="3" fill="#f2cc60" filter="url(#gl)" opacity="0"><animateMotion dur="6s" begin="5.3s" repeatCount="indefinite" path="M635,374 L635,430 L565,430 L565,374" keyPoints="0;1;1" keyTimes="0;0.220;1" calcMode="linear"/><animate attributeName="opacity" dur="6s" begin="5.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.180;0.220;1"/></circle>
+<circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="7s" begin="0.5s" repeatCount="indefinite" path="M499,380 L499,550 L1075,550 L1075,380" keyPoints="0;1;1" keyTimes="0;0.770;1" calcMode="linear"/><animate attributeName="opacity" dur="7s" begin="0.5s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.730;0.770;1"/></circle>
+<circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="7s" begin="2.0s" repeatCount="indefinite" path="M499,380 L499,550 L885,550 L885,380" keyPoints="0;1;1" keyTimes="0;0.610;1" calcMode="linear"/><animate attributeName="opacity" dur="7s" begin="2.0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.570;0.610;1"/></circle>
+<circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="7s" begin="3.1s" repeatCount="indefinite" path="M125,380 L125,550 L265,550 L265,380" keyPoints="0;1;1" keyTimes="0;0.403;1" calcMode="linear"/><animate attributeName="opacity" dur="7s" begin="3.1s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.363;0.403;1"/></circle>
+<circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="7s" begin="4.3s" repeatCount="indefinite" path="M745,380 L745,550 L885,550 L885,380" keyPoints="0;1;1" keyTimes="0;0.403;1" calcMode="linear"/><animate attributeName="opacity" dur="7s" begin="4.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.363;0.403;1"/></circle>
+<circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="7s" begin="5.2s" repeatCount="indefinite" path="M125,380 L125,550 L499,550 L499,380" keyPoints="0;1;1" keyTimes="0;0.600;1" calcMode="linear"/><animate attributeName="opacity" dur="7s" begin="5.2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.560;0.600;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="0.0s" repeatCount="indefinite" path="M420,732 L470,732 L470,686 L520,686" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="0.0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="2.0s" repeatCount="indefinite" path="M760,686 L810,686 L810,732 L860,732" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="2.0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="1.3s" repeatCount="indefinite" path="M420,732 L470,732 L470,734 L520,734" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="1.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="3.3s" repeatCount="indefinite" path="M760,734 L810,734 L810,732 L860,732" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="3.3s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="2.6s" repeatCount="indefinite" path="M420,732 L470,732 L470,782 L520,782" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<circle r="3" fill="#bc8cff" filter="url(#gl)" opacity="0"><animateMotion dur="4s" begin="4.6s" repeatCount="indefinite" path="M760,782 L810,782 L810,732 L860,732" keyPoints="0;1;1" keyTimes="0;0.450;1" calcMode="linear"/><animate attributeName="opacity" dur="4s" begin="4.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.410;0.450;1"/></circle>
+<path d="M60,858 h26" stroke="#58a6ff" stroke-width="2" marker-end="url(#a-blue)"/><circle cx="70" cy="858" r="3.2" fill="#58a6ff" filter="url(#gl)"/><text x="98" y="862" font-size="12" class="mu">HTTP</text><path d="M150.4,858 h28" stroke="#58a6ff" stroke-width="2" class="flow"/><text x="188.4" y="862" font-size="12" class="mu">SSE push</text><path d="M267.2,858 h26" stroke="#d29922" stroke-width="2" marker-end="url(#a-amber)"/><circle cx="277.2" cy="858" r="3.2" fill="#d29922" filter="url(#gl)"/><text x="305.2" y="862" font-size="12" class="mu">RabbitMQ command (request/reply)</text><path d="M542.4,858 h28" stroke="#f0883e" stroke-width="2" class="flow"/><text x="580.4" y="862" font-size="12" class="mu">Kafka integration event</text><path d="M758.1999999999999,858 h26" stroke="#bc8cff" stroke-width="2" marker-end="url(#a-purple)"/><circle cx="768.1999999999999" cy="858" r="3.2" fill="#bc8cff" filter="url(#gl)"/><text x="796.1999999999999" y="862" font-size="12" class="mu">OTLP telemetry</text><path d="M917.5999999999999,851.56 v12.879999999999999 a8.0,2.56 0 0 0 16,0 v-12.879999999999999" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><ellipse cx="925.5999999999999" cy="851.56" rx="8.0" ry="2.56" fill="#1c2128" stroke="#39c5bb" stroke-width="1.3"/><text x="942.5999999999999" y="862" font-size="12" class="mu">PostgreSQL database</text>
+</svg>

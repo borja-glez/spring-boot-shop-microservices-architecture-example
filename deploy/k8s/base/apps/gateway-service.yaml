@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  labels:
+    app.kubernetes.io/name: gateway-service
+spec:
+  selector:
+    app.kubernetes.io/name: gateway-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  labels:
+    app.kubernetes.io/name: gateway-service
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway-service
+    spec:
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: shop/gateway-service
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # Requests run on virtual threads; the Paketo memory calculator only needs stack
+            # space for a few platform threads (default 250 would eat most of the limit).
+            - name: BPL_JVM_THREAD_COUNT
+              value: "50"
+            - name: CATALOG_URI
+              value: http://catalog-service:8081
+            - name: ORDERS_URI
+              value: http://orders-service:8082
+            - name: INVENTORY_URI
+              value: http://inventory-service:8083
+            - name: PAYMENTS_URI
+              value: http://payments-service:8084
+            - name: NOTIFICATIONS_URI
+              value: http://notifications-service:8085
+            - name: REPORTING_URI
+              value: http://reporting-service:8086
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

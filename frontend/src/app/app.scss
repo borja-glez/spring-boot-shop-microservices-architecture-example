@@ -1,0 +1,86 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 32px;
+  padding: 12px var(--gutter);
+  background: var(--cobalt);
+  color: #fff;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step-2);
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-decoration: none;
+  /* The awning: a scalloped edge under the market name. */
+  padding-bottom: 6px;
+  background: radial-gradient(circle at 6px 100%, var(--tag) 5px, transparent 5.5px) repeat-x
+    bottom / 12px 6px;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  flex: 1;
+}
+
+nav a {
+  color: #dfe7f5;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+
+nav a:hover,
+nav a.active {
+  color: #fff;
+  border-bottom-color: var(--tag);
+}
+
+.bar app-user-switcher {
+  color: #dfe7f5;
+}
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 32px var(--gutter) 48px;
+}
+
+footer {
+  padding: 16px var(--gutter);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.cart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  min-width: 1.5em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--tag);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--step--1);
+  text-align: center;
+}

@@ -1,0 +1,3 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+  com.borjaglez.shop.support.autoconfigure.ShopDefaultsEnvironmentPostProcessor,\
+  com.borjaglez.shop.support.autoconfigure.OtlpExportEnvironmentPostProcessor

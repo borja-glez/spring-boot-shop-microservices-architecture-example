@@ -1,0 +1,170 @@
+# Alert rules of the shop, provisioned into Grafana (Alerting > Alert rules, folder "Shop").
+# Each rule watches one failure mode the architecture is designed to absorb, so it fires when the
+# safety net itself is being used for too long: a broker outage, a stuck compensation, a backlog.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: shop-platform
+    folder: Shop
+    interval: 30s
+    rules:
+      - uid: shop-http-errors
+        title: Server errors above 5%
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service_name }} answers more than 5% of its requests with 5xx"
+          description: >-
+            Client errors (4xx) are business answers and are not counted. Open the "Shop · Services
+            overview" dashboard and the service's latest errors in Loki; each log line links to its
+            trace.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                sum by (service_name) (rate(http_server_requests_milliseconds_count{status=~"5..",uri!~"/actuator.*|.*/stream|/api/notifications/[*][*]"}[5m]))
+                / sum by (service_name) (rate(http_server_requests_milliseconds_count{uri!~"/actuator.*|.*/stream|/api/notifications/[*][*]"}[5m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      - uid: shop-outbox-backlog
+        title: Events are not reaching Kafka
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "The oldest unpublished event of {{ $labels.service_name }} has waited over a minute"
+          description: >-
+            The transactional outbox keeps every event safe in the service's database, but other
+            services (read models, reports, notifications) stop seeing changes until Kafka is back.
+            Check the broker and the relay's "Could not publish event" warnings.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max by (service_name) (shop_outbox_oldest_age_seconds)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [60] }
+
+  - orgId: 1
+    name: shop-checkout
+    folder: Shop
+    interval: 30s
+    rules:
+      - uid: shop-stuck-sagas
+        title: Checkout compensations are stuck
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $values.A }} checkout saga(s) keep failing a compensation"
+          description: >-
+            A refund or a stock release failed 20 times in a row. The saga keeps retrying every 30 s
+            and finishes on its own once inventory or payments answers again, but money or stock is
+            held meanwhile. The order page shows the failing step and its last error.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(shop_checkout_sagas{state="stuck"})
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: shop-technical-rejections
+        title: Orders rejected because a service did not answer
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "Checkouts rejected with {{ $labels.reason }} in the last 10 minutes"
+          description: >-
+            The saga gave up on inventory or payments after its retries (about two minutes) and
+            rejected the order. The customer did nothing wrong: this is an availability problem.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum by (reason) (increase(shop_checkout_completed_total{outcome="rejected",reason=~".*-unavailable"}[10m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: shop-consumer-lag
+        title: Read models are falling behind
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "A Kafka consumer of {{ $labels.service_name }} is more than 1000 events behind"
+          description: >-
+            Its projections (order view, catalog copy, reports, notifications) are stale. Look for
+            failing handlers in the service's logs, or scale it out.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max by (service_name) (kafka_consumer_fetch_manager_records_lag_max)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [1000] }

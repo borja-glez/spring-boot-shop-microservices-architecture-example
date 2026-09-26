@@ -1,0 +1,4 @@
+com.borjaglez.shop.support.autoconfigure.ShopWebAutoConfiguration
+com.borjaglez.shop.support.autoconfigure.ShopChaosAutoConfiguration
+com.borjaglez.shop.support.autoconfigure.ShopOtlpAutoConfiguration
+com.borjaglez.shop.support.autoconfigure.ShopTracingAutoConfiguration

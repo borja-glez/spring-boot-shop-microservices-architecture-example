@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: payments-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:payments}
+    username: ${DB_USER:payments}
+    password: ${DB_PASSWORD:payments}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000 # ms (Hikari binds a long, not a Duration)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    locations: classpath:db/migration,classpath:db/eskit
+    # Service (V1, V2...) and es-kit (V1000, V1000.1...) migrations share one history.
+    out-of-order: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:shop}
+    password: ${RABBIT_PASSWORD:shop-dev}
+
+server:
+  port: ${SERVER_PORT:8084}
+
+cqrs:
+  naming:
+    prefix: shop
+  kafka:
+    prefix: shop
+    # Kafka carries integration events only.
+    commands:
+      enabled: false
+    queries:
+      enabled: false
+  rabbitmq:
+    # RabbitMQ carries the commands of the checkout saga (request and reply).
+    prefix: shop
+    # Only the shared contracts and plain Java types may be deserialized (trusted-packages
+    # allow-list). Spring
+    # AMQP compares whole package names: subpackages must be listed one by one.
+    trusted-packages:
+      - com.borjaglez.shop.contracts.inventory
+      - com.borjaglez.shop.contracts.payments
+      - com.borjaglez.shop.contracts.orders
+      - java.util
+      - java.lang
+
+shop:
+  chaos:
+    # Demo fault injection (/api/payments/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    service: payments
+    messages: AuthorizePayment, RefundPayment
+  payments:
+    # Demo rule: amounts above the card limit are declined with card-limit-exceeded.
+    card-limit: ${PAYMENTS_CARD_LIMIT:300}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+
+info:
+  service:
+    description: Event-sourced card payments authorized and refunded by the checkout saga

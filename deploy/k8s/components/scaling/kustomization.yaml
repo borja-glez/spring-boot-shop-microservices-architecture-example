@@ -1,0 +1,106 @@
+# Horizontal scaling for the stateless request path: two replicas of the gateway and of the four
+# services that own the checkout, spread across nodes, protected by PodDisruptionBudgets and scaled
+# on CPU by HorizontalPodAutoscalers (they need a metrics server in the cluster).
+#   components: [../../components/scaling]
+#
+# Why these services can run several replicas:
+# - HTTP is stateless: no session, the user travels in a header, the correlation id in another.
+# - The outbox relay locks the rows it publishes (FOR UPDATE SKIP LOCKED): replicas share the
+#   backlog without publishing an event twice.
+# - The checkout saga runners claim due sagas with a lease (also SKIP LOCKED): each saga runs on
+#   one replica at a time, and another one takes it over if that replica dies.
+# - Kafka consumers of one service share a consumer group, so each event reaches one replica; the
+#   idempotent consumers absorb redeliveries during rebalances.
+# - RabbitMQ commands are competing consumers on one queue per command type.
+# notifications-service (SSE connections held in memory) and reporting-service (rebuild pauses its
+# single consumer) stay at one replica.
+#
+# Database connections: 5 services x 3 replicas (+1 during a rolling update) x a pool of 10 stays
+# within Postgres' max_connections=250.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - disruption-budgets.yaml
+  - autoscalers.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: (gateway-service|catalog-service|orders-service|inventory-service|payments-service)
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+  - target:
+      kind: Deployment
+      name: gateway-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: gateway-service
+  - target:
+      kind: Deployment
+      name: catalog-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: catalog-service
+  - target:
+      kind: Deployment
+      name: orders-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: orders-service
+  - target:
+      kind: Deployment
+      name: inventory-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: inventory-service
+  - target:
+      kind: Deployment
+      name: payments-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: payments-service

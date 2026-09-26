@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - postgres.yaml
+  - rabbitmq.yaml
+  - kafka.yaml
+  - kafka-ui.yaml
+
+# One database and owner per service. Docker Compose mounts the same script.
+configMapGenerator:
+  - name: postgres-init
+    files:
+      - 01-databases.sh=postgres-init/01-databases.sh
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: notifications-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:notifications}
+    username: ${DB_USER:notifications}
+    password: ${DB_PASSWORD:notifications}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000
+      # Same as the Boot 4 services (ShopDefaultsEnvironmentPostProcessor): never wait forever on a
+      # connection to a database that went away.
+      data-source-properties:
+        socketTimeout: 30
+        tcpKeepAlive: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+    # Continue the trace of each event (the Boot 4 services get this from service-support).
+    listener:
+      observation-enabled: true
+    template:
+      observation-enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+    # SSE connections stay open; the async timeout is set per emitter.
+    async:
+      request-timeout: -1
+
+server:
+  port: ${SERVER_PORT:8085}
+  shutdown: graceful
+
+cqrs:
+  naming:
+    prefix: shop
+  kafka:
+    prefix: shop
+    # This service only listens to integration events.
+    commands:
+      enabled: false
+    queries:
+      enabled: false
+
+management:
+  # Traces for every request; exported only when MANAGEMENT_OTLP_TRACING_ENDPOINT is set, and logs
+  # only with MANAGEMENT_OTLP_LOGGING_ENDPOINT (compose.observability.yaml). The OTLP meter registry
+  # stays off unless enabled there too.
+  tracing:
+    sampling:
+      probability: 1.0
+  metrics:
+    distribution:
+      # Latency buckets for the dashboards (see ShopDefaultsEnvironmentPostProcessor).
+      percentiles-histogram:
+        http.server.requests: true
+        cqrs.bus: true
+        shop: true
+  otlp:
+    metrics:
+      export:
+        enabled: false
+        step: 10s
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,cqrs
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+info:
+  service:
+    description: Live order and payment notices (Spring Boot 3.5, Jackson 2)
