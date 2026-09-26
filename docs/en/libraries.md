@@ -1,12 +1,12 @@
 # The libraries in practice
 
-Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central in version 0.3.0: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
+Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central in version 0.3.1: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
 
 <p align="center"><img src="../assets/diagrams/libraries.svg" alt="How spring-boot-cqrs and spring-boot-specification-repository serve one request" width="100%"></p>
 
 ## Dependencies
 
-Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.3.0"`, `specrepo = "0.3.0"`).
+Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.3.1"`, `specrepo = "0.3.1"`).
 
 | Artifact | Used by | Purpose |
 |---|---|---|
