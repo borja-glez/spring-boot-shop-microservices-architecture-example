@@ -8,7 +8,7 @@ Mercado ejecuta las mismas imágenes de contenedor de tres formas: la infraestru
 
 | Herramienta | Necesaria para |
 |---|---|
-| JDK 21 | Compilar y ejecutar los servicios (la toolchain de Gradle lo exige). Usa siempre el wrapper, `./gradlew`. |
+| JDK 25 | Compilar y ejecutar los servicios (la toolchain de Gradle lo exige). Usa siempre el wrapper, `./gradlew`. |
 | Docker (Docker Desktop en Windows y macOS) | Infraestructura, imágenes, tests basados en Testcontainers |
 | Node 24 | Solo para el desarrollo del frontend (`ng serve`, `npm run check`); la imagen del frontend se construye con su propio Node |
 | Kubernetes (opcional) | El clúster integrado de Docker Desktop, `kubectl` con soporte de Kustomize |
@@ -109,7 +109,7 @@ La CI renderiza cada overlay con `kubectl kustomize` y valida los ficheros de Co
 
 | Imagen | La construye | Notas |
 |---|---|---|
-| `shop/<service>:0.1.0-SNAPSHOT` | `./gradlew buildImages` (`bootBuildImage` de cada servicio, de uno en uno) | Buildpacks de Paketo, Java 21, sin root |
+| `shop/<service>:0.1.0-SNAPSHOT` | `./gradlew buildImages` (`bootBuildImage` de cada servicio, de uno en uno) | Buildpacks de Paketo, Java 25, sin root |
 | `shop/<service>:0.1.0-SNAPSHOT-native` | `./gradlew buildImages -Pnative` | GraalVM 25 dentro de Paketo; no para `notifications-service` |
 | `shop/frontend:0.1.0-SNAPSHOT` | `docker build -t shop/frontend:0.1.0-SNAPSHOT frontend` o `docker compose ... --build` | Etapa de build con Node 24, `nginx-unprivileged` en el puerto 8080 |
 
@@ -162,7 +162,7 @@ Los valores por defecto de `shop.cqrsPath` y `shop.specrepoPath` (en [`gradle.pr
 
 | Job | Pasos |
 |---|---|
-| Backend | JDK 21 (Temurin), `./gradlew build`: compilación, Spotless, tests unitarios, de ArchUnit y de integración con Testcontainers |
+| Backend | JDK 25 (Temurin), `./gradlew build`: compilación, Spotless, tests unitarios, de ArchUnit y de integración con Testcontainers |
 | Frontend | Node 24, `npm ci`, `npm run check`: Prettier, ESLint, Vitest y un build de producción |
 | Kubernetes manifests | `kubectl kustomize` de cada overlay; `docker compose config` de `compose.yaml` solo y junto con `compose.observability.yaml` |
 
