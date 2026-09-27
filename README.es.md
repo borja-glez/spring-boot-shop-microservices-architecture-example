@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/borja-glez/spring-boot-shop-microservices-architecture-example/actions/workflows/ci.yml"><img src="https://github.com/borja-glez/spring-boot-shop-microservices-architecture-example/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/Java-21-blue" alt="Java 21">
+  <img src="https://img.shields.io/badge/Java-25-blue" alt="Java 25">
   <img src="https://img.shields.io/badge/Spring%20Boot-4.0%20%7C%203.5-6db33f" alt="Spring Boot 4.0 y 3.5">
   <img src="https://img.shields.io/badge/Kafka-4.3-231f20" alt="Kafka">
   <img src="https://img.shields.io/badge/RabbitMQ-4.3-ff6600" alt="RabbitMQ">
@@ -113,7 +113,7 @@ Consulta [cómo se integran las librerías](docs/es/libraries.md) para ver el c�
 
 ## Arranque rápido
 
-**Requisitos:** JDK 21 y Docker (Docker Desktop con unos 8 GB de memoria). Nada más: el frontend se
+**Requisitos:** JDK 25 y Docker (Docker Desktop con unos 8 GB de memoria). Nada más: el frontend se
 construye dentro de Docker y las librerías vienen de Maven Central.
 
 ```bash

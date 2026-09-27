@@ -8,7 +8,7 @@ Mercado runs the same container images in three ways: infrastructure in Docker w
 
 | Tool | Needed for |
 |---|---|
-| JDK 21 | Building and running the services (the Gradle toolchain requires it). Always use the wrapper, `./gradlew`. |
+| JDK 25 | Building and running the services (the Gradle toolchain requires it). Always use the wrapper, `./gradlew`. |
 | Docker (Docker Desktop on Windows and macOS) | Infrastructure, images, Testcontainers-based tests |
 | Node 24 | Only for frontend development (`ng serve`, `npm run check`); the frontend image builds with its own Node |
 | Kubernetes (optional) | Docker Desktop's built-in cluster, `kubectl` with Kustomize support |
@@ -109,7 +109,7 @@ CI renders every overlay with `kubectl kustomize` and validates the Compose file
 
 | Image | Built by | Notes |
 |---|---|---|
-| `shop/<service>:0.1.0-SNAPSHOT` | `./gradlew buildImages` (`bootBuildImage` of every service, one at a time) | Paketo buildpacks, Java 21, non-root |
+| `shop/<service>:0.1.0-SNAPSHOT` | `./gradlew buildImages` (`bootBuildImage` of every service, one at a time) | Paketo buildpacks, Java 25, non-root |
 | `shop/<service>:0.1.0-SNAPSHOT-native` | `./gradlew buildImages -Pnative` | GraalVM 25 inside Paketo; not for `notifications-service` |
 | `shop/frontend:0.1.0-SNAPSHOT` | `docker build -t shop/frontend:0.1.0-SNAPSHOT frontend` or `docker compose ... --build` | Node 24 build stage, `nginx-unprivileged` on port 8080 |
 
@@ -162,7 +162,7 @@ The defaults of `shop.cqrsPath` and `shop.specrepoPath` (in [`gradle.properties`
 
 | Job | Steps |
 |---|---|
-| Backend | JDK 21 (Temurin), `./gradlew build`: compilation, Spotless, unit, ArchUnit and Testcontainers integration tests |
+| Backend | JDK 25 (Temurin), `./gradlew build`: compilation, Spotless, unit, ArchUnit and Testcontainers integration tests |
 | Frontend | Node 24, `npm ci`, `npm run check`: Prettier, ESLint, Vitest and a production build |
 | Kubernetes manifests | `kubectl kustomize` of every overlay; `docker compose config` of `compose.yaml` alone and with `compose.observability.yaml` |
 

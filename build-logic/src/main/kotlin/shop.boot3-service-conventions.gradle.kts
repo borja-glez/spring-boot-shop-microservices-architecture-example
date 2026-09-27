@@ -35,7 +35,7 @@ dependencies {
 tasks.named<BootBuildImage>("bootBuildImage") {
     usesService(imageBuilds())
     imageName.set("shop/${project.name}:${project.version}")
-    environment.put("BP_JVM_VERSION", "21")
+    environment.put("BP_JVM_VERSION", "25")
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {

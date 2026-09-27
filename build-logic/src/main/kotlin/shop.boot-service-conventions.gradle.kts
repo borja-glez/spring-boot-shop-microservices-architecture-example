@@ -36,8 +36,8 @@ tasks.named<BootBuildImage>("bootBuildImage") {
     usesService(imageBuilds())
     val suffix = if (nativeBuild) "-native" else ""
     imageName.set("shop/${project.name}:${project.version}$suffix")
-    // The code targets Java 21, but Paketo only builds Boot 4 native images with GraalVM 25+.
-    environment.put("BP_JVM_VERSION", if (nativeBuild) "25" else "21")
+    // Java 25 runtime on the JVM; GraalVM for JDK 25 for native images.
+    environment.put("BP_JVM_VERSION", "25")
     // SIGQUIT prints the threads of a native image, as it does on the JVM.
     if (nativeBuild) {
         environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "--enable-monitoring=threaddump")

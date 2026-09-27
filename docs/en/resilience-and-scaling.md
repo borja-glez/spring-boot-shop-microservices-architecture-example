@@ -116,11 +116,11 @@ kubectl apply -k deploy/k8s/overlays/native             # or overlays/native-obs
 SHOP_IMAGE_SUFFIX=-native docker compose -f deploy/compose/compose.yaml up -d
 ```
 
-With `-Pnative`, `shop.boot-service-conventions` applies the GraalVM Native Build Tools plugin and `bootBuildImage` compiles inside Paketo, so no local GraalVM is needed. The code targets Java 21; the native build uses GraalVM 25 (`BP_JVM_VERSION=25`), which Paketo requires for Spring Boot 4. Images are built one at a time (the `ImageBuilds` build service in `build-logic`), because several concurrent native builds exhaust Docker Desktop. `notifications-service`, the Spring Boot 3.5 service, has no native build and runs on the JVM in the native overlay too.
+With `-Pnative`, `shop.boot-service-conventions` applies the GraalVM Native Build Tools plugin and `bootBuildImage` compiles inside Paketo, so no local GraalVM is needed. The code targets Java 25; the native build uses GraalVM for JDK 25 (`BP_JVM_VERSION=25`). Images are built one at a time (the `ImageBuilds` build service in `build-logic`), because several concurrent native builds exhaust Docker Desktop. `notifications-service`, the Spring Boot 3.5 service, has no native build and runs on the JVM in the native overlay too.
 
 Measured on Docker Desktop (16 CPUs, 32 GB) with all services starting at once in Compose:
 
-| | JVM (Paketo, Java 21) | Native (GraalVM 25) |
+| | JVM (Paketo, Java 25) | Native (GraalVM 25) |
 |---|---|---|
 | Application start ("Started ... in") | 6-18 s | 0.11-0.63 s |
 | Container memory after an end-to-end run | 244-400 MiB | 73-132 MiB |
