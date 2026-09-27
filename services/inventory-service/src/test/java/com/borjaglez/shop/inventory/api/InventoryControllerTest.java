@@ -17,7 +17,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -37,10 +36,8 @@ import com.borjaglez.shop.inventory.application.query.InventoryQueries.SearchRes
 import com.borjaglez.shop.inventory.application.query.InventoryQueries.SearchStockQuery;
 import com.borjaglez.shop.inventory.application.query.InventoryQueries.StockView;
 import com.borjaglez.shop.inventory.domain.ReservationStatus;
-import com.borjaglez.specrepository.http.spring.HttpFilterAutoConfiguration;
 
 @WebMvcTest(InventoryController.class)
-@ImportAutoConfiguration(HttpFilterAutoConfiguration.class)
 class InventoryControllerTest {
 
   private static final UUID PRODUCT = UUID.fromString("8a9c2c1e-6f59-4a44-9d4b-0f6f4e3f1c11");
@@ -70,7 +67,8 @@ class InventoryControllerTest {
     verify(queries).ask(captor.capture());
     SearchStockQuery query = (SearchStockQuery) captor.getValue();
     assertThat(query.getPlan().sort()).isEqualTo(Sort.by(Sort.Direction.ASC, "onHand"));
-    assertThat(query.getPageable()).isEqualTo(PageRequest.of(1, 5));
+    assertThat(query.getPageable())
+        .isEqualTo(PageRequest.of(1, 5, Sort.by(Sort.Direction.ASC, "onHand")));
   }
 
   @Test

@@ -19,40 +19,31 @@ import com.borjaglez.shop.reporting.application.query.Reports.SalesByDayQuery;
 import com.borjaglez.shop.reporting.application.query.Reports.StatusCount;
 import com.borjaglez.shop.reporting.application.query.Reports.SummaryQuery;
 import com.borjaglez.shop.reporting.application.query.Reports.TopProductsQuery;
+import com.borjaglez.shop.reporting.domain.ReportLine;
 import com.borjaglez.shop.reporting.domain.ReportLineRepository;
+import com.borjaglez.shop.reporting.domain.ReportOrder;
 import com.borjaglez.shop.reporting.domain.ReportOrderRepository;
 import com.borjaglez.shop.reporting.domain.ReportStatus;
-import com.borjaglez.shop.support.query.QueryPlans;
 import com.borjaglez.specrepository.core.AggregateFunction;
-import com.borjaglez.specrepository.core.AggregateSelection;
-import com.borjaglez.specrepository.core.FieldSelection;
+import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
 import com.borjaglez.specrepository.core.GroupedRow;
-import com.borjaglez.specrepository.core.HavingCondition;
 import com.borjaglez.specrepository.core.Operators;
-import com.borjaglez.specrepository.core.PredicateCondition;
 import com.borjaglez.specrepository.core.QueryPlan;
+import com.borjaglez.specrepository.jpa.SpecificationExecutableQuery;
 
 /**
  * Answers the reports with grouped queries of specification-repository.
  *
  * <p>Amounts are only added up within one currency: every money report groups by it too.
  *
- * <p>Order matters when a plan is built: {@link QueryPlans#requiring} first, which checks the
- * client's filters against their whitelist and then allows every field, and only then {@link
- * QueryPlans#grouping}, whose grouping and aggregate fields are the server's choice.
+ * <p>The client decides which rows (its filters), the server decides what is grouped and summed.
+ * Each report derives the client plan with {@code repository.query(plan)}: the conditions it adds,
+ * such as {@code status = CONFIRMED}, are server conditions, which the client's whitelist does not
+ * restrict and a client {@code orFilter} cannot widen; grouping and aggregates are always the
+ * server's choice. The rows come back as {@link GroupedRow}s ({@code findRows()}).
  */
 @QueryHandler
 public class ReportsHandler {
-
-  private static final PredicateCondition CONFIRMED =
-      new PredicateCondition("status", Operators.EQUALS, ReportStatus.CONFIRMED, false, false);
-  private static final PredicateCondition LINE_OF_CONFIRMED =
-      new PredicateCondition(
-          "order.status", Operators.EQUALS, ReportStatus.CONFIRMED, false, false);
-  private static final PredicateCondition REJECTED =
-      new PredicateCondition("status", Operators.EQUALS, ReportStatus.REJECTED, false, false);
-  private static final PredicateCondition PLACED_ORDERS =
-      new PredicateCondition("placedAt", Operators.IS_NOT_NULL, null, false, false);
 
   private final ReportOrderRepository orders;
   private final ReportLineRepository lines;
@@ -65,14 +56,11 @@ public class ReportsHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public List<StatusCount> summary(SummaryQuery query) {
-    return orders
-        .findAllGrouped(
-            QueryPlans.grouping(
-                QueryPlans.requiring(query.getPlan(), PLACED_ORDERS),
-                List.of("status"),
-                List.of(
-                    new FieldSelection("status"),
-                    new AggregateSelection(AggregateFunction.COUNT, "orderId", "orders"))))
+    return placed(query.getPlan())
+        .groupBy("status")
+        .select("status")
+        .countAs("orders", "orderId")
+        .findRows()
         .stream()
         .map(r -> new StatusCount((ReportStatus) r.get("status"), count(r, "orders")))
         .sorted(Comparator.comparing(StatusCount::status))
@@ -82,18 +70,13 @@ public class ReportsHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public List<DailySales> salesByDay(SalesByDayQuery query) {
-    return orders
-        .findAllGrouped(
-            QueryPlans.grouping(
-                QueryPlans.requiring(query.getPlan(), CONFIRMED, PLACED_ORDERS),
-                List.of("placedDay", "currency"),
-                List.of(
-                    new FieldSelection("placedDay"),
-                    new FieldSelection("currency"),
-                    new AggregateSelection(AggregateFunction.COUNT, "orderId", "orders"),
-                    new AggregateSelection(
-                        AggregateFunction.COUNT_DISTINCT, "customerId", "customers"),
-                    new AggregateSelection(AggregateFunction.SUM, "total", "revenue"))))
+    return placed(query.getPlan(), ReportStatus.CONFIRMED)
+        .groupBy("placedDay", "currency")
+        .select("placedDay", "currency")
+        .countAs("orders", "orderId")
+        .countDistinctAs("customers", "customerId")
+        .sumAs("revenue", "total")
+        .findRows()
         .stream()
         .map(
             r ->
@@ -107,27 +90,34 @@ public class ReportsHandler {
         .toList();
   }
 
+  /**
+   * Products of confirmed orders that sold at least {@code minUnits}.
+   *
+   * <p>The whitelist of a plan covers {@code having} as well as the client's filters, and the
+   * threshold is on {@code quantity}, which the client may not filter by. So the client plan is
+   * checked against its whitelist here, and the grouped query then allows every field.
+   */
   @HandleQuery
   @Transactional(readOnly = true)
   public List<ProductSales> topProducts(TopProductsQuery query) {
-    QueryPlan<com.borjaglez.shop.reporting.domain.ReportLine> plan =
-        QueryPlans.grouping(
-            QueryPlans.requiring(query.getPlan(), LINE_OF_CONFIRMED),
-            List.of("sku", "name", "order.currency"),
-            List.of(
-                new FieldSelection("sku"),
-                new FieldSelection("name"),
-                new FieldSelection("order.currency"),
-                new AggregateSelection(AggregateFunction.SUM, "quantity", "units"),
-                new AggregateSelection(AggregateFunction.COUNT_DISTINCT, "order.orderId", "orders"),
-                new AggregateSelection(AggregateFunction.SUM, "revenue", "revenue")),
-            List.of(
-                new HavingCondition(
-                    AggregateFunction.SUM,
-                    "quantity",
-                    Operators.GREATER_THAN_OR_EQUAL,
-                    (long) Math.max(query.getMinUnits(), 1))));
-    return lines.findAllGrouped(plan).stream()
+    QueryPlan<ReportLine> clientPlan = query.getPlan();
+    clientPlan.allowedFieldsPolicy().validate(clientPlan);
+    return lines
+        .query(clientPlan)
+        .allowedFields(AllowedFieldsPolicy.allowAll())
+        .where("order.status", Operators.EQUALS, ReportStatus.CONFIRMED)
+        .groupBy("sku", "name", "order.currency")
+        .select("sku", "name", "order.currency")
+        .sumAs("units", "quantity")
+        .countDistinctAs("orders", "order.orderId")
+        .sumAs("revenue", "revenue")
+        .having(
+            AggregateFunction.SUM,
+            "quantity",
+            Operators.GREATER_THAN_OR_EQUAL,
+            (long) Math.max(query.getMinUnits(), 1))
+        .findRows()
+        .stream()
         .map(
             r ->
                 new ProductSales(
@@ -147,14 +137,11 @@ public class ReportsHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public List<RejectionCount> rejections(RejectionsQuery query) {
-    return orders
-        .findAllGrouped(
-            QueryPlans.grouping(
-                QueryPlans.requiring(query.getPlan(), REJECTED, PLACED_ORDERS),
-                List.of("rejectionReason"),
-                List.of(
-                    new FieldSelection("rejectionReason"),
-                    new AggregateSelection(AggregateFunction.COUNT, "orderId", "orders"))))
+    return placed(query.getPlan(), ReportStatus.REJECTED)
+        .groupBy("rejectionReason")
+        .select("rejectionReason")
+        .countAs("orders", "orderId")
+        .findRows()
         .stream()
         .map(r -> new RejectionCount((String) r.get("rejectionReason"), count(r, "orders")))
         .sorted(Comparator.comparingLong(RejectionCount::orders).reversed())
@@ -164,16 +151,12 @@ public class ReportsHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public List<CustomerSales> customers(CustomersQuery query) {
-    return orders
-        .findAllGrouped(
-            QueryPlans.grouping(
-                QueryPlans.requiring(query.getPlan(), CONFIRMED, PLACED_ORDERS),
-                List.of("customerId", "currency"),
-                List.of(
-                    new FieldSelection("customerId"),
-                    new FieldSelection("currency"),
-                    new AggregateSelection(AggregateFunction.COUNT, "orderId", "orders"),
-                    new AggregateSelection(AggregateFunction.SUM, "total", "spent"))))
+    return placed(query.getPlan(), ReportStatus.CONFIRMED)
+        .groupBy("customerId", "currency")
+        .select("customerId", "currency")
+        .countAs("orders", "orderId")
+        .sumAs("spent", "total")
+        .findRows()
         .stream()
         .map(
             r ->
@@ -184,6 +167,17 @@ public class ReportsHandler {
                     money(r, "spent")))
         .sorted(Comparator.comparing(CustomerSales::spent).reversed())
         .toList();
+  }
+
+  /** The client's rows among the orders that were placed. */
+  private SpecificationExecutableQuery<ReportOrder> placed(QueryPlan<ReportOrder> clientPlan) {
+    return orders.query(clientPlan).where("placedAt", Operators.IS_NOT_NULL, null);
+  }
+
+  /** The client's rows among the placed orders with the given status. */
+  private SpecificationExecutableQuery<ReportOrder> placed(
+      QueryPlan<ReportOrder> clientPlan, ReportStatus status) {
+    return placed(clientPlan).where("status", Operators.EQUALS, status);
   }
 
   private static long count(GroupedRow row, String alias) {

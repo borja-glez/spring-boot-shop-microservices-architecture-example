@@ -267,7 +267,7 @@ Other examples: loading a stream in version order ([`EventStore.load`](../../pla
 
 ### HTTP filters with `@FilterableQuery`
 
-List endpoints accept the HTTP syntax of the `-http` module. `@FilterableQuery` parses `filter`, `orFilter` and `sort` into a `QueryPlan` of the given entity, restricted to the declared fields:
+List endpoints accept the HTTP syntax of the `-http` module. `@FilterableQuery` parses `filter`, `orFilter` and `sort` into a `QueryPlan` of the given entity, restricted to the declared fields, and rejects any other field before the handler runs:
 
 ```java
 @GetMapping
@@ -279,8 +279,7 @@ PageResponse<OrderSummary> myOrders(
             sortableFields = {"placedAt", "total", "status"})
         QueryPlan<OrderView> plan,
     Pageable pageable) {
-  Page<OrderSummary> page =
-      queries.ask(new ListMyOrdersQuery(customer, plan, pagingOnly(pageable)));
+  Page<OrderSummary> page = queries.ask(new ListMyOrdersQuery(customer, plan, pageable));
   return PageResponse.of(page);
 }
 ```
@@ -294,93 +293,108 @@ PageResponse<OrderSummary> myOrders(
 
 Operators: `eq`, `neq`, `contains`, `notcontains`, `startswith`, `endswith`, `gt`, `gte`, `lt`, `lte`, `between`, `in`, `notin`, `isnull`, `isnotnull`, `isempty`, `isnotempty`. List operators (`between`, `in`, `notin`) separate values with `|`; the last four take no value.
 
-Controllers pass only page number and size to the handler (`pagingOnly`): the sort travels inside the plan, where the whitelist validates it. Whitelists per endpoint:
+The controller passes the `Pageable` as it is: Spring builds its sort from the same `sort` parameter, and the repository checks it against the plan's whitelist too.
+
+Endpoints that expose the same entity share one declaration through a composed annotation, since `@FilterableQuery` works as a meta-annotation. The catalog search and its facets both use [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), which also declares the text fields matched ignoring case and accents (`caseInsensitiveFields`), and lets the search add its sortable fields through an `@AliasFor` attribute:
+
+```java
+@FilterableQuery(
+    value = Product.class,
+    filterableFields = {"name", "description", "sku", "price.amount", /* ... */ "publishedAt"},
+    caseInsensitiveFields = {"name", "description"})
+@interface ProductFilter {
+
+  @AliasFor(annotation = FilterableQuery.class)
+  String[] sortableFields() default {};
+}
+
+PageResponse<ProductCard> search(
+    @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
+        QueryPlan<Product> plan,
+    Pageable pageable) { ... }
+
+CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) { ... }
+```
+
+The four order reports share [`@OrderReportFilter`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/api/OrderReportFilter.java) the same way. Whitelists per endpoint:
 
 | Endpoint | Filterable | Sortable |
 |---|---|---|
-| `GET /api/catalog/products`, `/facets` | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | `name`, `sku`, `price.amount`, `publishedAt` |
+| `GET /api/catalog/products`, `/facets` (`@ProductFilter`) | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | search: `name`, `sku`, `price.amount`, `publishedAt`; facets: none |
 | `GET /api/orders` | `status`, `total`, `currency`, `placedAt`, `lines.sku` | `placedAt`, `total`, `status` |
 | `GET /api/orders/events` | `eventType`, `streamType`, `streamId`, `version`, `occurredAt`, `publishedAt`, `publishAttempts` | `globalPosition`, `occurredAt` |
 | `GET /api/inventory/stock` | `sku`, `name`, `onHand`, `reserved`, `updatedAt` | same |
 | `GET /api/inventory/reservations` | `orderId`, `status`, `reservedAt`, `releasedAt`, `lines.sku` | `reservedAt`, `releasedAt` |
 | `GET /api/payments` | `orderId`, `customerId`, `status`, `reason`, `amount`, `currency`, `updatedAt` | `amount`, `createdAt`, `updatedAt` |
-| `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` | `placedAt`, `placedDay`, `currency` | none |
+| `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` (`@OrderReportFilter`) | `placedAt`, `placedDay`, `currency` | none |
 | `GET /api/reporting/top-products` | `order.placedAt`, `order.placedDay`, `sku`, `name` | none |
 
-Any other field, a malformed parameter, an unknown operator or a value that cannot be converted to the field's type is answered with 400 `invalid-filter`. See [Querying](querying.md).
+Any other field, a malformed parameter, an unknown operator or a value that cannot be converted to the field's type is answered with 400 `invalid-filter` ([`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) maps `DisallowedFieldException` and `InvalidFilterException`). See [Querying](querying.md).
 
-### Composing server conditions with `QueryPlans`
+### Server conditions on a client plan
 
-A client plan often needs conditions the client must not control: the owner of the data, the status of what is public, the columns a projection reads. [`QueryPlans`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java) in `service-support` derives new plans from a client plan without touching the client's own conditions:
+A client plan often needs conditions the client must not control: the owner of the data, the status of what is public, the columns a projection reads. Handlers derive the client plan with `repository.query(plan)`, which keeps the client's filters, sort and whitelist and adds to them:
 
-| Method | Returns a plan that... | Used in |
+| On the derived query | Effect | Used in |
 |---|---|---|
-| `requiring(plan, conditions...)` | also requires the server conditions (AND). The client part is checked against its whitelist first, then the plan allows every field, so a server condition may use a field the client cannot. | "My orders" (`customerId = user`), catalog (`status = ACTIVE`), every report |
-| `ignoringCase(plan, fields)` | makes text searches (`contains`, `notcontains`, `startswith`, `endswith`) on those fields case- and accent-insensitive | catalog search on `name`, `description` |
-| `without(plan, field)` | drops the top-level conditions on one field | disjunctive facets |
-| `fetching(plan, paths...)` | adds left fetch joins | catalog search fetches `seller` |
-| `sortedByDefault(plan, sort)` | applies a sort only when the client asked for none | orders (newest first), event store, payments |
-| `projecting(plan, type, fields...)` | reads the given columns straight into a record (`selectInto`), without managed entities | payments list |
-| `grouping(plan, groupBy, selections[, having])` | turns the plan into a grouped query over the same rows | catalog facets, all reports |
+| `where(...)` | a **server condition**: ANDed with the client's filters, not checked against the whitelist (it may use a field the client cannot filter by) and never widened by a client `orFilter` | "My orders" (`customerId = user`), catalog (`status = ACTIVE`), every report |
+| `sortedByDefault(sort)` | a sort used only when the client asked for none; it must be one of the sortable fields | orders (newest first), event store, inventory, payments |
+| `leftFetch(paths...)` | fetch joins | catalog search fetches `seller` |
+| `select(fields...).selectInto(type)` | reads the given columns straight into a record, without managed entities | payments list |
+| `groupBy`, `select`, aggregates, `having`, then `findRows()` / `findRow()` | a grouped query over the same rows | catalog facets and categories, all reports |
 
-"My orders" combines three of them:
+"My orders":
 
 ```java
-QueryPlan<OrderView> plan =
-    QueryPlans.sortedByDefault(
-        QueryPlans.requiring(
-            query.getPlan(),
-            new PredicateCondition(
-                "customerId", Operators.EQUALS, query.getCustomerId(), false, false)),
-        NEWEST_ORDERS);
-return views.findAll(plan, query.getPageable()).map(OrderViews::summary);
+return views
+    .query(query.getPlan())
+    .where("customerId", Operators.EQUALS, query.getCustomerId())
+    .sortedByDefault(NEWEST_ORDERS)
+    .findAll(query.getPageable())
+    .map(OrderViews::summary);
 ```
+
+`?filter=customerId:eq:someone-else` is still a 400, since `customerId` is not in the whitelist, and `?orFilter=status:eq:PLACED;status:eq:CONFIRMED` only matches the current customer's orders.
 
 The payments backoffice reads rows straight into its response record:
 
 ```java
-QueryPlan<PaymentView> plan =
-    QueryPlans.projecting(
-        QueryPlans.sortedByDefault(query.getPlan(), NEWEST_FIRST),
-        PaymentSummary.class,
-        SUMMARY_FIELDS);
-return views.findAllProjected(plan, query.getPageable());
+return views
+    .query(query.getPlan())
+    .sortedByDefault(NEWEST_FIRST)
+    .select(SUMMARY_FIELDS)
+    .selectInto(PaymentSummary.class)
+    .findAll(query.getPageable());
 ```
+
+Disjunctive facets need the opposite of a server condition: each facet drops the client's own filter on its field. The derived query cannot remove client filters, so [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java) in `service-support` does it, keeping everything else of the plan (see [Querying](querying.md#facets)).
 
 ### Facets and reports: grouping and aggregates
 
-`findAllGrouped` runs a grouping plan and returns `GroupedRow`s. Selections are `FieldSelection`s and `AggregateSelection`s (`COUNT`, `COUNT_DISTINCT`, `SUM`, `MIN`, `MAX`), and `HavingCondition`s filter the groups. The client decides which rows (its filters), the server decides what is grouped and summed. That is why report plans are always built in this order: `requiring` first, which validates the client's filters against their whitelist, then `grouping`, whose fields are the server's choice.
+A query with selections or aggregates returns rows, not entities: `findRows()` reads them as `GroupedRow`s, `findRow()` reads the first one. The client decides which rows (its filters), the server decides what is grouped and summed: grouping, selections, aggregates and `having` are always added in code.
 
 ```java
-QueryPlan<ReportLine> plan =
-    QueryPlans.grouping(
-        QueryPlans.requiring(query.getPlan(), LINE_OF_CONFIRMED),
-        List.of("sku", "name", "order.currency"),
-        List.of(
-            new FieldSelection("sku"),
-            new FieldSelection("name"),
-            new FieldSelection("order.currency"),
-            new AggregateSelection(AggregateFunction.SUM, "quantity", "units"),
-            new AggregateSelection(AggregateFunction.COUNT_DISTINCT, "order.orderId", "orders"),
-            new AggregateSelection(AggregateFunction.SUM, "revenue", "revenue")),
-        List.of(
-            new HavingCondition(
-                AggregateFunction.SUM,
-                "quantity",
-                Operators.GREATER_THAN_OR_EQUAL,
-                (long) Math.max(query.getMinUnits(), 1))));
-return lines.findAllGrouped(plan).stream()...
+return placed(query.getPlan(), ReportStatus.CONFIRMED)   // orders.query(plan) + server conditions
+    .groupBy("placedDay", "currency")
+    .select("placedDay", "currency")
+    .countAs("orders", "orderId")
+    .countDistinctAs("customers", "customerId")
+    .sumAs("revenue", "total")
+    .findRows()
+    .stream()...
 ```
 
-(from [`ReportsHandler.topProducts`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
+(from [`ReportsHandler.salesByDay`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
 
-Catalog facets use the same mechanism with `COUNT_DISTINCT` per category, seller and tag, and `MIN`/`MAX` for the price range. See [Querying](querying.md#facets) and [Read models](read-models.md#reporting-service).
+The whitelist also covers the fields of `having`. The top products report keeps the products that sold at least `minUnits` with `having(SUM, "quantity", ...)`, and `quantity` is not a client filter, so `topProducts` checks the client plan against its whitelist (`allowedFieldsPolicy().validate(plan)`) and then lets the grouped query use every field.
+
+Catalog facets use the same mechanism with `countDistinctAs` per category, seller and tag, and `minAs`/`maxAs` with `findRow()` for the price range. See [Querying](querying.md#facets) and [Read models](read-models.md#reporting-service).
 
 ### Every read goes through it
 
 | Read | How |
 |---|---|
-| Public catalog search, facets, categories | `findAll(plan, pageable)`, `findAllGrouped` |
+| Public catalog search, facets, categories | `query(plan)...findAll(pageable)`, `findRows()`, `findRow()` |
 | Product detail, ownership checks, duplicate SKU | `query()...findOne()` / `count()` |
 | Loading an event-sourced aggregate | `EventStore.load`: `query().where(...).sort(Sort.by("version")).findAll()` |
 | Optimistic concurrency check on append | `query()...count()` of the stream's versioned rows |
@@ -388,8 +402,8 @@ Catalog facets use the same mechanism with `COUNT_DISTINCT` per category, seller
 | Outbox metrics | `count()` of pending rows, `findSlice` for the oldest |
 | Read models and projections | `query()...findOne()` in every projector |
 | Saga lookup and metrics | `CheckoutSagaRepository.query()` |
-| Reports | `findAllGrouped` with `HAVING` |
-| Payments list | `findAllProjected` |
+| Reports | `query(plan)...findRows()` with `HAVING` |
+| Payments list | `query(plan)...selectInto(...).findAll(pageable)` |
 
 ## Related
 

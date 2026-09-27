@@ -5,7 +5,6 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,19 +36,14 @@ import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.support.web.CurrentUser;
 import com.borjaglez.shop.support.web.PageResponse;
 import com.borjaglez.specrepository.core.QueryPlan;
-import com.borjaglez.specrepository.http.spring.FilterableQuery;
 
 /**
  * Public catalog API.
  *
  * <p>Search and facets accept the specification-repository HTTP filter syntax: repeatable {@code
  * filter=field:op:value}, {@code orFilter=a:op:v;b:op:v} and {@code sort=field,dir}, restricted to
- * the fields listed in each {@link FilterableQuery}. Private data such as the seller's email is
- * never listed. The controller only translates HTTP into commands and queries; the buses do the
- * rest.
- *
- * <p>The field lists are repeated in both endpoints because {@code @FilterableQuery} cannot be
- * composed into a meta-annotation.
+ * the fields of {@link ProductFilter}, a composed {@code @FilterableQuery} both endpoints share.
+ * The controller only translates HTTP into commands and queries; the buses do the rest.
  */
 @RestController
 @RequestMapping("/api/catalog/products")
@@ -65,24 +59,10 @@ class ProductController {
 
   @GetMapping
   PageResponse<ProductCard> search(
-      @FilterableQuery(
-              value = Product.class,
-              filterableFields = {
-                "name",
-                "description",
-                "sku",
-                "price.amount",
-                "status",
-                "categories.slug",
-                "tags",
-                "seller.id",
-                "seller.city",
-                "publishedAt"
-              },
-              sortableFields = {"name", "sku", "price.amount", "publishedAt"})
+      @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
           QueryPlan<Product> plan,
       Pageable pageable) {
-    Page<ProductCard> page = queries.ask(new SearchProductsQuery(plan, pagingOnly(pageable)));
+    Page<ProductCard> page = queries.ask(new SearchProductsQuery(plan, pageable));
     return PageResponse.of(page);
   }
 
@@ -92,22 +72,7 @@ class ProductController {
   }
 
   @GetMapping("/facets")
-  CatalogFacets facets(
-      @FilterableQuery(
-              value = Product.class,
-              filterableFields = {
-                "name",
-                "description",
-                "sku",
-                "price.amount",
-                "status",
-                "categories.slug",
-                "tags",
-                "seller.id",
-                "seller.city",
-                "publishedAt"
-              })
-          QueryPlan<Product> plan) {
+  CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
     return queries.ask(new GetCatalogFacetsQuery(plan));
   }
 
@@ -152,14 +117,5 @@ class ProductController {
       @PathVariable UUID id,
       @Valid @RequestBody DiscontinueRequest body) {
     commands.dispatchAndWait(new DiscontinueProductCommand(id, seller, body.reason()));
-  }
-
-  /**
-   * Keeps page number and size but drops the sort: the {@code sort} parameter is also parsed into
-   * the plan, where the whitelist validates it. A {@code Pageable} sort would replace it without
-   * validation.
-   */
-  private static Pageable pagingOnly(Pageable pageable) {
-    return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
   }
 }

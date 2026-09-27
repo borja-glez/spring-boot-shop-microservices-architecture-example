@@ -141,7 +141,7 @@ class ProductRepositoryIT {
   @Test
   void groupsProductsByStatus() {
     List<GroupedRow> rows =
-        products.query().groupBy("status").select("status").countAs("total", "id").findAllGrouped();
+        products.query().groupBy("status").select("status").countAs("total", "id").findRows();
 
     Map<Object, Object> totals =
         rows.stream().collect(Collectors.toMap(r -> r.get("status"), r -> r.get("total")));

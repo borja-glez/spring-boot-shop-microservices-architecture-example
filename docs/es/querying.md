@@ -1,6 +1,6 @@
 # Consultas: la búsqueda del catálogo de extremo a extremo
 
-La búsqueda pública del catálogo es el ejemplo más completo de cómo Mercado convierte una petición HTTP en SQL con spring-boot-specification-repository. El cliente describe lo que quiere con los parámetros repetibles `filter`, `orFilter` y `sort`; `@FilterableQuery` los convierte en un `QueryPlan` restringido a una lista blanca de campos; el controlador envía el plan por el bus de consultas; y el handler compone las condiciones que el cliente no debe controlar (solo productos a la venta, texto sin distinguir mayúsculas, el vendedor cargado en la misma consulta) antes de ejecutarlo. Las facetas reutilizan el mismo plan con consultas agrupadas. Una entrada no válida nunca llega a la base de datos: se responde con un problema 400 `invalid-filter`. Esta página sigue una petición a través de cada paso y enumera el contrato en el que se apoya el frontend.
+La búsqueda pública del catálogo es el ejemplo más completo de cómo Mercado convierte una petición HTTP en SQL con spring-boot-specification-repository. El cliente describe lo que quiere con los parámetros repetibles `filter`, `orFilter` y `sort`; `@FilterableQuery` los convierte en un `QueryPlan` restringido a una lista blanca de campos, con búsqueda de texto sin distinguir mayúsculas; el controlador envía el plan por el bus de consultas; y el handler lo deriva con las condiciones que el cliente no debe controlar (solo productos a la venta, el vendedor cargado en la misma consulta) antes de ejecutarlo. Las facetas reutilizan el mismo plan con consultas agrupadas. Una entrada no válida nunca llega a la base de datos: se responde con un problema 400 `invalid-filter`. Esta página sigue una petición a través de cada paso y enumera el contrato en el que se apoya el frontend.
 
 ## Flujo de una petición
 
@@ -16,11 +16,10 @@ sequenceDiagram
   UI->>N: GET /api/catalog/products?filter=...&sort=...&page=0&size=24
   N->>G: proxy /api/ (X-Shop-User, X-Correlation-Id)
   G->>C: route /api/catalog/** (same X-Correlation-Id)
-  C->>C: @FilterableQuery parses filter/orFilter/sort into QueryPlan<Product> with its whitelist
-  C->>Q: ask(new SearchProductsQuery(plan, page and size only))
+  C->>C: @ProductFilter parses filter/orFilter/sort into QueryPlan<Product> and checks its whitelist
+  C->>Q: ask(new SearchProductsQuery(plan, pageable))
   Q->>H: middleware (context, tracing, metrics)
-  H->>H: ignoringCase(name, description), requiring(status = ACTIVE), fetching(seller)
-  H->>R: findAll(plan, pageable)
+  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).findAll(pageable)
   R-->>H: Page<Product> (whitelist checked, one SQL query)
   H-->>C: Page<ProductCard>
   C-->>UI: PageResponse JSON
@@ -64,48 +63,66 @@ La respuesta es un [`PageResponse`](../../platform/service-support/src/main/java
 
 ## Campos en la lista blanca
 
-[`ProductController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductController.java) declara los campos en el parámetro:
+[`ProductController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductController.java) declara los campos con [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), una anotación compuesta meta-anotada con `@FilterableQuery` que comparten la búsqueda y las facetas:
 
 ```java
 @FilterableQuery(
-        value = Product.class,
-        filterableFields = {
-          "name", "description", "sku", "price.amount", "status",
-          "categories.slug", "tags", "seller.id", "seller.city", "publishedAt"
-        },
-        sortableFields = {"name", "sku", "price.amount", "publishedAt"})
-    QueryPlan<Product> plan
+    value = Product.class,
+    filterableFields = {
+      "name", "description", "sku", "price.amount", "status",
+      "categories.slug", "tags", "seller.id", "seller.city", "publishedAt"
+    },
+    caseInsensitiveFields = {"name", "description"})
+@interface ProductFilter {
+
+  @AliasFor(annotation = FilterableQuery.class)
+  String[] sortableFields() default {};
+}
 ```
 
-`seller.email` existe en la entidad pero es privado: no está en ninguna de las dos listas, así que nunca se puede filtrar ni ordenar por él, y las vistas de producto nunca lo exponen. El controlador conserva solo el número y el tamaño de página del `Pageable` (`pagingOnly`): el parámetro `sort` también se convierte en parte del plan, donde la lista blanca lo valida, y una ordenación del `Pageable` se saltaría esa comprobación.
+```java
+@GetMapping
+PageResponse<ProductCard> search(
+    @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
+        QueryPlan<Product> plan,
+    Pageable pageable) {
+  Page<ProductCard> page = queries.ask(new SearchProductsQuery(plan, pageable));
+  return PageResponse.of(page);
+}
+
+@GetMapping("/facets")
+CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
+  return queries.ask(new GetCatalogFacetsQuery(plan));
+}
+```
+
+`seller.email` existe en la entidad pero es privado: no está en ninguna de las dos listas, así que nunca se puede filtrar ni ordenar por él, y las vistas de producto nunca lo exponen. La lista blanca se comprueba al resolver el argumento, de modo que un campo no permitido se rechaza antes de que se ejecute el método del controlador. El `Pageable` se pasa tal cual: su ordenación sale del mismo parámetro `sort` y el repositorio la comprueba contra la misma lista blanca. Las facetas no declaran campos ordenables, así que un `sort` sobre ellas también se rechaza.
+
+Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servidor lo decide para los campos que sabe que son texto: `caseInsensitiveFields` hace que `eq`, `neq`, `contains`, `notcontains`, `startswith` y `endswith` sobre `name` y `description` comparen `unaccent(upper(...))` en ambos lados, lo que en PostgreSQL ignora mayúsculas y acentos (la primera migración del catálogo crea la extensión `unaccent`).
 
 ## Lo que añade el servidor
 
-[`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) recibe el plan del cliente y lo completa con [`QueryPlans`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java):
+[`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) recibe el plan del cliente y lo deriva con `products.query(plan)`:
 
 ```java
-private static final PredicateCondition ON_SALE =
-    new PredicateCondition("status", Operators.EQUALS, ProductStatus.ACTIVE, false, false);
-private static final Set<String> TEXT_FIELDS = Set.of("name", "description");
-
 @HandleQuery
 @Transactional(readOnly = true)
 public Page<ProductCard> search(SearchProductsQuery query) {
-  QueryPlan<Product> plan = QueryPlans.fetching(publicPlan(query.getPlan()), "seller");
-  return products.findAll(plan, query.getPageable()).map(ProductViews::card);
+  return onSale(query.getPlan())
+      .leftFetch("seller")
+      .findAll(query.getPageable())
+      .map(ProductViews::card);
 }
 
-/** Client filters, case-insensitive on text, restricted to products on sale. */
-private static QueryPlan<Product> publicPlan(QueryPlan<Product> clientPlan) {
-  return QueryPlans.requiring(QueryPlans.ignoringCase(clientPlan, TEXT_FIELDS), ON_SALE);
+private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPlan) {
+  return products.query(clientPlan).where("status", Operators.EQUALS, ProductStatus.ACTIVE);
 }
 ```
 
 | Paso | Por qué |
 |---|---|
-| `ignoringCase(plan, {name, description})` | Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servicio lo decide para los campos que sabe que son texto; `contains`, `notcontains`, `startswith` y `endswith` sobre ellos ignoran mayúsculas y acentos. |
-| `requiring(plan, status = ACTIVE)` | El público nunca ve borradores ni productos descatalogados, aunque filtre por `status`. `requiring` comprueba primero las condiciones y la ordenación del cliente contra la lista blanca y después añade la condición del servidor. |
-| `fetching(plan, "seller")` | El vendedor se carga en la misma consulta (left fetch join), evitando una consulta por producto. |
+| `where(status = ACTIVE)` | El público nunca ve borradores ni productos descatalogados, aunque filtre por `status`. En una consulta derivada es una condición del servidor: se combina con AND con los filtros del cliente, no se comprueba contra la lista blanca y un `orFilter` nunca la amplía. Los filtros y la ordenación del propio cliente siguen sujetos a su lista blanca. |
+| `leftFetch("seller")` | El vendedor se carga en la misma consulta (left fetch join), evitando una consulta por producto. |
 
 ## Facetas
 
@@ -120,16 +137,27 @@ private static QueryPlan<Product> publicPlan(QueryPlan<Product> clientPlan) {
 }
 ```
 
-Cada faceta es un `findAllGrouped` sobre el plan público que cuenta productos distintos (`COUNT_DISTINCT` de `id`, porque el join con categorías o etiquetas multiplica las filas); el rango de precios usa `MIN` y `MAX` de `price.amount`. Los valores se ordenan por número y se limitan a 20 por faceta.
+Cada faceta es una consulta agrupada sobre los productos a la venta, leída con `findRows()`, que cuenta productos distintos (`countDistinctAs("total", "id")`, porque el join con categorías o etiquetas multiplica las filas); el rango de precios lee una fila de `minAs`/`maxAs` de `price.amount` con `findRow()`. Los valores se ordenan por número y se limitan a 20 por faceta.
 
-Las facetas son **disyuntivas**: cada faceta ignora el propio filtro del cliente sobre su campo, de modo que un comprador que ha seleccionado un vendedor sigue viendo los demás vendedores con sus recuentos y puede añadirlos. `QueryPlans.without(plan, field)` elimina las condiciones de primer nivel sobre ese campo antes de agrupar; los grupos de alternativas (`orFilter`) se conservan completos.
+Las facetas son **disyuntivas**: cada faceta ignora el propio filtro del cliente sobre su campo, de modo que un comprador que ha seleccionado un vendedor sigue viendo los demás vendedores con sus recuentos y puede añadirlos. Una consulta derivada puede añadir condiciones pero no quitar las del cliente, así que [`QueryPlans.without(plan, field)`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java) elimina las condiciones de primer nivel sobre ese campo antes de agrupar; los grupos de alternativas (`orFilter`) se conservan completos.
 
 ```java
 return new CatalogFacets(
-    countBy(publicPlan(QueryPlans.without(client, "categories.slug")), "categories.slug", "categories.name"),
-    countBy(publicPlan(QueryPlans.without(client, "seller.id")), "seller.id", "seller.displayName"),
-    countBy(publicPlan(QueryPlans.without(client, "tags")), "tags", null),
-    priceRange(publicPlan(QueryPlans.without(client, "price.amount"))));
+    countBy(onSale(QueryPlans.without(client, "categories.slug")), "categories.slug", "categories.name"),
+    countBy(onSale(QueryPlans.without(client, "seller.id")), "seller.id", "seller.displayName"),
+    countBy(onSale(QueryPlans.without(client, "tags")), "tags", null),
+    priceRange(onSale(QueryPlans.without(client, "price.amount"))));
+```
+
+```java
+private static List<FacetValue> countBy(
+    SpecificationExecutableQuery<Product> query, String valueField, String labelField) {
+  String[] groupBy =
+      labelField == null ? new String[] {valueField} : new String[] {valueField, labelField};
+  List<GroupedRow> rows =
+      query.groupBy(groupBy).select(groupBy).countDistinctAs("total", "id").findRows();
+  ...
+}
 ```
 
 `GET /api/catalog/categories` usa la misma agrupación para devolver cada categoría con su número de productos activos.
@@ -138,13 +166,13 @@ return new CatalogFacets(
 
 ## Filtros no válidos
 
-Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; nunca se consulta la base de datos.
+Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; no se lee ninguna fila.
 
 | Petición | Lo detecta | Detalle del problema |
 |---|---|---|
-| `filter=seller.email:startswith:ana` | lista blanca (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
+| `filter=seller.email:startswith:ana` | lista blanca, al resolver el argumento (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
 | `sort=seller.email,asc` | lista blanca | `Field 'seller.email' is not allowed for sorting` |
-| `filter=price.amount:gte:abc` | conversión de valores (`ConversionFailedException`) | `The value 'abc' is not a valid BigDecimal.` |
+| `filter=price.amount:gte:abc` | conversión de valores (`InvalidFilterValueException`) | `Invalid filter on field 'price.amount': cannot convert 'abc' to BigDecimal` |
 | `filter=name:like:cafe` | parser HTTP (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
 | parámetro mal formado | parser HTTP (`HttpFilterSyntaxException`) | el mensaje del parser |
 
@@ -160,7 +188,7 @@ Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; 
 }
 ```
 
-Dos mappers de `service-support` generan estas respuestas: [`SpecificationHttpProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationHttpProblemMapper.java) para los errores de sintaxis encontrados al parsear, y [`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) para los campos no permitidos, los valores no convertibles y los filtros que el motor de consultas rechaza al ejecutarse. Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas.
+Dos mappers de `service-support` generan estas respuestas: [`SpecificationHttpProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationHttpProblemMapper.java) para los errores de sintaxis encontrados al parsear, y [`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) para los campos no permitidos (`DisallowedFieldException`) y los filtros que el motor de consultas rechaza al ejecutarse, como los valores no convertibles (`InvalidFilterException`). Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas.
 
 ## El Filter Lab
 
@@ -196,7 +224,7 @@ curl -s 'http://localhost:8080/api/catalog/products?filter=seller.email:startswi
 
 ## El mismo patrón en el resto de la plataforma
 
-Todos los endpoints de listado de la plataforma siguen el patrón del catálogo: `@FilterableQuery` con una lista blanca, página y tamaño a partir del `Pageable`, y condiciones y valores por defecto del servidor compuestos con `QueryPlans`. Las listas blancas de todos los endpoints aparecen en [Las librerías en la práctica](libraries.md#filtros-http-con-filterablequery).
+Todos los endpoints de listado de la plataforma siguen el patrón del catálogo: `@FilterableQuery` con una lista blanca (compartida mediante una anotación compuesta cuando varios endpoints exponen la misma entidad), el `Pageable` pasado tal cual, y condiciones y ordenaciones por defecto del servidor añadidas al derivar el plan con `repository.query(plan)`. Las listas blancas de todos los endpoints aparecen en [Las librerías en la práctica](libraries.md#filtros-http-con-filterablequery).
 
 ## Relacionado
 

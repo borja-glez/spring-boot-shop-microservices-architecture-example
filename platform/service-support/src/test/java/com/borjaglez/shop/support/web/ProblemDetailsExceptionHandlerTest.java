@@ -68,7 +68,7 @@ class ProblemDetailsExceptionHandlerTest {
 
   @Test
   void genericIllegalArgumentIsNotMaskedAsClientError() throws Exception {
-    // Unexpected exceptions (for example unknown filter fields) stay 500s.
+    // Only the filter exceptions of the library are client errors; other ones stay 500s.
     mvc.perform(get("/illegal-argument")).andExpect(status().isInternalServerError());
   }
 

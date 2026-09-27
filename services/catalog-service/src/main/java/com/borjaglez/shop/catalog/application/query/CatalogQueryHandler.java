@@ -1,12 +1,10 @@
 package com.borjaglez.shop.catalog.application.query;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,24 +26,16 @@ import com.borjaglez.shop.catalog.domain.ProductRepository;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.support.query.QueryPlans;
-import com.borjaglez.specrepository.core.AggregateFunction;
-import com.borjaglez.specrepository.core.AggregateSelection;
-import com.borjaglez.specrepository.core.FieldSelection;
 import com.borjaglez.specrepository.core.GroupedRow;
 import com.borjaglez.specrepository.core.Operators;
-import com.borjaglez.specrepository.core.PredicateCondition;
 import com.borjaglez.specrepository.core.QueryPlan;
-import com.borjaglez.specrepository.core.Selection;
-import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
+import com.borjaglez.specrepository.jpa.SpecificationExecutableQuery;
 
 /** Answers the public read side of the catalog. Every read uses specification-repository. */
 @QueryHandler
 public class CatalogQueryHandler {
 
-  private static final PredicateCondition ON_SALE =
-      new PredicateCondition("status", Operators.EQUALS, ProductStatus.ACTIVE, false, false);
   private static final int MAX_FACET_VALUES = 20;
-  private static final Set<String> TEXT_FIELDS = Set.of("name", "description");
 
   private final ProductRepository products;
   private final CategoryRepository categories;
@@ -58,8 +48,10 @@ public class CatalogQueryHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public Page<ProductCard> search(SearchProductsQuery query) {
-    QueryPlan<Product> plan = QueryPlans.fetching(publicPlan(query.getPlan()), "seller");
-    return products.findAll(plan, query.getPageable()).map(ProductViews::card);
+    return onSale(query.getPlan())
+        .leftFetch("seller")
+        .findAll(query.getPageable())
+        .map(ProductViews::card);
   }
 
   @HandleQuery
@@ -86,40 +78,48 @@ public class CatalogQueryHandler {
     QueryPlan<Product> client = query.getPlan();
     return new CatalogFacets(
         countBy(
-            publicPlan(QueryPlans.without(client, "categories.slug")),
+            onSale(QueryPlans.without(client, "categories.slug")),
             "categories.slug",
             "categories.name"),
-        countBy(
-            publicPlan(QueryPlans.without(client, "seller.id")), "seller.id", "seller.displayName"),
-        countBy(publicPlan(QueryPlans.without(client, "tags")), "tags", null),
-        priceRange(publicPlan(QueryPlans.without(client, "price.amount"))));
+        countBy(onSale(QueryPlans.without(client, "seller.id")), "seller.id", "seller.displayName"),
+        countBy(onSale(QueryPlans.without(client, "tags")), "tags", null),
+        priceRange(onSale(QueryPlans.without(client, "price.amount"))));
   }
 
   @HandleQuery
   @Transactional(readOnly = true)
   public List<CategoryView> categories(ListCategoriesQuery query) {
-    QueryPlan<Product> onSale =
-        QueryPlans.requiring(SpecificationQueryBuilder.forEntity(Product.class).build(), ON_SALE);
     Map<String, Long> counts =
-        countBy(onSale, "categories.slug", "categories.name").stream()
+        countBy(
+                products.query().where("status", Operators.EQUALS, ProductStatus.ACTIVE),
+                "categories.slug",
+                "categories.name")
+            .stream()
             .collect(Collectors.toMap(FacetValue::value, FacetValue::count));
     return categories.query().sort(Sort.by("name")).findAll().stream()
         .map(c -> new CategoryView(c.getSlug(), c.getName(), counts.getOrDefault(c.getSlug(), 0L)))
         .toList();
   }
 
-  /** Client filters, case-insensitive on text, restricted to products on sale. */
-  private static QueryPlan<Product> publicPlan(QueryPlan<Product> clientPlan) {
-    return QueryPlans.requiring(QueryPlans.ignoringCase(clientPlan, TEXT_FIELDS), ON_SALE);
+  /**
+   * The client's filters, restricted to products on sale. The status is a server condition: it is
+   * not checked against the client's whitelist and a client {@code orFilter} cannot widen it, so a
+   * filter on {@code status} can narrow the results but never reveal drafts.
+   */
+  private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPlan) {
+    return products.query(clientPlan).where("status", Operators.EQUALS, ProductStatus.ACTIVE);
   }
 
-  private List<FacetValue> countBy(QueryPlan<Product> plan, String valueField, String labelField) {
-    List<String> groupBy =
-        labelField == null ? List.of(valueField) : List.of(valueField, labelField);
-    List<Selection> selections =
-        new ArrayList<>(groupBy.stream().map(FieldSelection::new).toList());
-    selections.add(new AggregateSelection(AggregateFunction.COUNT_DISTINCT, "id", "total"));
-    List<GroupedRow> rows = products.findAllGrouped(QueryPlans.grouping(plan, groupBy, selections));
+  /**
+   * Counts distinct products per value of {@code valueField}: joining categories or tags multiplies
+   * the rows of a product.
+   */
+  private static List<FacetValue> countBy(
+      SpecificationExecutableQuery<Product> query, String valueField, String labelField) {
+    String[] groupBy =
+        labelField == null ? new String[] {valueField} : new String[] {valueField, labelField};
+    List<GroupedRow> rows =
+        query.groupBy(groupBy).select(groupBy).countDistinctAs("total", "id").findRows();
     Function<GroupedRow, String> label =
         labelField == null
             ? r -> String.valueOf(r.get(valueField))
@@ -136,20 +136,14 @@ public class CatalogQueryHandler {
         .toList();
   }
 
-  private PriceRange priceRange(QueryPlan<Product> plan) {
-    List<GroupedRow> rows =
-        products.findAllGrouped(
-            QueryPlans.grouping(
-                plan,
-                List.of(),
-                List.of(
-                    new AggregateSelection(AggregateFunction.MIN, "price.amount", "min"),
-                    new AggregateSelection(AggregateFunction.MAX, "price.amount", "max"))));
-    if (rows.isEmpty() || rows.getFirst().get("min") == null) {
-      return new PriceRange(null, null);
-    }
-    return new PriceRange(
-        (BigDecimal) rows.getFirst().get("min"), (BigDecimal) rows.getFirst().get("max"));
+  private static PriceRange priceRange(SpecificationExecutableQuery<Product> query) {
+    return query
+        .minAs("min", "price.amount")
+        .maxAs("max", "price.amount")
+        .findRow()
+        .filter(r -> r.get("min") != null)
+        .map(r -> new PriceRange((BigDecimal) r.get("min"), (BigDecimal) r.get("max")))
+        .orElseGet(() -> new PriceRange(null, null));
   }
 
   private static long toLong(Object value) {

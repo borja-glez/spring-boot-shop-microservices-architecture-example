@@ -267,7 +267,7 @@ Otros ejemplos: cargar un stream en orden de versión ([`EventStore.load`](../..
 
 ### Filtros HTTP con `@FilterableQuery`
 
-Los endpoints de listado aceptan la sintaxis HTTP del módulo `-http`. `@FilterableQuery` convierte `filter`, `orFilter` y `sort` en un `QueryPlan` de la entidad indicada, restringido a los campos declarados:
+Los endpoints de listado aceptan la sintaxis HTTP del módulo `-http`. `@FilterableQuery` convierte `filter`, `orFilter` y `sort` en un `QueryPlan` de la entidad indicada, restringido a los campos declarados, y rechaza cualquier otro campo antes de que se ejecute el handler:
 
 ```java
 @GetMapping
@@ -279,8 +279,7 @@ PageResponse<OrderSummary> myOrders(
             sortableFields = {"placedAt", "total", "status"})
         QueryPlan<OrderView> plan,
     Pageable pageable) {
-  Page<OrderSummary> page =
-      queries.ask(new ListMyOrdersQuery(customer, plan, pagingOnly(pageable)));
+  Page<OrderSummary> page = queries.ask(new ListMyOrdersQuery(customer, plan, pageable));
   return PageResponse.of(page);
 }
 ```
@@ -294,93 +293,108 @@ PageResponse<OrderSummary> myOrders(
 
 Operadores: `eq`, `neq`, `contains`, `notcontains`, `startswith`, `endswith`, `gt`, `gte`, `lt`, `lte`, `between`, `in`, `notin`, `isnull`, `isnotnull`, `isempty`, `isnotempty`. Los operadores de lista (`between`, `in`, `notin`) separan los valores con `|`; los cuatro últimos no llevan valor.
 
-Los controladores solo pasan al handler el número y el tamaño de página (`pagingOnly`): la ordenación viaja dentro del plan, donde la lista blanca la valida. Listas blancas por endpoint:
+El controlador pasa el `Pageable` tal cual: Spring construye su ordenación a partir del mismo parámetro `sort`, y el repositorio también la comprueba contra la lista blanca del plan.
+
+Los endpoints que exponen la misma entidad comparten una única declaración mediante una anotación compuesta, ya que `@FilterableQuery` funciona como meta-anotación. La búsqueda del catálogo y sus facetas usan [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), que además declara los campos de texto que se comparan sin distinguir mayúsculas ni acentos (`caseInsensitiveFields`), y permite que la búsqueda añada sus campos ordenables mediante un atributo `@AliasFor`:
+
+```java
+@FilterableQuery(
+    value = Product.class,
+    filterableFields = {"name", "description", "sku", "price.amount", /* ... */ "publishedAt"},
+    caseInsensitiveFields = {"name", "description"})
+@interface ProductFilter {
+
+  @AliasFor(annotation = FilterableQuery.class)
+  String[] sortableFields() default {};
+}
+
+PageResponse<ProductCard> search(
+    @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
+        QueryPlan<Product> plan,
+    Pageable pageable) { ... }
+
+CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) { ... }
+```
+
+Los cuatro informes de pedidos comparten [`@OrderReportFilter`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/api/OrderReportFilter.java) de la misma forma. Listas blancas por endpoint:
 
 | Endpoint | Filtrables | Ordenables |
 |---|---|---|
-| `GET /api/catalog/products`, `/facets` | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | `name`, `sku`, `price.amount`, `publishedAt` |
+| `GET /api/catalog/products`, `/facets` (`@ProductFilter`) | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | búsqueda: `name`, `sku`, `price.amount`, `publishedAt`; facetas: ninguno |
 | `GET /api/orders` | `status`, `total`, `currency`, `placedAt`, `lines.sku` | `placedAt`, `total`, `status` |
 | `GET /api/orders/events` | `eventType`, `streamType`, `streamId`, `version`, `occurredAt`, `publishedAt`, `publishAttempts` | `globalPosition`, `occurredAt` |
 | `GET /api/inventory/stock` | `sku`, `name`, `onHand`, `reserved`, `updatedAt` | los mismos |
 | `GET /api/inventory/reservations` | `orderId`, `status`, `reservedAt`, `releasedAt`, `lines.sku` | `reservedAt`, `releasedAt` |
 | `GET /api/payments` | `orderId`, `customerId`, `status`, `reason`, `amount`, `currency`, `updatedAt` | `amount`, `createdAt`, `updatedAt` |
-| `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` | `placedAt`, `placedDay`, `currency` | ninguno |
+| `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` (`@OrderReportFilter`) | `placedAt`, `placedDay`, `currency` | ninguno |
 | `GET /api/reporting/top-products` | `order.placedAt`, `order.placedDay`, `sku`, `name` | ninguno |
 
-Cualquier otro campo, un parámetro mal formado, un operador desconocido o un valor que no se puede convertir al tipo del campo se responde con 400 `invalid-filter`. Consulta [Consultas](querying.md).
+Cualquier otro campo, un parámetro mal formado, un operador desconocido o un valor que no se puede convertir al tipo del campo se responde con 400 `invalid-filter` ([`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) traduce `DisallowedFieldException` e `InvalidFilterException`). Consulta [Consultas](querying.md).
 
-### Componer condiciones del servidor con `QueryPlans`
+### Condiciones del servidor sobre un plan del cliente
 
-Un plan del cliente a menudo necesita condiciones que el cliente no debe controlar: el propietario de los datos, el estado de lo que es público, las columnas que lee una proyección. [`QueryPlans`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java), en `service-support`, deriva nuevos planes a partir de un plan del cliente sin tocar las condiciones del propio cliente:
+Un plan del cliente a menudo necesita condiciones que el cliente no debe controlar: el propietario de los datos, el estado de lo que es público, las columnas que lee una proyección. Los handlers derivan el plan del cliente con `repository.query(plan)`, que conserva los filtros, la ordenación y la lista blanca del cliente y les añade lo siguiente:
 
-| Método | Devuelve un plan que... | Se usa en |
+| En la consulta derivada | Efecto | Se usa en |
 |---|---|---|
-| `requiring(plan, conditions...)` | además exige las condiciones del servidor (AND). Primero se comprueba la parte del cliente contra su lista blanca y después el plan admite cualquier campo, de modo que una condición del servidor puede usar un campo que el cliente no puede. | "Mis pedidos" (`customerId = user`), catálogo (`status = ACTIVE`), todos los informes |
-| `ignoringCase(plan, fields)` | hace que las búsquedas de texto (`contains`, `notcontains`, `startswith`, `endswith`) sobre esos campos ignoren mayúsculas y acentos | búsqueda del catálogo sobre `name`, `description` |
-| `without(plan, field)` | elimina las condiciones de primer nivel sobre un campo | facetas disyuntivas |
-| `fetching(plan, paths...)` | añade left fetch joins | la búsqueda del catálogo hace fetch de `seller` |
-| `sortedByDefault(plan, sort)` | aplica una ordenación solo cuando el cliente no ha pedido ninguna | pedidos (los más recientes primero), event store, pagos |
-| `projecting(plan, type, fields...)` | lee las columnas indicadas directamente en un record (`selectInto`), sin entidades gestionadas | listado de pagos |
-| `grouping(plan, groupBy, selections[, having])` | convierte el plan en una consulta agrupada sobre las mismas filas | facetas del catálogo, todos los informes |
+| `where(...)` | una **condición del servidor**: se combina con AND con los filtros del cliente, no se comprueba contra la lista blanca (puede usar un campo por el que el cliente no puede filtrar) y un `orFilter` del cliente nunca la amplía | "Mis pedidos" (`customerId = user`), catálogo (`status = ACTIVE`), todos los informes |
+| `sortedByDefault(sort)` | una ordenación que solo se usa cuando el cliente no ha pedido ninguna; debe ser uno de los campos ordenables | pedidos (los más recientes primero), event store, inventario, pagos |
+| `leftFetch(paths...)` | fetch joins | la búsqueda del catálogo hace fetch de `seller` |
+| `select(fields...).selectInto(type)` | lee las columnas indicadas directamente en un record, sin entidades gestionadas | listado de pagos |
+| `groupBy`, `select`, agregados, `having` y después `findRows()` / `findRow()` | una consulta agrupada sobre las mismas filas | facetas y categorías del catálogo, todos los informes |
 
-"Mis pedidos" combina tres de ellos:
+"Mis pedidos":
 
 ```java
-QueryPlan<OrderView> plan =
-    QueryPlans.sortedByDefault(
-        QueryPlans.requiring(
-            query.getPlan(),
-            new PredicateCondition(
-                "customerId", Operators.EQUALS, query.getCustomerId(), false, false)),
-        NEWEST_ORDERS);
-return views.findAll(plan, query.getPageable()).map(OrderViews::summary);
+return views
+    .query(query.getPlan())
+    .where("customerId", Operators.EQUALS, query.getCustomerId())
+    .sortedByDefault(NEWEST_ORDERS)
+    .findAll(query.getPageable())
+    .map(OrderViews::summary);
 ```
+
+`?filter=customerId:eq:otra-persona` sigue siendo un 400, porque `customerId` no está en la lista blanca, y `?orFilter=status:eq:PLACED;status:eq:CONFIRMED` solo encuentra pedidos del cliente actual.
 
 El backoffice de pagos lee las filas directamente en su record de respuesta:
 
 ```java
-QueryPlan<PaymentView> plan =
-    QueryPlans.projecting(
-        QueryPlans.sortedByDefault(query.getPlan(), NEWEST_FIRST),
-        PaymentSummary.class,
-        SUMMARY_FIELDS);
-return views.findAllProjected(plan, query.getPageable());
+return views
+    .query(query.getPlan())
+    .sortedByDefault(NEWEST_FIRST)
+    .select(SUMMARY_FIELDS)
+    .selectInto(PaymentSummary.class)
+    .findAll(query.getPageable());
 ```
+
+Las facetas disyuntivas necesitan lo contrario de una condición del servidor: cada faceta prescinde del propio filtro del cliente sobre su campo. La consulta derivada no puede quitar filtros del cliente, así que lo hace [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java), en `service-support`, que conserva todo lo demás del plan (consulta [Consultas](querying.md#facetas)).
 
 ### Facetas e informes: agrupación y agregados
 
-`findAllGrouped` ejecuta un plan de agrupación y devuelve `GroupedRow`s. Las selecciones son `FieldSelection`s y `AggregateSelection`s (`COUNT`, `COUNT_DISTINCT`, `SUM`, `MIN`, `MAX`), y las `HavingCondition`s filtran los grupos. El cliente decide qué filas (sus filtros); el servidor decide qué se agrupa y qué se suma. Por eso los planes de los informes se construyen siempre en este orden: primero `requiring`, que valida los filtros del cliente contra su lista blanca, y después `grouping`, cuyos campos elige el servidor.
+Una consulta con selecciones o agregados devuelve filas, no entidades: `findRows()` las lee como `GroupedRow`s y `findRow()` lee la primera. El cliente decide qué filas (sus filtros); el servidor decide qué se agrupa y qué se suma: la agrupación, las selecciones, los agregados y `having` siempre se añaden en el código.
 
 ```java
-QueryPlan<ReportLine> plan =
-    QueryPlans.grouping(
-        QueryPlans.requiring(query.getPlan(), LINE_OF_CONFIRMED),
-        List.of("sku", "name", "order.currency"),
-        List.of(
-            new FieldSelection("sku"),
-            new FieldSelection("name"),
-            new FieldSelection("order.currency"),
-            new AggregateSelection(AggregateFunction.SUM, "quantity", "units"),
-            new AggregateSelection(AggregateFunction.COUNT_DISTINCT, "order.orderId", "orders"),
-            new AggregateSelection(AggregateFunction.SUM, "revenue", "revenue")),
-        List.of(
-            new HavingCondition(
-                AggregateFunction.SUM,
-                "quantity",
-                Operators.GREATER_THAN_OR_EQUAL,
-                (long) Math.max(query.getMinUnits(), 1))));
-return lines.findAllGrouped(plan).stream()...
+return placed(query.getPlan(), ReportStatus.CONFIRMED)   // orders.query(plan) + condiciones del servidor
+    .groupBy("placedDay", "currency")
+    .select("placedDay", "currency")
+    .countAs("orders", "orderId")
+    .countDistinctAs("customers", "customerId")
+    .sumAs("revenue", "total")
+    .findRows()
+    .stream()...
 ```
 
-(de [`ReportsHandler.topProducts`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
+(de [`ReportsHandler.salesByDay`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
 
-Las facetas del catálogo usan el mismo mecanismo con `COUNT_DISTINCT` por categoría, vendedor y etiqueta, y `MIN`/`MAX` para el rango de precios. Consulta [Consultas](querying.md#facetas) y [Modelos de lectura](read-models.md#reporting-service).
+La lista blanca también cubre los campos de `having`. El informe de productos más vendidos conserva los productos que han vendido al menos `minUnits` con `having(SUM, "quantity", ...)`, y `quantity` no es un filtro del cliente, así que `topProducts` comprueba el plan del cliente contra su lista blanca (`allowedFieldsPolicy().validate(plan)`) y después deja que la consulta agrupada use cualquier campo.
+
+Las facetas del catálogo usan el mismo mecanismo con `countDistinctAs` por categoría, vendedor y etiqueta, y `minAs`/`maxAs` con `findRow()` para el rango de precios. Consulta [Consultas](querying.md#facetas) y [Modelos de lectura](read-models.md#reporting-service).
 
 ### Toda lectura pasa por ella
 
 | Lectura | Cómo |
 |---|---|
-| Búsqueda pública del catálogo, facetas, categorías | `findAll(plan, pageable)`, `findAllGrouped` |
+| Búsqueda pública del catálogo, facetas, categorías | `query(plan)...findAll(pageable)`, `findRows()`, `findRow()` |
 | Detalle de producto, comprobaciones de propiedad, SKU duplicado | `query()...findOne()` / `count()` |
 | Cargar un agregado con event sourcing | `EventStore.load`: `query().where(...).sort(Sort.by("version")).findAll()` |
 | Comprobación de concurrencia optimista al añadir | `query()...count()` de las filas versionadas del stream |
@@ -388,8 +402,8 @@ Las facetas del catálogo usan el mismo mecanismo con `COUNT_DISTINCT` por categ
 | Métricas del outbox | `count()` de las filas pendientes, `findSlice` para la más antigua |
 | Modelos de lectura y proyecciones | `query()...findOne()` en cada proyector |
 | Búsqueda y métricas de la saga | `CheckoutSagaRepository.query()` |
-| Informes | `findAllGrouped` con `HAVING` |
-| Listado de pagos | `findAllProjected` |
+| Informes | `query(plan)...findRows()` con `HAVING` |
+| Listado de pagos | `query(plan)...selectInto(...).findAll(pageable)` |
 
 ## Relacionado
 

@@ -1,6 +1,7 @@
 package com.borjaglez.shop.catalog.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -19,7 +20,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -35,15 +35,16 @@ import com.borjaglez.cqrs.query.QueryBus;
 import com.borjaglez.shop.catalog.application.command.ChangeProductPriceCommand;
 import com.borjaglez.shop.catalog.application.command.CreateProductCommand;
 import com.borjaglez.shop.catalog.application.command.PublishProductCommand;
+import com.borjaglez.shop.catalog.application.query.GetCatalogFacetsQuery;
+import com.borjaglez.shop.catalog.application.query.ProductViews.CatalogFacets;
+import com.borjaglez.shop.catalog.application.query.ProductViews.PriceRange;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductCard;
 import com.borjaglez.shop.catalog.application.query.ProductViews.SellerSummary;
 import com.borjaglez.shop.catalog.application.query.SearchProductsQuery;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.specrepository.core.PredicateCondition;
-import com.borjaglez.specrepository.http.spring.HttpFilterAutoConfiguration;
 
 @WebMvcTest(ProductController.class)
-@ImportAutoConfiguration(HttpFilterAutoConfiguration.class)
 class ProductControllerTest {
 
   private static final UUID ID = UUID.fromString("8a9c2c1e-6f59-4a44-9d4b-0f6f4e3f1c11");
@@ -91,8 +92,71 @@ class ProductControllerTest {
               assertThat(c.value()).isEqualTo("café");
             });
     assertThat(query.getPlan().sort()).isEqualTo(Sort.by(Sort.Order.desc("price.amount")));
-    // The sort travels in the validated plan only, never in the Pageable.
-    assertThat(query.getPageable()).isEqualTo(PageRequest.of(2, 5));
+    assertThat(query.getPageable())
+        .isEqualTo(PageRequest.of(2, 5, Sort.by(Sort.Order.desc("price.amount"))));
+  }
+
+  @Test
+  void textSearchIgnoresCaseOnNameAndDescriptionOnly() throws Exception {
+    when(queries.ask(any(Query.class))).thenReturn(new PageImpl<>(List.of(card())));
+
+    mvc.perform(
+            get("/api/catalog/products")
+                .param("filter", "name:contains:cafe")
+                .param("filter", "description:contains:tueste")
+                .param("filter", "sku:startswith:CAF"))
+        .andExpect(status().isOk());
+
+    ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+    verify(queries).ask(captor.capture());
+    SearchProductsQuery query = (SearchProductsQuery) captor.getValue();
+    assertThat(query.getPlan().rootCondition().conditions())
+        .map(PredicateCondition.class::cast)
+        .extracting(PredicateCondition::field, PredicateCondition::ignoreCase)
+        .containsExactly(tuple("name", true), tuple("description", true), tuple("sku", false));
+  }
+
+  @Test
+  void privateFieldsCannotBeFiltered() throws Exception {
+    mvc.perform(get("/api/catalog/products").param("filter", "seller.email:startswith:ana"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void onlyListedFieldsCanBeSorted() throws Exception {
+    mvc.perform(get("/api/catalog/products").param("sort", "seller.email,asc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void facetsShareTheSearchFilters() throws Exception {
+    when(queries.ask(any(Query.class)))
+        .thenReturn(new CatalogFacets(List.of(), List.of(), List.of(), new PriceRange(null, null)));
+
+    mvc.perform(
+            get("/api/catalog/products/facets")
+                .param("filter", "name:contains:cafe")
+                .param("orFilter", "seller.city:eq:Madrid;tags:eq:ecologico"))
+        .andExpect(status().isOk());
+
+    ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+    verify(queries).ask(captor.capture());
+    GetCatalogFacetsQuery query = (GetCatalogFacetsQuery) captor.getValue();
+    assertThat(query.getPlan().rootCondition().conditions()).hasSize(2);
+    assertThat(query.getPlan().rootCondition().conditions().getFirst())
+        .isInstanceOfSatisfying(PredicateCondition.class, c -> assertThat(c.ignoreCase()).isTrue());
+  }
+
+  @Test
+  void facetsCannotBeSorted() throws Exception {
+    mvc.perform(get("/api/catalog/products/facets").param("sort", "name,asc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"));
+    verifyNoInteractions(queries);
   }
 
   @Test

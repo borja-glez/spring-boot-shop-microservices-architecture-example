@@ -68,6 +68,18 @@ class CatalogApiIT {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void facetsCountTheTextSearchIgnoringCase() {
+    var response = get("/api/catalog/products/facets?filter=name:contains:CAFETERA");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat((List<Map<String, Object>>) response.getBody().get("categories"))
+        .filteredOn(c -> "cafe-e-infusiones".equals(c.get("value")))
+        .singleElement()
+        .satisfies(c -> assertThat(c.get("count")).isEqualTo(2));
+  }
+
+  @Test
   void filtersByTag() {
     var response = get("/api/catalog/products?filter=tags:in:artesania|audio&size=100");
 
@@ -86,6 +98,14 @@ class CatalogApiIT {
   @Test
   void valueOfTheWrongTypeIsABadRequest() {
     var response = get("/api/catalog/products?filter=price.amount:gte:abc");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody()).containsEntry("code", "invalid-filter");
+  }
+
+  @Test
+  void unknownOperatorIsABadRequest() {
+    var response = get("/api/catalog/products?filter=name:like:cafe");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");

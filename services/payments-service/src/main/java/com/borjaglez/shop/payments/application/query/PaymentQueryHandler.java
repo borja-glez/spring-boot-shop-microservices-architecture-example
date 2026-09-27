@@ -14,11 +14,8 @@ import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentEvent
 import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentSummary;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.SearchPaymentsQuery;
 import com.borjaglez.shop.payments.domain.Payment;
-import com.borjaglez.shop.payments.domain.PaymentView;
 import com.borjaglez.shop.payments.domain.PaymentViewRepository;
 import com.borjaglez.shop.support.error.NotFoundException;
-import com.borjaglez.shop.support.query.QueryPlans;
-import com.borjaglez.specrepository.core.QueryPlan;
 
 /** Read side of the payments backoffice. Every read uses specification-repository. */
 @QueryHandler
@@ -53,12 +50,12 @@ public class PaymentQueryHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public Page<PaymentSummary> payments(SearchPaymentsQuery query) {
-    QueryPlan<PaymentView> plan =
-        QueryPlans.projecting(
-            QueryPlans.sortedByDefault(query.getPlan(), NEWEST_FIRST),
-            PaymentSummary.class,
-            SUMMARY_FIELDS);
-    return views.findAllProjected(plan, query.getPageable());
+    return views
+        .query(query.getPlan())
+        .sortedByDefault(NEWEST_FIRST)
+        .select(SUMMARY_FIELDS)
+        .selectInto(PaymentSummary.class)
+        .findAll(query.getPageable());
   }
 
   @HandleQuery

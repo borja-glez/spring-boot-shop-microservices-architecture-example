@@ -18,7 +18,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -43,10 +42,8 @@ import com.borjaglez.shop.orders.application.query.OrderViews.StoredEventView;
 import com.borjaglez.shop.orders.application.query.SearchEventStoreQuery;
 import com.borjaglez.shop.orders.domain.OrderStatus;
 import com.borjaglez.specrepository.core.PredicateCondition;
-import com.borjaglez.specrepository.http.spring.HttpFilterAutoConfiguration;
 
 @WebMvcTest(OrderController.class)
-@ImportAutoConfiguration(HttpFilterAutoConfiguration.class)
 class OrderControllerTest {
 
   private static final UUID ORDER = UUID.fromString("5b0f6c2e-1d3a-4c55-9e0b-7a1f2c3d4e5f");
@@ -87,7 +84,8 @@ class OrderControllerTest {
         .isInstanceOfSatisfying(
             PredicateCondition.class, c -> assertThat(c.field()).isEqualTo("status"));
     assertThat(query.getPlan().sort()).isEqualTo(Sort.by(Sort.Direction.DESC, "total"));
-    assertThat(query.getPageable()).isEqualTo(PageRequest.of(1, 5));
+    assertThat(query.getPageable())
+        .isEqualTo(PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "total")));
   }
 
   @Test

@@ -6,7 +6,6 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -70,8 +69,7 @@ class OrderController {
               sortableFields = {"placedAt", "total", "status"})
           QueryPlan<OrderView> plan,
       Pageable pageable) {
-    Page<OrderSummary> page =
-        queries.ask(new ListMyOrdersQuery(customer, plan, pagingOnly(pageable)));
+    Page<OrderSummary> page = queries.ask(new ListMyOrdersQuery(customer, plan, pageable));
     return PageResponse.of(page);
   }
 
@@ -134,12 +132,7 @@ class OrderController {
               sortableFields = {"globalPosition", "occurredAt"})
           QueryPlan<StoredEvent> plan,
       Pageable pageable) {
-    Page<StoredEventView> page = queries.ask(new SearchEventStoreQuery(plan, pagingOnly(pageable)));
+    Page<StoredEventView> page = queries.ask(new SearchEventStoreQuery(plan, pageable));
     return PageResponse.of(page);
-  }
-
-  /** Keeps page number and size; the sort goes through the whitelisted plan. */
-  private static Pageable pagingOnly(Pageable pageable) {
-    return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
   }
 }

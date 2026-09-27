@@ -5,7 +5,6 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,7 +54,7 @@ class InventoryController {
               sortableFields = {"sku", "name", "onHand", "reserved", "updatedAt"})
           QueryPlan<StockItem> plan,
       Pageable pageable) {
-    Page<StockView> page = queries.ask(new SearchStockQuery(plan, pagingOnly(pageable)));
+    Page<StockView> page = queries.ask(new SearchStockQuery(plan, pageable));
     return PageResponse.of(page);
   }
 
@@ -76,13 +75,7 @@ class InventoryController {
               sortableFields = {"reservedAt", "releasedAt"})
           QueryPlan<Reservation> plan,
       Pageable pageable) {
-    Page<ReservationView> page =
-        queries.ask(new SearchReservationsQuery(plan, pagingOnly(pageable)));
+    Page<ReservationView> page = queries.ask(new SearchReservationsQuery(plan, pageable));
     return PageResponse.of(page);
-  }
-
-  /** Keeps page number and size; the sort goes through the whitelisted plan. */
-  private static Pageable pagingOnly(Pageable pageable) {
-    return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
   }
 }

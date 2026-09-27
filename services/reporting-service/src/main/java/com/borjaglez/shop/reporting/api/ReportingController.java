@@ -27,9 +27,9 @@ import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.http.spring.FilterableQuery;
 
 /**
- * Backoffice reports. Order reports accept HTTP filters on the placement date and the currency; the
- * product report on the order's date and on the product. What is grouped and summed is the server's
- * choice, never a parameter.
+ * Backoffice reports. Order reports accept HTTP filters on the placement date and the currency
+ * ({@link OrderReportFilter}); the product report on the order's date and on the product. What is
+ * grouped and summed is the server's choice, never a parameter.
  */
 @RestController
 @RequestMapping("/api/reporting")
@@ -44,20 +44,12 @@ class ReportingController {
   }
 
   @GetMapping("/summary")
-  List<StatusCount> summary(
-      @FilterableQuery(
-              value = ReportOrder.class,
-              filterableFields = {"placedAt", "placedDay", "currency"})
-          QueryPlan<ReportOrder> plan) {
+  List<StatusCount> summary(@OrderReportFilter QueryPlan<ReportOrder> plan) {
     return queries.ask(new SummaryQuery(plan));
   }
 
   @GetMapping("/sales-by-day")
-  List<DailySales> salesByDay(
-      @FilterableQuery(
-              value = ReportOrder.class,
-              filterableFields = {"placedAt", "placedDay", "currency"})
-          QueryPlan<ReportOrder> plan) {
+  List<DailySales> salesByDay(@OrderReportFilter QueryPlan<ReportOrder> plan) {
     return queries.ask(new SalesByDayQuery(plan));
   }
 
@@ -72,20 +64,12 @@ class ReportingController {
   }
 
   @GetMapping("/rejections")
-  List<RejectionCount> rejections(
-      @FilterableQuery(
-              value = ReportOrder.class,
-              filterableFields = {"placedAt", "placedDay", "currency"})
-          QueryPlan<ReportOrder> plan) {
+  List<RejectionCount> rejections(@OrderReportFilter QueryPlan<ReportOrder> plan) {
     return queries.ask(new RejectionsQuery(plan));
   }
 
   @GetMapping("/customers")
-  List<CustomerSales> customers(
-      @FilterableQuery(
-              value = ReportOrder.class,
-              filterableFields = {"placedAt", "placedDay", "currency"})
-          QueryPlan<ReportOrder> plan) {
+  List<CustomerSales> customers(@OrderReportFilter QueryPlan<ReportOrder> plan) {
     return queries.ask(new CustomersQuery(plan));
   }
 

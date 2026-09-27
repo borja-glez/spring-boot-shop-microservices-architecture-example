@@ -2,6 +2,7 @@ package com.borjaglez.shop.reporting.application;
 
 import static com.borjaglez.shop.reporting.ReportingTestEvents.placed;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDate;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.NestedExceptionUtils;
 
 import com.borjaglez.cqrs.query.QueryBus;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
@@ -36,6 +38,7 @@ import com.borjaglez.shop.reporting.domain.ReportStatus;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
+import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
@@ -50,6 +53,8 @@ class ReportsIT {
 
   private static final AllowedFieldsPolicy ORDER_FILTERS =
       AllowedFieldsPolicy.of(Set.of("placedAt", "placedDay", "currency"), Set.of());
+  private static final AllowedFieldsPolicy LINE_FILTERS =
+      AllowedFieldsPolicy.of(Set.of("order.placedAt", "order.placedDay", "sku", "name"), Set.of());
 
   @Autowired ReportProjector projector;
   @Autowired QueryBus queries;
@@ -65,6 +70,7 @@ class ReportsIT {
   private static QueryPlan<ReportLine> skus(String prefix) {
     return SpecificationQueryBuilder.forEntity(ReportLine.class)
         .where("sku", Operators.STARTS_WITH, prefix)
+        .allowedFields(LINE_FILTERS)
         .build();
   }
 
@@ -124,6 +130,29 @@ class ReportsIT {
               assertThat(p.orders()).isEqualTo(2);
               assertThat(p.revenue()).isEqualByComparingTo("20.00");
             });
+  }
+
+  @Test
+  void clientFiltersOutsideTheWhitelistAreRejected() {
+    QueryPlan<ReportOrder> byStatus =
+        SpecificationQueryBuilder.forEntity(ReportOrder.class)
+            .where("status", Operators.EQUALS, ReportStatus.CONFIRMED)
+            .allowedFields(ORDER_FILTERS)
+            .build();
+    QueryPlan<ReportLine> byQuantity =
+        SpecificationQueryBuilder.forEntity(ReportLine.class)
+            .where("quantity", Operators.GREATER_THAN, 1)
+            .allowedFields(LINE_FILTERS)
+            .build();
+
+    assertThat(
+            NestedExceptionUtils.getMostSpecificCause(
+                catchThrowable(() -> queries.ask(new SalesByDayQuery(byStatus)))))
+        .isInstanceOf(DisallowedFieldException.class);
+    assertThat(
+            NestedExceptionUtils.getMostSpecificCause(
+                catchThrowable(() -> queries.ask(new TopProductsQuery(byQuantity, 1)))))
+        .isInstanceOf(DisallowedFieldException.class);
   }
 
   @Test

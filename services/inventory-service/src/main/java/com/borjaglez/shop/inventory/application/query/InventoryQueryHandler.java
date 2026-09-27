@@ -12,7 +12,6 @@ import com.borjaglez.shop.inventory.application.query.InventoryQueries.SearchSto
 import com.borjaglez.shop.inventory.application.query.InventoryQueries.StockView;
 import com.borjaglez.shop.inventory.domain.ReservationRepository;
 import com.borjaglez.shop.inventory.domain.StockItemRepository;
-import com.borjaglez.shop.support.query.QueryPlans;
 
 /** Read side of the inventory backoffice. Every read uses specification-repository. */
 @QueryHandler
@@ -33,7 +32,9 @@ public class InventoryQueryHandler {
   @Transactional(readOnly = true)
   public Page<StockView> stock(SearchStockQuery query) {
     return stock
-        .findAll(QueryPlans.sortedByDefault(query.getPlan(), BY_SKU), query.getPageable())
+        .query(query.getPlan())
+        .sortedByDefault(BY_SKU)
+        .findAll(query.getPageable())
         .map(StockView::of);
   }
 
@@ -41,7 +42,9 @@ public class InventoryQueryHandler {
   @Transactional(readOnly = true)
   public Page<ReservationView> reservations(SearchReservationsQuery query) {
     return reservations
-        .findAll(QueryPlans.sortedByDefault(query.getPlan(), NEWEST_FIRST), query.getPageable())
+        .query(query.getPlan())
+        .sortedByDefault(NEWEST_FIRST)
+        .findAll(query.getPageable())
         .map(ReservationView::of);
   }
 }
