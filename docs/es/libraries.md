@@ -1,12 +1,12 @@
 # Las librerías en la práctica
 
-Mercado es la aplicación de referencia de dos librerías open source de Borja González, ambas publicadas en Maven Central en la versión 0.3.1: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`) y [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`). spring-boot-cqrs da a cada servicio sus buses de comandos, consultas y eventos, los ejecuta en local o sobre RabbitMQ y Kafka, y añade validación, propagación de contexto y observabilidad alrededor de cada handler. specification-repository es la única forma en que los servicios leen sus bases de datos: un DSL de consultas fluido sobre repositorios Spring Data JPA, más una sintaxis de filtros HTTP que convierte los parámetros de la petición en planes de consulta con lista blanca. Esta página muestra cómo se configuran y se usan ambas, con el código real que hay detrás de cada pieza.
+Mercado es la aplicación de referencia de dos librerías open source de Borja González, ambas publicadas en Maven Central en la versión 0.4.0: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`) y [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`). spring-boot-cqrs da a cada servicio sus buses de comandos, consultas y eventos, los ejecuta en local o sobre RabbitMQ y Kafka, y añade validación, propagación de contexto y observabilidad alrededor de cada handler. specification-repository es la única forma en que los servicios leen sus bases de datos: un DSL de consultas fluido sobre repositorios Spring Data JPA, más una sintaxis de filtros HTTP que convierte los parámetros de la petición en planes de consulta con lista blanca. Esta página muestra cómo se configuran y se usan ambas, con el código real que hay detrás de cada pieza.
 
 <p align="center"><img src="../assets/diagrams/libraries.svg" alt="Cómo spring-boot-cqrs y spring-boot-specification-repository atienden una petición" width="100%"></p>
 
 ## Dependencias
 
-Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.3.1"`, `specrepo = "0.3.1"`).
+Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.4.0"`, `specrepo = "0.4.0"`).
 
 | Artefacto | Lo usa | Propósito |
 |---|---|---|

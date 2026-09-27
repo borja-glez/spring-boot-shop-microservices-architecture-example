@@ -56,9 +56,9 @@ In Mercado: controllers only dispatch commands and queries, the checkout saga ta
 payments over RabbitMQ, and integration events flow over Kafka.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.3.1")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.3.1")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.3.1")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.4.0")
 ```
 
 </td>
@@ -78,8 +78,8 @@ In Mercado: the catalog search, facets, "my orders", the event store explorer, t
 every report are specification-repository queries composed with server-side conditions.
 
 ```kotlin
-implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.3.1")
-implementation("com.borjaglez.specrepository:specification-repository-http:0.3.1")
+implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.4.0")
+implementation("com.borjaglez.specrepository:specification-repository-http:0.4.0")
 ```
 
 </td>
