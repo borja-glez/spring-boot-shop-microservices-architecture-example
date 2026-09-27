@@ -16,7 +16,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Sort;
@@ -31,10 +30,8 @@ import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentEvent
 import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentSummary;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.SearchPaymentsQuery;
 import com.borjaglez.shop.payments.domain.PaymentStatus;
-import com.borjaglez.specrepository.http.spring.HttpFilterAutoConfiguration;
 
 @WebMvcTest(PaymentController.class)
-@ImportAutoConfiguration(HttpFilterAutoConfiguration.class)
 class PaymentControllerTest {
 
   private static final UUID ORDER = UUID.fromString("5b0f6c2e-1d3a-4c55-9e0b-7a1f2c3d4e5f");

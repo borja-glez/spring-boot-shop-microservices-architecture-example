@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,17 +50,12 @@ class PaymentController {
               sortableFields = {"amount", "createdAt", "updatedAt"})
           QueryPlan<PaymentView> plan,
       Pageable pageable) {
-    Page<PaymentSummary> page = queries.ask(new SearchPaymentsQuery(plan, pagingOnly(pageable)));
+    Page<PaymentSummary> page = queries.ask(new SearchPaymentsQuery(plan, pageable));
     return PageResponse.of(page);
   }
 
   @GetMapping("/{orderId}/history")
   List<PaymentEvent> history(@PathVariable UUID orderId) {
     return queries.ask(new GetPaymentHistoryQuery(orderId));
-  }
-
-  /** Keeps page number and size; the sort goes through the whitelisted plan. */
-  private static Pageable pagingOnly(Pageable pageable) {
-    return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
   }
 }

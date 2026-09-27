@@ -10,8 +10,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 
 import org.slf4j.MDC;
-import org.springframework.core.convert.ConversionFailedException;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +24,8 @@ import com.borjaglez.shop.support.error.BusinessRuleViolationException;
 import com.borjaglez.shop.support.error.ConflictException;
 import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
+import com.borjaglez.specrepository.core.InvalidFilterException;
+import com.borjaglez.specrepository.core.InvalidFilterValueException;
 import com.borjaglez.specrepository.http.HttpFilterSyntaxException;
 import com.borjaglez.specrepository.http.HttpUnknownOperatorException;
 
@@ -86,17 +86,14 @@ class SampleController {
   void filterValue() {
     throw new InvalidDataAccessApiUsageException(
         "wrapped",
-        new ConversionFailedException(
-            TypeDescriptor.valueOf(String.class),
-            TypeDescriptor.valueOf(BigDecimal.class),
-            "abc",
-            new NumberFormatException("abc")));
+        new InvalidFilterValueException(
+            "price.amount", "abc", BigDecimal.class, new NumberFormatException("abc")));
   }
 
   @GetMapping("/filter-operator-at-query-time")
   void filterOperatorAtQueryTime() {
     throw new InvalidDataAccessApiUsageException(
-        "wrapped", new IllegalArgumentException("No operator handler registered for like"));
+        "wrapped", new InvalidFilterException("name", "unknown operator 'like'"));
   }
 
   @GetMapping("/optimistic-lock")

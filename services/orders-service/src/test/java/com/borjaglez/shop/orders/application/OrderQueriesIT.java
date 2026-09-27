@@ -3,15 +3,18 @@ package com.borjaglez.shop.orders.application;
 import static com.borjaglez.shop.orders.OrdersTestSupport.published;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
@@ -46,6 +49,8 @@ import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
+import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
+import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.core.QueryPlanBuilder;
@@ -73,6 +78,8 @@ import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
 class OrderQueriesIT {
 
   private static final PageRequest FIRST_PAGE = PageRequest.of(0, 20);
+  private static final AllowedFieldsPolicy CLIENT_FIELDS =
+      AllowedFieldsPolicy.of(Set.of("status", "total"), Set.of("placedAt", "total"));
 
   @Autowired CommandBus commands;
   @Autowired QueryBus queries;
@@ -140,6 +147,43 @@ class OrderQueriesIT {
     assertThat(myOrders(lucia, orders().build()))
         .extracting(OrderSummary::orderId)
         .containsExactlyInAnyOrder(first, second);
+  }
+
+  @Test
+  void theCustomerScopeHoldsUnderTheEndpointWhitelistAndAlternatives() {
+    String lucia = customer();
+    String mateo = customer();
+    UUID coffee = product("CAF-" + lucia.substring(8, 12));
+    UUID own = place(lucia, coffee);
+    place(mateo, coffee);
+    // customerId is not filterable by the client, yet the server scopes the rows by it; the
+    // client's alternatives stay inside that scope.
+    QueryPlan<OrderView> anyStatus =
+        orders()
+            .or(
+                either ->
+                    either
+                        .where("status", Operators.IS_NOT_NULL, null)
+                        .where("status", Operators.IS_NULL, null))
+            .allowedFields(CLIENT_FIELDS)
+            .build();
+
+    assertThat(myOrders(lucia, anyStatus)).extracting(OrderSummary::orderId).containsExactly(own);
+  }
+
+  @Test
+  void aClientFilterOutsideTheWhitelistIsRejected() {
+    String lucia = customer();
+    QueryPlan<OrderView> otherCustomer =
+        orders()
+            .where("customerId", Operators.EQUALS, "someone-else")
+            .allowedFields(CLIENT_FIELDS)
+            .build();
+
+    assertThat(
+            NestedExceptionUtils.getMostSpecificCause(
+                catchThrowable(() -> myOrders(lucia, otherCustomer))))
+        .isInstanceOf(DisallowedFieldException.class);
   }
 
   @Test

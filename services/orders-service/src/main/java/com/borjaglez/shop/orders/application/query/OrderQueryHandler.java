@@ -11,7 +11,6 @@ import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
 import com.borjaglez.shop.eskit.EventStore;
 import com.borjaglez.shop.eskit.RecordedEvent;
-import com.borjaglez.shop.eskit.StoredEvent;
 import com.borjaglez.shop.eskit.StoredEventRepository;
 import com.borjaglez.shop.orders.application.query.OrderViews.CheckoutView;
 import com.borjaglez.shop.orders.application.query.OrderViews.HistoryEntry;
@@ -20,13 +19,9 @@ import com.borjaglez.shop.orders.application.query.OrderViews.OrderSummary;
 import com.borjaglez.shop.orders.application.query.OrderViews.StoredEventView;
 import com.borjaglez.shop.orders.domain.CheckoutSagaRepository;
 import com.borjaglez.shop.orders.domain.Order;
-import com.borjaglez.shop.orders.domain.OrderView;
 import com.borjaglez.shop.orders.domain.OrderViewRepository;
 import com.borjaglez.shop.support.error.NotFoundException;
-import com.borjaglez.shop.support.query.QueryPlans;
 import com.borjaglez.specrepository.core.Operators;
-import com.borjaglez.specrepository.core.PredicateCondition;
-import com.borjaglez.specrepository.core.QueryPlan;
 
 /**
  * Read side of orders: the read model for lists and details, the event store for history and
@@ -57,14 +52,14 @@ public class OrderQueryHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public Page<OrderSummary> myOrders(ListMyOrdersQuery query) {
-    QueryPlan<OrderView> plan =
-        QueryPlans.sortedByDefault(
-            QueryPlans.requiring(
-                query.getPlan(),
-                new PredicateCondition(
-                    "customerId", Operators.EQUALS, query.getCustomerId(), false, false)),
-            NEWEST_ORDERS);
-    return views.findAll(plan, query.getPageable()).map(OrderViews::summary);
+    // customerId is a server condition: the client cannot filter by it, and its orFilter
+    // alternatives stay within the current customer's orders.
+    return views
+        .query(query.getPlan())
+        .where("customerId", Operators.EQUALS, query.getCustomerId())
+        .sortedByDefault(NEWEST_ORDERS)
+        .findAll(query.getPageable())
+        .map(OrderViews::summary);
   }
 
   @HandleQuery
@@ -121,8 +116,11 @@ public class OrderQueryHandler {
   @HandleQuery
   @Transactional(readOnly = true)
   public Page<StoredEventView> events(SearchEventStoreQuery query) {
-    QueryPlan<StoredEvent> plan = QueryPlans.sortedByDefault(query.getPlan(), NEWEST_EVENTS);
-    return storedEvents.findAll(plan, query.getPageable()).map(OrderViews::stored);
+    return storedEvents
+        .query(query.getPlan())
+        .sortedByDefault(NEWEST_EVENTS)
+        .findAll(query.getPageable())
+        .map(OrderViews::stored);
   }
 
   private static NotFoundException notFound(Object orderId) {
