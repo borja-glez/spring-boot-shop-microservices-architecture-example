@@ -17,13 +17,15 @@ Las dos librerías vienen de Maven Central; no hace falta ningún otro checkout.
 
 ## Docker Compose
 
-Tres ficheros en [`deploy/compose`](../../deploy/compose):
+Cinco ficheros en [`deploy/compose`](../../deploy/compose):
 
 | Fichero | Contenido |
 |---|---|
 | [`compose.infra.yaml`](../../deploy/compose/compose.infra.yaml) | PostgreSQL 17 (`max_connections=250`, una base de datos por servicio a partir del script de inicialización compartido), RabbitMQ 4.3 con la UI de gestión, Kafka 4.3 en modo KRaft (3 particiones, retención `-1`), Kafka UI |
 | [`compose.yaml`](../../deploy/compose/compose.yaml) | Incluye la infraestructura y añade los siete servicios y el frontend, con `depends_on` basado en health checks, un límite de memoria de 768 MiB por servicio y `SHOP_CHAOS_ENABLED=true` |
 | [`compose.observability.yaml`](../../deploy/compose/compose.observability.yaml) | Añade `grafana/otel-lgtm` con los dashboards y las reglas de alerta de la tienda, y las variables OTLP de cada servicio |
+| [`compose.lgtm.yaml`](../../deploy/compose/compose.lgtm.yaml) | `grafana/otel-lgtm` solo, con Grafana en el 3000 y OTLP sobre HTTP en el 4318; lo incluyen los ficheros de observabilidad y de desarrollo |
+| [`compose.dev.yaml`](../../deploy/compose/compose.dev.yaml) | La infraestructura más `grafana/otel-lgtm`, para ejecutar los servicios y el frontend fuera de Docker |
 
 ```bash
 ./gradlew buildImages                                  # JVM images shop/<service>:0.1.0-SNAPSHOT
@@ -46,15 +48,16 @@ SHOP_IMAGE_SUFFIX=-native docker compose -f deploy/compose/compose.yaml up -d
 | http://localhost:8081 ... 8086 | catalog, orders, inventory, payments, notifications y reporting directamente (Actuator incluido) |
 | http://localhost:15672 | Gestión de RabbitMQ (`shop` / `shop-dev`) |
 | http://localhost:8090 | Kafka UI |
-| http://localhost:3000 | Grafana (con `compose.observability.yaml`) |
+| http://localhost:3000 | Grafana (con `compose.observability.yaml` o `compose.dev.yaml`) |
+| http://localhost:4318 | OTLP sobre HTTP (con `compose.observability.yaml` o `compose.dev.yaml`) |
 | `localhost:5432`, `localhost:5672`, `localhost:9094` | PostgreSQL, AMQP y Kafka para el desarrollo local |
 
 ## Desarrollo local
 
-Ejecuta la infraestructura en Docker y los servicios desde Gradle o un IDE. Todos los servicios usan `localhost` por defecto para PostgreSQL (5432), RabbitMQ (5672) y Kafka (9094, el listener externo del broker). El script de inicialización crea cada rol de base de datos con la contraseña `shop-dev`, así que pásala:
+Ejecuta la infraestructura y la observabilidad en Docker y los servicios desde Gradle o un IDE, donde se pueden depurar. Todos los servicios usan `localhost` por defecto para PostgreSQL (5432), RabbitMQ (5672) y Kafka (9094, el listener externo del broker). El script de inicialización crea cada rol de base de datos con la contraseña `shop-dev`, así que pásala:
 
 ```bash
-docker compose -f deploy/compose/compose.infra.yaml up -d
+docker compose -f deploy/compose/compose.dev.yaml up -d  # o compose.infra.yaml, sin Grafana
 DB_PASSWORD=shop-dev ./gradlew :services:catalog-service:bootRun
 DB_PASSWORD=shop-dev ./gradlew :services:orders-service:bootRun
 DB_PASSWORD=shop-dev ./gradlew :services:inventory-service:bootRun
@@ -66,6 +69,15 @@ cd frontend && npm ci && npm start                     # http://localhost:4200
 ```
 
 `ng serve` hace de proxy de `/api` hacia el gateway en el puerto 8080 ([`proxy.conf.json`](../../frontend/proxy.conf.json)). Para probar el panel de caos en local, arranca los servicios con `SHOP_CHAOS_ENABLED=true`.
+
+Para enviar trazas, métricas y logs a Grafana (http://localhost:3000), añade estas variables a cada configuración de ejecución:
+
+| Servicios | Variables |
+|---|---|
+| catalog, orders, inventory, payments, reporting, gateway | `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` |
+| notifications (Spring Boot 3.5) | `MANAGEMENT_OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`, `MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://localhost:4318/v1/metrics`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED=true`, `MANAGEMENT_OTLP_LOGGING_ENDPOINT=http://localhost:4318/v1/logs` |
+
+Sin ellas los servicios funcionan igual y no exportan nada.
 
 ## Kubernetes con Kustomize
 
@@ -164,7 +176,7 @@ Los valores por defecto de `shop.cqrsPath` y `shop.specrepoPath` (en [`gradle.pr
 |---|---|
 | Backend | JDK 25 (Temurin), `./gradlew build`: compilación, Spotless, tests unitarios, de ArchUnit y de integración con Testcontainers |
 | Frontend | Node 24, `npm ci`, `npm run check`: Prettier, ESLint, Vitest y un build de producción |
-| Kubernetes manifests | `kubectl kustomize` de cada overlay; `docker compose config` de `compose.yaml` solo y junto con `compose.observability.yaml` |
+| Kubernetes manifests | `kubectl kustomize` de cada overlay; `docker compose config` de `compose.yaml` solo y junto con `compose.observability.yaml`, y de `compose.dev.yaml` |
 
 Los tests de sistema necesitan una plataforma desplegada y se ejecutan por separado; consulta [Testing](testing.md#tests-de-sistema).
 

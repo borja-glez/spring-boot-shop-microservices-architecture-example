@@ -52,3 +52,4 @@ jobs:
         run: |
           docker compose -f deploy/compose/compose.yaml config -q
           docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.observability.yaml config -q
+          docker compose -f deploy/compose/compose.dev.yaml config -q
