@@ -56,9 +56,9 @@ En Mercado: los controladores solo despachan comandos y queries, la saga de chec
 inventario y pagos por RabbitMQ, y los eventos de integración viajan por Kafka.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.3.1")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.3.1")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.3.1")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.4.0")
 ```
 
 </td>
@@ -79,8 +79,8 @@ backoffice y todos los informes son consultas de specification-repository combin
 del servidor.
 
 ```kotlin
-implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.3.1")
-implementation("com.borjaglez.specrepository:specification-repository-http:0.3.1")
+implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.4.0")
+implementation("com.borjaglez.specrepository:specification-repository-http:0.4.0")
 ```
 
 </td>
