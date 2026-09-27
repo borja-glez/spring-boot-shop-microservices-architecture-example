@@ -8,23 +8,10 @@ x-otlp: &otlp
   # Boot 4 services: service-support turns this one variable into the OTLP settings.
   OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
 
-services:
-  lgtm:
-    image: grafana/otel-lgtm:0.34.0
-    ports:
-      - "3000:3000"
-    # Same provisioning files as the Kubernetes observability component.
-    volumes:
-      - ../k8s/components/observability/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/shop.yaml:ro
-      - ../k8s/components/observability/grafana/dashboards:/otel-lgtm/shop-dashboards:ro
-      - ../k8s/components/observability/grafana/alerting/shop-alerts.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/shop-alerts.yaml:ro
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          # Collector, Tempo, Prometheus, Loki and Grafana share this limit.
-          memory: 2g
+include:
+  - compose.lgtm.yaml
 
+services:
   catalog-service:
     environment: *otlp
     depends_on: [lgtm]

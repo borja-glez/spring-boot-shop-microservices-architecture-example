@@ -237,6 +237,7 @@ Details, metric names and how to explore them: [Observability](docs/en/observabi
 |---|---|
 | Everything in Docker, with observability | `docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.observability.yaml up -d --build` |
 | Only the infrastructure, services from the IDE | `docker compose -f deploy/compose/compose.infra.yaml up -d`, then `./gradlew :services:<name>:bootRun` |
+| Infrastructure and Grafana in Docker, services and frontend from the IDE | `docker compose -f deploy/compose/compose.dev.yaml up -d`, then the services with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` ([Local development](docs/en/deployment.md#local-development)) |
 | Kubernetes (Docker Desktop) | `./gradlew buildImages`, `docker build -t shop/frontend:0.1.0-SNAPSHOT frontend`, then `kubectl apply -k deploy/k8s/overlays/local` |
 | Kubernetes, replicated and observable | `kubectl apply -k deploy/k8s/overlays/scaled` |
 | GraalVM native images | `./gradlew buildImages -Pnative`, then `SHOP_IMAGE_SUFFIX=-native docker compose ...` or `overlays/native` |
