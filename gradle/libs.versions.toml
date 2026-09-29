@@ -86,6 +86,7 @@ testcontainers-rabbitmq = { module = "org.testcontainers:testcontainers-rabbitmq
 # Testcontainers 1.x artifact names, managed by the Boot 3.5 BOM.
 testcontainers1-postgresql = { module = "org.testcontainers:postgresql" }
 testcontainers1-kafka = { module = "org.testcontainers:kafka" }
+testcontainers1-rabbitmq = { module = "org.testcontainers:rabbitmq" }
 testcontainers1-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }

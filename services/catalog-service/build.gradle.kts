@@ -10,7 +10,9 @@ dependencies {
     implementation(project(":platform:es-kit"))
     implementation(libs.cqrs.boot4.starter)
     implementation(libs.cqrs.kafka)
+    implementation(libs.cqrs.rabbitmq)
     implementation(libs.spring.boot.starter.kafka)
+    implementation(libs.spring.boot.starter.amqp)
     implementation(libs.specrepo.boot4.starter)
     implementation(libs.specrepo.http)
 

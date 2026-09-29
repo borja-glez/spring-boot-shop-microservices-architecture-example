@@ -2,21 +2,21 @@
 
 Mercado is a marketplace split into six business services and a gateway, each an independent Spring Boot application with its own PostgreSQL database. The browser talks to one origin (nginx serving the Angular shop), nginx forwards `/api/**` to the gateway, and the gateway routes each path prefix to its service. Services never share tables: they cooperate through RabbitMQ request/reply commands (the checkout saga) and through integration events on Kafka, published from a transactional outbox. Inside a service the code follows the same four layers everywhere, enforced by ArchUnit, and a shared platform module gives every service the same error format, correlation ids, current-user resolution and operational defaults.
 
-<p align="center"><img src="../assets/diagrams/architecture.svg" alt="Architecture of Mercado: browser, frontend, gateway, six services with their own PostgreSQL databases, RabbitMQ for saga commands, Kafka for integration events and an OpenTelemetry pipeline into Grafana" width="100%"></p>
+<p align="center"><img src="../assets/diagrams/architecture.svg" alt="Architecture of Mercado: browser, frontend, gateway, six services with their own PostgreSQL databases, RabbitMQ for saga commands and remote queries, Kafka for integration events and an OpenTelemetry pipeline into Grafana" width="100%"></p>
 
 ## Services
 
 | Service | Port | Responsibility | Database | Messaging in | Messaging out | Spring Boot |
 |---|---|---|---|---|---|---|
 | `gateway-service` | 8080 | Single public entry point; routes `/api/<service>/**` | none | HTTP from nginx | HTTP to the services | 4 (Jackson 3) |
-| `catalog-service` | 8081 | Sellers publish, reprice and discontinue products; public search and facets | `catalog` | Kafka: its own catalog events (logged) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued` | 4 (Jackson 3) |
-| `orders-service` | 8082 | Event-sourced orders, checkout saga orchestration, local catalog copy, order read model, event store explorer | `orders` | Kafka: catalog events, order events | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; RabbitMQ requests: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment` | 4 (Jackson 3) |
-| `inventory-service` | 8083 | Stock per product, all-or-nothing reservations, stock backoffice | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
+| `catalog-service` | 8081 | Sellers publish, reprice and discontinue products; public search and facets; product pages with live stock | `catalog` | Kafka: its own catalog events (logged) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; RabbitMQ queries: `GetStockLevels` | 4 (Jackson 3) |
+| `orders-service` | 8082 | Event-sourced orders, checkout saga orchestration, local catalog copy, order read model, event store explorer | `orders` | Kafka: catalog events, order events | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; RabbitMQ requests: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; RabbitMQ queries: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
+| `inventory-service` | 8083 | Stock per product, all-or-nothing reservations, stock backoffice | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
 | `payments-service` | 8084 | Event-sourced card payments with a demo card limit, payments backoffice | `payments` | RabbitMQ: `AuthorizePayment`, `RefundPayment` | Kafka: `PaymentAuthorized`, `PaymentDeclined`, `PaymentRefunded` | 4 (Jackson 3) |
-| `notifications-service` | 8085 | Customer notices, pushed live over server-sent events | `notifications` | Kafka: order events, `PaymentRefunded` | SSE to the browser | **3.5 (Jackson 2)** |
+| `notifications-service` | 8085 | Customer notices, pushed live over server-sent events | `notifications` | Kafka: order events, `PaymentRefunded`; RabbitMQ: `GetOrderNotices` | SSE to the browser | **3.5 (Jackson 2)** |
 | `reporting-service` | 8086 | Sales, product, rejection and customer reports from its own projections; rebuild from Kafka | `reporting` | Kafka: order events | none | 4 (Jackson 3) |
 
-`notifications-service` deliberately runs on Spring Boot 3.5 with Jackson 2 while every other service runs on Spring Boot 4 with Jackson 3. It reads the events the Boot 4 services write, which proves that the message contracts and the libraries interoperate across both framework generations. Because of that it depends on neither `service-support`, `es-kit` nor `test-support` (all built against Boot 4), and `platform/contracts` carries no Spring Boot BOM.
+`notifications-service` deliberately runs on Spring Boot 3.5 with Jackson 2 while every other service runs on Spring Boot 4 with Jackson 3. It reads the events the Boot 4 services write and answers the `GetOrderNotices` query that orders sends it over RabbitMQ, which proves that the message contracts and the libraries interoperate across both framework generations. Because of that it depends on neither `service-support`, `es-kit` nor `test-support` (all built against Boot 4), and `platform/contracts` carries no Spring Boot BOM.
 
 ## Database per service
 
@@ -83,7 +83,20 @@ Build conventions live in [`build-logic`](../../build-logic/src/main/kotlin): `s
 |---|---|---|
 | HTTP, synchronous | Every call from the UI: queries and user commands (place, cancel, publish, adjust stock) | The user waits for an answer; the gateway gives one origin and one error format. |
 | RabbitMQ request/reply | Saga commands from orders to inventory and payments | Directed at one service, needs an answer (reserved or short, authorized or declined), competing consumers share the load. |
+| RabbitMQ request/reply queries | Reads of data another service owns: `GetStockLevels` (catalog and orders ask inventory), `GetOrderNotices` (orders asks notifications) | The data changes too fast for a copy kept from events, or is read too rarely to be worth copying; the page degrades when the owner does not answer. |
 | Kafka, via the outbox | Integration events (`Product*`, `Order*`, `Stock*`, `Payment*`) | Any service may subscribe; the log can be replayed (reporting rebuilds from offset 0); publishing is tied to the business transaction. |
+
+### Copy it or ask for it
+
+A service that needs another service's data either keeps a copy fed by events, or asks the owner when it needs it. Mercado does both, and the choice follows the data:
+
+| Data | Needed by | Style | Why |
+|---|---|---|---|
+| Product name, price, whether it is for sale | orders (pricing), inventory (initial stock) | Copy from Kafka events (`CatalogProduct`) | Changes rarely; placing an order must not depend on the catalog being up. |
+| Free stock | catalog (product page), orders (cart quote) | Ask inventory over RabbitMQ (`GetStockLevels`) | Changes with every checkout; a copy would be behind exactly when stock is scarce. |
+| Notices of an order | orders (order page) | Ask notifications over RabbitMQ (`GetOrderNotices`) | Read once per page view; copying every notice into orders would duplicate a whole service. |
+
+A remote query has a short timeout of its own (`shop.remote-queries.reply-timeout`, 1 s) and never fails the page: without an answer, the product page shows the stock as unknown, the cart quote checks prices only, and the order page says the notices are not available. Only the query contracts, annotated with `@CqrsMessage`, are bound to the brokers' queues; every other query stays local. See [Libraries](libraries.md#rabbitmq-requestreply-for-queries).
 
 Kafka carries events only (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.queries.enabled=false`). No handler publishes to a broker directly: events are written to the service's `event_store` table in the same transaction as the change and relayed afterwards. See [Event sourcing and outbox](event-sourcing-and-outbox.md) and [Checkout saga](checkout-saga.md).
 

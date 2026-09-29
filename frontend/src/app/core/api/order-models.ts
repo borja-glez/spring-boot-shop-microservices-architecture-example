@@ -98,6 +98,52 @@ export interface OrderItem {
   quantity: number;
 }
 
+/** Why a cart line cannot be ordered as it is. */
+export type QuoteProblem = 'NOT_FOR_SALE' | 'NOT_ENOUGH_STOCK';
+
+/** A cart line as it would be ordered now (see orders-service `OrderViews.QuoteLine`). */
+export interface QuoteLine {
+  productId: string;
+  sku: string | null;
+  name: string | null;
+  quantity: number;
+  /** `null` when the product is not for sale. */
+  unitPrice: number | null;
+  subtotal: number | null;
+  /** Free units; `null` when unknown. */
+  available: number | null;
+  problem: QuoteProblem | null;
+}
+
+/**
+ * The cart priced with the orders service's copy of the catalog (Kafka) and checked against the
+ * inventory's stock (RabbitMQ).
+ */
+export interface CartQuote {
+  lines: QuoteLine[];
+  total: number;
+  currency: string | null;
+  /** Whether the inventory answered; when it did not, only prices were checked. */
+  stockChecked: boolean;
+  orderable: boolean;
+}
+
+/** A notice the notifications service sent about an order. */
+export interface OrderNotice {
+  kind: 'ORDER_CONFIRMED' | 'ORDER_REJECTED' | 'ORDER_CANCELLED' | 'PAYMENT_REFUNDED';
+  title: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+}
+
+/** The notices of an order, asked to the notifications service over RabbitMQ. */
+export interface OrderNotices {
+  /** Whether the notifications service answered. */
+  available: boolean;
+  notices: OrderNotice[];
+}
+
 /** Wire names of the events the shop stores (`@CqrsMessage` of the contracts). */
 export const EVENT_TYPES = {
   orderPlaced: 'shop.orders.1.event.order.order-placed',

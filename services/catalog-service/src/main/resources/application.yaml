@@ -23,6 +23,11 @@ spring:
     out-of-order: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:shop}
+    password: ${RABBIT_PASSWORD:shop-dev}
 
 server:
   port: ${SERVER_PORT:8081}
@@ -32,11 +37,24 @@ cqrs:
     prefix: shop
   kafka:
     prefix: shop
-    # Kafka carries integration events only; commands and queries go over RabbitMQ.
+    # Kafka carries integration events only.
     commands:
       enabled: false
     queries:
       enabled: false
+  rabbitmq:
+    # RabbitMQ carries the stock levels the product page asks the inventory for (request and
+    # reply). The catalog only asks: it receives no commands or events over RabbitMQ.
+    prefix: shop
+    commands:
+      enabled: false
+    events:
+      enabled: false
+    # Only the shared contracts and plain Java types may be deserialized.
+    trusted-packages:
+      - com.borjaglez.shop.contracts.inventory
+      - java.util
+      - java.lang
 
 management:
   endpoint:
@@ -54,3 +72,6 @@ shop:
   chaos:
     # Demo fault injection (/api/catalog/chaos); off unless SHOP_CHAOS_ENABLED=true.
     service: catalog
+  remote-queries:
+    # How long a product page waits for the inventory before showing no stock.
+    reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}

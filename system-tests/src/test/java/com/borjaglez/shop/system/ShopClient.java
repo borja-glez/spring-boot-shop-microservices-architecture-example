@@ -122,6 +122,13 @@ public final class ShopClient {
     return page.get("content").isEmpty() ? null : page.get("content").get(0);
   }
 
+  /** The product page of a product, with the stock the catalog asked inventory for. */
+  public JsonNode productPage(String sku) {
+    JsonNode page = get("/api/catalog/products?filter=" + encode("sku:eq:" + sku), "anonymous");
+    String slug = page.get("content").get(0).get("slug").asString();
+    return get("/api/catalog/products/" + slug, "anonymous");
+  }
+
   public Response countStock(UUID productId, int onHand) {
     return call("PUT", "/api/inventory/stock/" + productId, Map.of("onHand", onHand), "backoffice");
   }
@@ -145,6 +152,22 @@ public final class ShopClient {
   public UUID placeOrder(String customer, UUID productId, int quantity) {
     return UUID.fromString(
         place(customer, productId, quantity).expect(201).body().get("id").asString());
+  }
+
+  /** Prices a one-line cart and checks its stock, without placing it. */
+  public JsonNode quote(String customer, UUID productId, int quantity) {
+    return call(
+            "POST",
+            "/api/orders/quote",
+            Map.of("items", List.of(Map.of("productId", productId, "quantity", quantity))),
+            customer)
+        .expect(200)
+        .body();
+  }
+
+  /** The notices the notifications service sent about the order. */
+  public JsonNode notices(String customer, UUID orderId) {
+    return get("/api/orders/" + orderId + "/notices", customer);
   }
 
   public Response cancel(String customer, UUID orderId) {

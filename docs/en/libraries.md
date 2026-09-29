@@ -13,7 +13,7 @@ Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml
 | `spring-boot-cqrs-core` | `platform/contracts` (API), `platform/es-kit` | `Command`, `Query`, `Event`, `@CqrsMessage`, `MessageContext`, `MessageSerializer` |
 | `spring-boot-cqrs-boot4-starter` | every Boot 4 service | Buses, handler discovery, middleware, actuator endpoint, AOT hints |
 | `spring-boot-cqrs-boot3-starter` | `notifications-service` | The same for Spring Boot 3.5 / Jackson 2 |
-| `spring-boot-cqrs-rabbitmq` | orders, inventory, payments | `RabbitMqCommandBus` for the saga's request/reply commands |
+| `spring-boot-cqrs-rabbitmq` | catalog, orders, inventory, payments, notifications | `RabbitMqCommandBus` for the saga's request/reply commands, `RabbitMqQueryBus` for the queries to other services |
 | `spring-boot-cqrs-kafka` | every service except the gateway | Event topic, listener container, `KafkaMessagePublisher` used by the outbox |
 | `specification-repository-boot4-starter` | Boot 4 services, `es-kit` | `SpecificationRepository`, DSL, query plans |
 | `specification-repository-boot3-starter` | `notifications-service` | The same for Spring Boot 3.5 |
@@ -190,6 +190,52 @@ cqrs:
       - java.util
       - java.lang
 ```
+
+### RabbitMQ request/reply for queries
+
+Three pages read data another service owns, as queries sent over RabbitMQ with `RabbitMqQueryBus`:
+
+| Query (contract) | Asked by | Answered by | Shown in |
+|---|---|---|---|
+| `GetStockLevels` → `StockLevels` | catalog, orders | inventory | the product page, the cart |
+| `GetOrderNotices` → `OrderNotices` | orders | notifications (Boot 3.5, Jackson 2) | the order page |
+
+The contracts live in `platform/contracts` like the commands, annotated with `@CqrsMessage`. That annotation is what exposes them: with the library's default exposure (`cqrs.rabbitmq.expose=annotated`), a service binds only annotated messages to its queue, so its own queries (`SearchStockQuery`, `MyNotificationsQuery`...) stay on the local bus even though the RabbitMQ query bus is on. On the receiving side a remote query is an ordinary `@HandleQuery` method:
+
+```java
+@HandleQuery
+@Transactional(readOnly = true)
+public StockLevels levels(GetStockLevels query) {
+  return new StockLevels(
+      stock.query().where("productId", Operators.IN, query.getProductIds()).findAll().stream()
+          .map(item -> new StockLevel(item.getProductId(), item.available()))
+          .toList());
+}
+```
+
+On the asking side the query goes through a port of the application layer (`StockLevelsGateway`, `OrderNoticesGateway`), implemented in `infrastructure` over RabbitMQ ([`RabbitStockLevelsGateway`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/messaging/RabbitStockLevelsGateway.java) in catalog, [`RabbitRemoteQueries`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RabbitRemoteQueries.java) in orders). Controllers keep using the local `QueryBus`; the local handler composes the answer:
+
+- The product page is read in a short read-only transaction and the stock asked afterwards, so no database connection waits for the broker.
+- A timeout, a remote failure or a broker that cannot be reached returns an empty `Optional`: the page shows the stock as unknown instead of failing.
+
+The reply timeout of a Spring `RabbitTemplate` is one setting for every request sent through it, and orders needs two: the saga waits up to 5 seconds for a command, a shopper should not wait more than a moment for a page. So the asking services build a second `RabbitMqQueryBus` on a template of their own, configured by Boot's `RabbitTemplateConfigurer` like the default one, with only the timeout changed ([`RemoteQueriesConfiguration`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RemoteQueriesConfiguration.java)):
+
+```java
+RabbitTemplate template = new RabbitTemplate();
+configurer.configure(template, connectionFactory);
+template.setReplyTimeout(replyTimeout.toMillis()); // shop.remote-queries.reply-timeout, 1 s
+RabbitMqQueryBus remoteQueries =
+    new RabbitMqQueryBus(
+        new RabbitMqPublisher(template, contextHeaderPrefix),
+        rabbitNaming,
+        messageNaming,
+        properties.getQueries().getExchange(),
+        middlewares.getIfAvailable(Collections::emptyList));
+```
+
+The catalog and notifications only take part in queries, so they turn the RabbitMQ command and event buses off (`cqrs.rabbitmq.commands.enabled=false`, `cqrs.rabbitmq.events.enabled=false`).
+
+`GetOrderNotices` crosses the two Jackson generations in both directions: Jackson 3 writes the query and reads the answer, Jackson 2 does the opposite. The JSON converter Spring AMQP builds on its own writes Java time values as numbers under Jackson 2 (`1790676930.123456000`) and as ISO-8601 text under Jackson 3, so notifications declares its `cqrsMessageConverter` with Spring Boot's `ObjectMapper`, which writes ISO-8601 as well ([`MessagingConfiguration`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/infrastructure/MessagingConfiguration.java)). `OrderNoticesOverRabbitIT` sends the query with the bytes Jackson 3 writes and checks the reply's raw JSON.
 
 ### Kafka for events only
 

@@ -30,8 +30,29 @@ import { valueOf } from '../../shared/resource-value';
         @if (p.status === 'DISCONTINUED') {
           <p class="discontinued">This product is no longer sold.</p>
         } @else {
-          @if (cartProduct(); as cp) {
-            <app-add-to-cart [product]="cp" />
+          @if (p.availability; as stock) {
+            <p class="stock" [class]="'stock-' + stock.status.toLowerCase()" role="status">
+              @switch (stock.status) {
+                @case ('IN_STOCK') {
+                  In stock
+                }
+                @case ('LOW_STOCK') {
+                  Only {{ stock.units }} left
+                }
+                @case ('OUT_OF_STOCK') {
+                  Out of stock
+                }
+                @default {
+                  Stock unknown right now
+                }
+              }
+              <small>Asked live to the inventory service over RabbitMQ</small>
+            </p>
+          }
+          @if (p.availability?.status !== 'OUT_OF_STOCK') {
+            @if (cartProduct(); as cp) {
+              <app-add-to-cart [product]="cp" />
+            }
           }
         }
         <p class="description">{{ p.description }}</p>
@@ -87,6 +108,29 @@ import { valueOf } from '../../shared/resource-value';
       margin: 0;
       color: var(--tomato);
       font-weight: 600;
+    }
+    .stock {
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px 12px;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    .stock small {
+      font-weight: 400;
+      font-size: var(--step--1);
+      color: var(--ink-soft);
+    }
+    .stock-in_stock {
+      color: var(--leaf);
+    }
+    .stock-low_stock {
+      color: var(--amber);
+    }
+    .stock-out_of_stock {
+      color: var(--tomato);
     }
     dl {
       display: grid;

@@ -10,6 +10,8 @@ Mercado is built to keep its promises when parts of it fail: an order is never c
 | Inventory down | `ReserveStock` fails | Same retries; after 8 attempts the order is rejected with `inventory-unavailable`. The release that follows leaves a tombstone, so a late reservation holds nothing. |
 | A compensation keeps failing | `RefundPayment` or `ReleaseStock` fails | Compensations never give up. After 20 attempts the saga is `STUCK` (alert "Checkout compensations are stuck") and keeps retrying every 30 s until it succeeds. |
 | RabbitMQ unavailable | Saga commands cannot be sent | Every exception of a remote step is a technical failure: the saga retries it like a timeout. |
+| Inventory slow or down, seen from a page | `GetStockLevels` gets no answer within 1 s | The product page shows the stock as unknown and still sells the product; the cart quote checks prices only (`stockChecked: false`) and lets the order go ahead, since the saga reserves the stock anyway. |
+| Notifications down | `GetOrderNotices` gets no answer within 1 s | The order page says the notices are not available; everything else on it comes from orders. |
 | Kafka down (`relay.paused`) | The relay cannot publish | Events stay in `event_store` with `published_at` null. The saga continues, since it uses RabbitMQ. Read models, reports and notices freeze and catch up in order when the broker is back. Alert "Events are not reaching Kafka". |
 | Duplicate delivery (`relay.duplicate`) | Every event is published twice | Idempotent consumers keep one marker per `(consumer, event id)`; notifications key notices on the event id. Duplicates show up only in `shop.consumer.events{outcome="duplicate"}`. |
 | Cards declined (`payments.decline-all`) | Every new payment is declined | A business answer, not a failure: the order is rejected with `card-limit-exceeded` and the stock released. |
@@ -31,10 +33,11 @@ Every fault starts off. Components register their faults in the [`Chaos`](../../
 | `RefundPayment.fail` / `RefundPayment.delay-ms` | switch / delay | payments | `MessageChaosMiddleware` | Refunds fail or are slow: compensations retry and eventually get stuck |
 | `ReserveStock.fail` / `ReserveStock.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Reservations fail or are slow |
 | `ReleaseStock.fail` / `ReleaseStock.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Releases fail or are slow |
+| `GetStockLevels.fail` / `GetStockLevels.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Stock reads fail or are slow (above 1 s the product page and the cart show the stock as unknown) |
 | `relay.paused` | switch | catalog, orders, inventory, payments | `OutboxRelay` | The relay stops, as if Kafka were down |
 | `relay.duplicate` | switch | catalog, orders, inventory, payments | `OutboxRelay` | Every event is published twice |
 
-[`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) is a spring-boot-cqrs middleware registering a `.delay-ms` and a `.fail` fault for each simple class name listed in `shop.chaos.messages` (`ReserveStock, ReleaseStock` in inventory, `AuthorizePayment, RefundPayment` in payments). It sits on the local buses, so it also affects the commands that arrive over RabbitMQ: the caller sees a slow service or a remote error, exactly as in a real outage. An injected failure is a [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), deliberately not mapped to a 4xx.
+[`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) is a spring-boot-cqrs middleware registering a `.delay-ms` and a `.fail` fault for each simple class name listed in `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` in inventory, `AuthorizePayment, RefundPayment` in payments). It sits on the local buses, so it also affects the commands and queries that arrive over RabbitMQ: the caller sees a slow service or a remote error, exactly as in a real outage. An injected failure is a [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), deliberately not mapped to a 4xx.
 
 The endpoint, served by [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), exists in the services that set `shop.chaos.service` (catalog, orders, inventory, payments) at `/api/<service>/chaos`:
 
@@ -54,7 +57,8 @@ The Chaos page of the shop (`/chaos`) shows every service's faults with an expla
 
 | Timeout | Value | Where |
 |---|---|---|
-| RabbitMQ reply | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` in orders; a missing reply is a retryable failure of the step |
+| RabbitMQ reply, saga commands | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` in orders; a missing reply is a retryable failure of the step |
+| RabbitMQ reply, queries to other services | 1 s (`REMOTE_QUERY_TIMEOUT`) | `shop.remote-queries.reply-timeout` in catalog and orders, on a template of its own; a missing reply leaves that part of the page empty |
 | JDBC socket | 30 s | `socketTimeout` data-source property, from `ShopDefaultsEnvironmentPostProcessor` |
 | Hikari connection acquisition | 5 s | `spring.datasource.hikari.connection-timeout` in every service |
 | Saga lease | 30 s | `shop.checkout.lease`; longer than any step |

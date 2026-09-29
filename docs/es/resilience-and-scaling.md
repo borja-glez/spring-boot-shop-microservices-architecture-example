@@ -10,6 +10,8 @@ Mercado está construido para cumplir sus promesas cuando fallan partes de él: 
 | Inventory caído | `ReserveStock` falla | Los mismos reintentos; tras 8 intentos el pedido se rechaza con `inventory-unavailable`. La liberación posterior deja una lápida, así que una reserva tardía no retiene nada. |
 | Una compensación sigue fallando | `RefundPayment` o `ReleaseStock` fallan | Las compensaciones nunca se rinden. Tras 20 intentos la saga pasa a `STUCK` (alerta "Checkout compensations are stuck") y sigue reintentando cada 30 s hasta que lo consigue. |
 | RabbitMQ no disponible | Los comandos de la saga no se pueden enviar | Toda excepción de un paso remoto es un fallo técnico: la saga lo reintenta como si fuera un timeout. |
+| Inventory lento o caído, visto desde una página | `GetStockLevels` no recibe respuesta en 1 s | La ficha de producto muestra el stock como desconocido y sigue vendiendo el producto; el presupuesto del carrito comprueba solo los precios (`stockChecked: false`) y deja seguir con el pedido, porque la saga reserva el stock de todos modos. |
+| Notifications caído | `GetOrderNotices` no recibe respuesta en 1 s | La página del pedido indica que los avisos no están disponibles; todo lo demás viene de orders. |
 | Kafka caído (`relay.paused`) | El relay no puede publicar | Los eventos se quedan en `event_store` con `published_at` a null. La saga continúa, ya que usa RabbitMQ. Los modelos de lectura, los informes y los avisos se congelan y se ponen al día en orden cuando vuelve el broker. Alerta "Events are not reaching Kafka". |
 | Entrega duplicada (`relay.duplicate`) | Cada evento se publica dos veces | Los consumidores idempotentes guardan una marca por `(consumer, event id)`; notifications usa el id del evento como clave de los avisos. Los duplicados solo aparecen en `shop.consumer.events{outcome="duplicate"}`. |
 | Tarjetas denegadas (`payments.decline-all`) | Se deniega cada pago nuevo | Una respuesta de negocio, no un fallo: el pedido se rechaza con `card-limit-exceeded` y se libera el stock. |
@@ -31,10 +33,11 @@ Todos los fallos empiezan desactivados. Los componentes registran sus fallos en 
 | `RefundPayment.fail` / `RefundPayment.delay-ms` | interruptor / retraso | payments | `MessageChaosMiddleware` | Los reembolsos fallan o son lentos: las compensaciones reintentan y acaban atascándose |
 | `ReserveStock.fail` / `ReserveStock.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las reservas fallan o son lentas |
 | `ReleaseStock.fail` / `ReleaseStock.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las liberaciones fallan o son lentas |
+| `GetStockLevels.fail` / `GetStockLevels.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las lecturas de stock fallan o son lentas (por encima de 1 s la ficha y el carrito muestran el stock como desconocido) |
 | `relay.paused` | interruptor | catalog, orders, inventory, payments | `OutboxRelay` | El relay se detiene, como si Kafka estuviera caído |
 | `relay.duplicate` | interruptor | catalog, orders, inventory, payments | `OutboxRelay` | Cada evento se publica dos veces |
 
-[`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) es un middleware de spring-boot-cqrs que registra un fallo `.delay-ms` y otro `.fail` por cada nombre simple de clase listado en `shop.chaos.messages` (`ReserveStock, ReleaseStock` en inventory, `AuthorizePayment, RefundPayment` en payments). Se sitúa en los buses locales, así que también afecta a los comandos que llegan por RabbitMQ: quien llama ve un servicio lento o un error remoto, exactamente igual que en una caída real. Un fallo inyectado es una [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), que deliberadamente no se traduce a un 4xx.
+[`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) es un middleware de spring-boot-cqrs que registra un fallo `.delay-ms` y otro `.fail` por cada nombre simple de clase listado en `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` en inventory, `AuthorizePayment, RefundPayment` en payments). Se sitúa en los buses locales, así que también afecta a los comandos y consultas que llegan por RabbitMQ: quien llama ve un servicio lento o un error remoto, exactamente igual que en una caída real. Un fallo inyectado es una [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), que deliberadamente no se traduce a un 4xx.
 
 El endpoint, servido por [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), existe en los servicios que fijan `shop.chaos.service` (catalog, orders, inventory, payments), en `/api/<service>/chaos`:
 
@@ -54,7 +57,8 @@ La página Chaos de la tienda (`/chaos`) muestra los fallos de cada servicio con
 
 | Timeout | Valor | Dónde |
 |---|---|---|
-| Respuesta de RabbitMQ | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` en orders; una respuesta que no llega es un fallo reintentable del paso |
+| Respuesta de RabbitMQ, comandos de la saga | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` en orders; una respuesta que no llega es un fallo reintentable del paso |
+| Respuesta de RabbitMQ, consultas a otros servicios | 1 s (`REMOTE_QUERY_TIMEOUT`) | `shop.remote-queries.reply-timeout` en catalog y orders, sobre un template propio; una respuesta que no llega deja vacía esa parte de la página |
 | Socket JDBC | 30 s | propiedad `socketTimeout` del data source, desde `ShopDefaultsEnvironmentPostProcessor` |
 | Obtención de conexión de Hikari | 5 s | `spring.datasource.hikari.connection-timeout` en todos los servicios |
 | Lease de la saga | 30 s | `shop.checkout.lease`; más largo que cualquier paso |

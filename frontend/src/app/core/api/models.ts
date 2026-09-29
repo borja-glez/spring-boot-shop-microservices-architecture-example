@@ -32,6 +32,16 @@ export interface ProductDetail extends Omit<ProductCard, 'categories'> {
   categories: CategoryRef[];
   updatedAt: string;
   version: number;
+  /** Stock asked to the inventory over RabbitMQ; `null` once the product is no longer sold. */
+  availability: Availability | null;
+}
+
+export type StockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+
+export interface Availability {
+  status: StockStatus;
+  /** Free units; `null` when the inventory did not answer. */
+  units: number | null;
 }
 
 export interface FacetValue {

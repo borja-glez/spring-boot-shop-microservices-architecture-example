@@ -58,6 +58,13 @@ spec:
                   key: db-password
             - name: KAFKA_BOOTSTRAP
               value: kafka:9092
+            - name: RABBIT_HOST
+              value: rabbitmq
+            - name: RABBIT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shop-credentials
+                  key: rabbitmq-password
           # Liveness only says "the process works"; readiness also needs the database.
           startupProbe:
             httpGet:

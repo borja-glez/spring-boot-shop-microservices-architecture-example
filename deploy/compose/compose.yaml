@@ -37,12 +37,16 @@ services:
       DB_USER: catalog
       DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
       KAFKA_BOOTSTRAP: kafka:9092
+      RABBIT_HOST: rabbitmq
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-shop-dev}
     ports:
       - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   orders-service:
@@ -122,12 +126,16 @@ services:
       DB_USER: notifications
       DB_PASSWORD: ${SHOP_DB_PASSWORD:-shop-dev}
       KAFKA_BOOTSTRAP: kafka:9092
+      RABBIT_HOST: rabbitmq
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-shop-dev}
     ports:
       - "8085:8085"
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   reporting-service:

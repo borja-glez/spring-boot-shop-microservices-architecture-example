@@ -1,12 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 
+import { QuoteLine } from '../../core/api/order-models';
 import { OrdersApi } from '../../core/api/orders-api';
 import { ApiProblem, toProblem } from '../../core/api/problem';
 import { CartStore, MAX_QUANTITY } from '../../core/cart/cart-store';
 import { UserStore } from '../../core/user/user-store';
 import { PriceTag } from '../../shared/price-tag';
 import { ProblemAlert } from '../../shared/problem-alert';
+import { valueOf } from '../../shared/resource-value';
 
 /** The cart and the checkout: review, adjust quantities and place the order. */
 @Component({
@@ -41,6 +44,18 @@ import { ProblemAlert } from '../../shared/problem-alert';
                 <td>
                   <a [routerLink]="['/products', line.slug]">{{ line.name }}</a>
                   <code>{{ line.sku }}</code>
+                  @if (quoted().get(line.productId); as q) {
+                    @if (q.problem === 'NOT_FOR_SALE') {
+                      <span class="warning">No longer for sale: remove it to order</span>
+                    } @else if (q.problem === 'NOT_ENOUGH_STOCK') {
+                      <span class="warning">Only {{ q.available }} available</span>
+                    }
+                    @if (q.unitPrice !== null && q.unitPrice !== line.price) {
+                      <span class="warning"
+                        >Price is now {{ money(q.unitPrice, line.currency) }}</span
+                      >
+                    }
+                  }
                 </td>
                 <td class="num">{{ money(line.price, line.currency) }}</td>
                 <td class="num">
@@ -72,15 +87,38 @@ import { ProblemAlert } from '../../shared/problem-alert';
           </tbody>
         </table>
         <div class="summary">
-          <p>
-            Estimated total
-            <app-price-tag [amount]="cart.total()" [currency]="cart.currency()" size="large" />
-          </p>
+          @if (quote(); as q) {
+            <p>
+              Total now
+              <app-price-tag
+                [amount]="q.total"
+                [currency]="q.currency ?? cart.currency()"
+                size="large"
+              />
+            </p>
+            @if (!q.stockChecked) {
+              <p class="warning" role="status">
+                The inventory did not answer in time, so the stock was not checked. The checkout
+                will reserve it.
+              </p>
+            }
+          } @else {
+            <p>
+              Estimated total
+              <app-price-tag [amount]="cart.total()" [currency]="cart.currency()" size="large" />
+            </p>
+          }
           <p class="note">
-            The orders service prices the order with its own copy of the catalog, kept up to date
-            through Kafka. If a price has just changed, the order uses the new one.
+            The orders service prices the cart with its own copy of the catalog, kept up to date
+            through Kafka, and asks the inventory service for the stock over RabbitMQ, request and
+            reply. Nothing is reserved until you place the order.
           </p>
-          <button type="button" class="button" [disabled]="placing()" (click)="placeOrder()">
+          <button
+            type="button"
+            class="button"
+            [disabled]="placing() || quote()?.orderable === false"
+            (click)="placeOrder()"
+          >
             {{ placing() ? 'Placing order…' : 'Place order' }}
           </button>
         </div>
@@ -142,6 +180,15 @@ import { ProblemAlert } from '../../shared/problem-alert';
       align-items: center;
       gap: 12px;
     }
+    .warning {
+      display: block;
+      font-size: var(--step--1);
+      color: var(--amber);
+    }
+    .summary .warning {
+      max-width: 60ch;
+      text-align: right;
+    }
     .note {
       max-width: 60ch;
       font-size: var(--step--1);
@@ -159,6 +206,21 @@ export class CartPage {
   protected readonly maxQuantity = MAX_QUANTITY;
   protected readonly placing = signal(false);
   protected readonly problem = signal<ApiProblem | null>(null);
+
+  /** Checked again whenever the cart changes; the previous request is dropped. */
+  private readonly quoteResource = rxResource({
+    params: () => {
+      const items = this.cart.items();
+      return items.length ? { items } : undefined;
+    },
+    stream: ({ params }) => this.api.quote(params.items),
+  });
+
+  protected readonly quote = computed(() => valueOf(this.quoteResource));
+
+  protected readonly quoted = computed(
+    () => new Map<string, QuoteLine>((this.quote()?.lines ?? []).map((l) => [l.productId, l])),
+  );
 
   protected placeOrder(): void {
     this.placing.set(true);

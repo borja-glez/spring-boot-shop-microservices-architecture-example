@@ -29,7 +29,9 @@ public final class ProductViews {
       List<String> tags,
       OffsetDateTime publishedAt) {}
 
-  /** A product page. */
+  /**
+   * A product page. {@code availability} is {@code null} for a product that is no longer on sale.
+   */
   public record ProductDetail(
       UUID id,
       String slug,
@@ -44,7 +46,63 @@ public final class ProductViews {
       List<String> tags,
       OffsetDateTime publishedAt,
       OffsetDateTime updatedAt,
-      long version) {}
+      long version,
+      Availability availability) {
+
+    /** The same page with the stock the inventory reported. */
+    public ProductDetail withAvailability(Availability availability) {
+      return new ProductDetail(
+          id,
+          slug,
+          sku,
+          name,
+          description,
+          price,
+          currency,
+          status,
+          seller,
+          categories,
+          tags,
+          publishedAt,
+          updatedAt,
+          version,
+          availability);
+    }
+  }
+
+  /** How much of a product is left, as the shopper sees it. */
+  public enum StockStatus {
+    IN_STOCK,
+    /** Few units left: the page says how many. */
+    LOW_STOCK,
+    OUT_OF_STOCK,
+    /** The inventory did not answer in time; the page is shown without stock. */
+    UNKNOWN
+  }
+
+  /**
+   * Stock of a product on sale.
+   *
+   * @param status what the page shows
+   * @param units free units; {@code null} when unknown
+   */
+  public record Availability(StockStatus status, Integer units) {
+
+    /** Up to this many free units the stock counts as low. */
+    public static final int LOW_STOCK_UNITS = 5;
+
+    public static Availability of(int units) {
+      StockStatus status =
+          units <= 0
+              ? StockStatus.OUT_OF_STOCK
+              : units <= LOW_STOCK_UNITS ? StockStatus.LOW_STOCK : StockStatus.IN_STOCK;
+      return new Availability(status, Math.max(units, 0));
+    }
+
+    public static Availability unknown() {
+      return new Availability(StockStatus.UNKNOWN, null);
+    }
+  }
 
   /** Public data about a seller. The email is private and never exposed. */
   public record SellerSummary(String id, String displayName, String city) {}
@@ -101,7 +159,8 @@ public final class ProductViews {
         product.getTags().stream().sorted().toList(),
         product.getPublishedAt(),
         product.getUpdatedAt(),
-        product.getVersion() == null ? 0 : product.getVersion());
+        product.getVersion() == null ? 0 : product.getVersion(),
+        null);
   }
 
   private static SellerSummary seller(Product product) {

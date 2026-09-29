@@ -67,16 +67,16 @@ Spring's test context cache keeps one set of containers per distinct configurati
 | Area | Tests |
 |---|---|
 | es-kit | `EventStoreIT`, `AggregateStoreIT` (optimistic concurrency), `OutboxRelayIT` (global order, stop on failure and retry, correlation id and trace of each event, chaos faults, metrics), `IdempotentConsumerIT` |
-| catalog | `CatalogApiIT` (HTTP to PostgreSQL end to end), `CatalogCommandsIT`, `CatalogQueriesIT`, `ProductRepositoryIT` and `ProductQueryIT` (DSL semantics on PostgreSQL), `CatalogEventsOverKafkaIT` |
-| orders | `OrdersApiIT`, `OrderCommandsIT`, `OrderQueriesIT`, `OrderViewProjectorIT`, `CatalogProductProjectorIT` (out-of-order catalog events), `OrdersOverKafkaIT`, `CqrsActuatorIT` |
+| catalog | `CatalogApiIT` (HTTP to PostgreSQL end to end), `CatalogCommandsIT`, `CatalogQueriesIT`, `ProductRepositoryIT` and `ProductQueryIT` (DSL semantics on PostgreSQL), `CatalogEventsOverKafkaIT`, `StockLevelsOverRabbitIT` (stock asked over RabbitMQ, timeouts and remote failures) |
+| orders | `OrdersApiIT`, `OrderCommandsIT`, `OrderQueriesIT`, `OrderViewProjectorIT`, `CatalogProductProjectorIT` (out-of-order catalog events), `OrdersOverKafkaIT`, `RemoteQueriesOverRabbitIT` (stock and notices asked over RabbitMQ with the short timeout), `CqrsActuatorIT` |
 | checkout saga | `CheckoutSagaIT`, `CheckoutOverRabbitIT`, `DueCheckoutsIT`, `CheckoutTracingIT`; see [Checkout saga](checkout-saga.md#tests) |
-| inventory | `InventoryCommandsIT`, `InventoryMessagingIT` (products from Kafka, commands over RabbitMQ) |
+| inventory | `InventoryCommandsIT`, `InventoryMessagingIT` (products from Kafka, commands and `GetStockLevels` over RabbitMQ) |
 | payments | `PaymentCommandsIT`, `PaymentsOverRabbitIT` |
 | reporting | `ReportsIT`, `RebuildIT` (clear, replay from offset 0 with a real Kafka, same numbers) |
-| notifications | `NotificationsIT`, `CqrsActuatorIT` (Boot 3 starter), `CrossGenerationIT` |
+| notifications | `NotificationsIT`, `CqrsActuatorIT` (Boot 3 starter), `CrossGenerationIT`, `OrderNoticesOverRabbitIT` (a query written by Jackson 3, answered by Jackson 2) |
 | gateway | `GatewayRoutingIT` (routing, user header, correlation id, 404 and 503 problems); `ExternalTraceHeadersFilterTest` for the trace headers |
 
-The saga tests replace inventory and payments with [`FakeCheckout`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/FakeCheckout.java), which answers per order as each test scripts it, and drive the saga one step at a time with [`CheckoutDriver`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/CheckoutDriver.java) while the scheduled runner is off (`shop.checkout.enabled=false`).
+The saga tests replace inventory and payments with [`FakeCheckout`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/FakeCheckout.java), which answers per order as each test scripts it, and drive the saga one step at a time with [`CheckoutDriver`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/CheckoutDriver.java) while the scheduled runner is off (`shop.checkout.enabled=false`). In the same way, [`FakeStockLevels`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/FakeStockLevels.java) and [`FakeRemoteReads`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/FakeRemoteReads.java) stand in for the services that catalog and orders query over RabbitMQ, answering per product and per order.
 
 ### notifications-service
 

@@ -107,6 +107,40 @@ import { valueOf } from '../../shared/resource-value';
               <p class="waiting">This order has no checkout.</p>
             }
           </section>
+          <section class="notices" aria-labelledby="notices-title">
+            <div class="history-head">
+              <h2 id="notices-title">Notices sent</h2>
+              <button type="button" class="button secondary" (click)="notices.reload()">
+                Refresh
+              </button>
+            </div>
+            <p class="why">
+              Asked to the notifications service (Spring Boot 3, Jackson 2) over RabbitMQ.
+            </p>
+            @if (noticesView(); as n) {
+              @if (!n.available) {
+                <p class="waiting" role="status">
+                  The notifications service did not answer in time.
+                </p>
+              } @else if (n.notices.length === 0) {
+                <p class="waiting">No notice yet.</p>
+              } @else {
+                <ul class="notice-list">
+                  @for (notice of n.notices; track notice.sentAt + notice.kind) {
+                    <li>
+                      <strong>{{ notice.title }}</strong>
+                      <time [attr.datetime]="notice.sentAt">{{
+                        notice.sentAt | date: 'mediumTime'
+                      }}</time>
+                      <span>{{ notice.body }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+            } @else if (notices.isLoading()) {
+              <p class="waiting" role="status">Loading notices…</p>
+            }
+          </section>
           @if (o.status === 'PLACED') {
             <p class="waiting">You can cancel once checkout finishes.</p>
           }
@@ -235,8 +269,37 @@ import { valueOf } from '../../shared/resource-value';
       border-top: 1px solid var(--line);
       padding: 12px 0 0;
     }
-    .checkout h2 {
+    .checkout h2,
+    .notices h2 {
       font-size: var(--step-1);
+    }
+    .notices {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      padding: 12px 0 0;
+    }
+    .notice-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: var(--step--1);
+    }
+    .notice-list li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      padding: 6px 10px;
+      border-left: 3px solid var(--cobalt);
+      background: var(--tile);
+    }
+    .notice-list span {
+      grid-column: 1 / -1;
+      color: var(--ink-soft);
     }
     .headline {
       font-weight: 600;
@@ -469,6 +532,20 @@ export class OrderPage {
   });
 
   protected readonly timeline = computed(() => toTimeline(valueOf(this.history) ?? []));
+
+  /**
+   * Asked once the order is in the read model, and again whenever it changes: the notifications
+   * service turns the same Kafka events into notices.
+   */
+  protected readonly notices = rxResource({
+    params: () => {
+      const order = valueOf(this.order);
+      return order ? { id: this.id(), seen: order.updatedAt } : undefined;
+    },
+    stream: ({ params }) => this.api.notices(params.id),
+  });
+
+  protected readonly noticesView = computed(() => valueOf(this.notices));
 
   protected readonly problem = computed(() => {
     const checkoutError = this.checkoutMissing() ? undefined : this.checkout.error();

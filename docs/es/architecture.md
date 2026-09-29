@@ -2,21 +2,21 @@
 
 Mercado es un marketplace dividido en seis servicios de negocio y un gateway, cada uno una aplicación Spring Boot independiente con su propia base de datos PostgreSQL. El navegador habla con un único origen (nginx sirviendo la tienda Angular), nginx reenvía `/api/**` al gateway y el gateway enruta cada prefijo de ruta a su servicio. Los servicios nunca comparten tablas: cooperan mediante comandos petición/respuesta sobre RabbitMQ (la saga de checkout) y mediante eventos de integración en Kafka, publicados desde un outbox transaccional. Dentro de cada servicio el código sigue las mismas cuatro capas, verificadas por ArchUnit, y un módulo de plataforma compartido da a todos los servicios el mismo formato de error, los mismos correlation ids, la misma resolución del usuario actual y los mismos valores operativos por defecto.
 
-<p align="center"><img src="../assets/diagrams/architecture.svg" alt="Arquitectura de Mercado: navegador, frontend, gateway, seis servicios con sus propias bases de datos PostgreSQL, RabbitMQ para los comandos de la saga, Kafka para los eventos de integración y un pipeline de OpenTelemetry hacia Grafana" width="100%"></p>
+<p align="center"><img src="../assets/diagrams/architecture.svg" alt="Arquitectura de Mercado: navegador, frontend, gateway, seis servicios con sus propias bases de datos PostgreSQL, RabbitMQ para los comandos de la saga y las consultas remotas, Kafka para los eventos de integración y un pipeline de OpenTelemetry hacia Grafana" width="100%"></p>
 
 ## Servicios
 
 | Servicio | Puerto | Responsabilidad | Base de datos | Mensajería de entrada | Mensajería de salida | Spring Boot |
 |---|---|---|---|---|---|---|
 | `gateway-service` | 8080 | Punto de entrada público único; enruta `/api/<service>/**` | ninguna | HTTP desde nginx | HTTP hacia los servicios | 4 (Jackson 3) |
-| `catalog-service` | 8081 | Los vendedores publican, cambian el precio y descatalogan productos; búsqueda pública y facetas | `catalog` | Kafka: sus propios eventos de catálogo (se registran en el log) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued` | 4 (Jackson 3) |
-| `orders-service` | 8082 | Pedidos con event sourcing, orquestación de la saga de checkout, copia local del catálogo, modelo de lectura de pedidos, explorador del event store | `orders` | Kafka: eventos de catálogo, eventos de pedidos | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; peticiones RabbitMQ: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment` | 4 (Jackson 3) |
-| `inventory-service` | 8083 | Stock por producto, reservas de todo o nada, backoffice de stock | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
+| `catalog-service` | 8081 | Los vendedores publican, cambian el precio y descatalogan productos; búsqueda pública y facetas; fichas de producto con stock en vivo | `catalog` | Kafka: sus propios eventos de catálogo (se registran en el log) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; consultas RabbitMQ: `GetStockLevels` | 4 (Jackson 3) |
+| `orders-service` | 8082 | Pedidos con event sourcing, orquestación de la saga de checkout, copia local del catálogo, modelo de lectura de pedidos, explorador del event store | `orders` | Kafka: eventos de catálogo, eventos de pedidos | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; peticiones RabbitMQ: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; consultas RabbitMQ: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
+| `inventory-service` | 8083 | Stock por producto, reservas de todo o nada, backoffice de stock | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
 | `payments-service` | 8084 | Pagos con tarjeta con event sourcing y un límite de tarjeta de demostración, backoffice de pagos | `payments` | RabbitMQ: `AuthorizePayment`, `RefundPayment` | Kafka: `PaymentAuthorized`, `PaymentDeclined`, `PaymentRefunded` | 4 (Jackson 3) |
-| `notifications-service` | 8085 | Avisos al cliente, enviados en directo mediante server-sent events | `notifications` | Kafka: eventos de pedidos, `PaymentRefunded` | SSE hacia el navegador | **3.5 (Jackson 2)** |
+| `notifications-service` | 8085 | Avisos al cliente, enviados en directo mediante server-sent events | `notifications` | Kafka: eventos de pedidos, `PaymentRefunded`; RabbitMQ: `GetOrderNotices` | SSE hacia el navegador | **3.5 (Jackson 2)** |
 | `reporting-service` | 8086 | Informes de ventas, productos, rechazos y clientes a partir de sus propias proyecciones; reconstrucción desde Kafka | `reporting` | Kafka: eventos de pedidos | ninguna | 4 (Jackson 3) |
 
-`notifications-service` se ejecuta a propósito sobre Spring Boot 3.5 con Jackson 2, mientras que el resto de servicios usa Spring Boot 4 con Jackson 3. Lee los eventos que escriben los servicios de Boot 4, lo que demuestra que los contratos de mensajes y las librerías interoperan entre ambas generaciones del framework. Por eso no depende de `service-support`, `es-kit` ni `test-support` (todos compilados contra Boot 4), y `platform/contracts` no incluye ningún BOM de Spring Boot.
+`notifications-service` se ejecuta a propósito sobre Spring Boot 3.5 con Jackson 2, mientras que el resto de servicios usa Spring Boot 4 con Jackson 3. Lee los eventos que escriben los servicios de Boot 4 y responde la consulta `GetOrderNotices` que orders le envía por RabbitMQ, lo que demuestra que los contratos de mensajes y las librerías interoperan entre ambas generaciones del framework. Por eso no depende de `service-support`, `es-kit` ni `test-support` (todos compilados contra Boot 4), y `platform/contracts` no incluye ningún BOM de Spring Boot.
 
 ## Una base de datos por servicio
 
@@ -83,7 +83,20 @@ Las convenciones de build viven en [`build-logic`](../../build-logic/src/main/ko
 |---|---|---|
 | HTTP, síncrono | Todas las llamadas desde la UI: consultas y comandos del usuario (realizar, cancelar, publicar, ajustar stock) | El usuario espera una respuesta; el gateway ofrece un único origen y un único formato de error. |
 | Petición/respuesta sobre RabbitMQ | Comandos de la saga de orders a inventory y payments | Van dirigidos a un servicio, necesitan respuesta (reservado o insuficiente, autorizado o denegado) y los consumidores en competencia reparten la carga. |
+| Consultas petición/respuesta sobre RabbitMQ | Lecturas de datos que son de otro servicio: `GetStockLevels` (catalog y orders preguntan a inventory), `GetOrderNotices` (orders pregunta a notifications) | El dato cambia demasiado rápido para una copia alimentada por eventos, o se lee demasiado poco para que merezca copiarlo; la página se degrada si el dueño no responde. |
 | Kafka, a través del outbox | Eventos de integración (`Product*`, `Order*`, `Stock*`, `Payment*`) | Cualquier servicio puede suscribirse; el log se puede reproducir (reporting se reconstruye desde el offset 0); la publicación está ligada a la transacción de negocio. |
+
+### Copiarlo o preguntarlo
+
+Un servicio que necesita datos de otro puede guardar una copia alimentada por eventos o preguntar al dueño cuando los necesita. Mercado hace las dos cosas, y la elección depende del dato:
+
+| Dato | Lo necesita | Estilo | Por qué |
+|---|---|---|---|
+| Nombre, precio y si el producto está a la venta | orders (precios), inventory (stock inicial) | Copia desde eventos de Kafka (`CatalogProduct`) | Cambia poco; hacer un pedido no debe depender de que el catálogo esté arriba. |
+| Stock libre | catalog (ficha de producto), orders (presupuesto del carrito) | Preguntar a inventory por RabbitMQ (`GetStockLevels`) | Cambia con cada checkout; una copia iría retrasada justo cuando el stock escasea. |
+| Avisos de un pedido | orders (página del pedido) | Preguntar a notifications por RabbitMQ (`GetOrderNotices`) | Se lee una vez por visita; copiar cada aviso en orders duplicaría un servicio entero. |
+
+Una consulta remota tiene su propio timeout corto (`shop.remote-queries.reply-timeout`, 1 s) y nunca hace fallar la página: sin respuesta, la ficha muestra el stock como desconocido, el presupuesto del carrito comprueba solo los precios y la página del pedido indica que los avisos no están disponibles. Solo los contratos de consulta, anotados con `@CqrsMessage`, se enlazan a las colas del broker; el resto de consultas siguen siendo locales. Consulta [Librerías](libraries.md#peticiónrespuesta-sobre-rabbitmq-para-consultas).
 
 Kafka transporta solo eventos (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.queries.enabled=false`). Ningún handler publica directamente en un broker: los eventos se escriben en la tabla `event_store` del servicio en la misma transacción que el cambio y se retransmiten después. Consulta [Event sourcing y outbox](event-sourcing-and-outbox.md) y [Saga de checkout](checkout-saga.md).
 

@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/diagrams/architecture.svg" alt="Architecture of Mercado: browser, frontend, gateway, six services with their own PostgreSQL databases, RabbitMQ for saga commands, Kafka for integration events and an OpenTelemetry pipeline into Grafana" width="100%">
+  <img src="docs/assets/diagrams/architecture.svg" alt="Architecture of Mercado: browser, frontend, gateway, six services with their own PostgreSQL databases, RabbitMQ for saga commands and remote queries, Kafka for integration events and an OpenTelemetry pipeline into Grafana" width="100%">
 </p>
 
 ## The two libraries
@@ -49,11 +49,12 @@ transports.
 
 - `CommandBus`, `QueryBus` and `EventBus` with annotation-driven handlers.
 - Middleware for validation, context propagation (correlation ids) and Micrometer observations.
-- **RabbitMQ** request/reply for commands and **Kafka** for events, as drop-in transports.
+- **RabbitMQ** request/reply for commands and queries, and **Kafka** for events, as drop-in transports.
 - Actuator endpoint, GraalVM native hints, Boot 3 and Boot 4 starters.
 
 In Mercado: controllers only dispatch commands and queries, the checkout saga talks to inventory and
-payments over RabbitMQ, and integration events flow over Kafka.
+payments over RabbitMQ, the product page, the cart and the order page ask inventory and notifications
+for live data over RabbitMQ, and integration events flow over Kafka.
 
 ```kotlin
 implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
@@ -175,18 +176,20 @@ Pick a user in the header (customers such as `cliente-lucia` place orders, selle
 | Service | Port | Owns | Talks through | Stack |
 |---|---|---|---|---|
 | `gateway-service` | 8080 | routing, correlation ids, trace entry point | HTTP | Boot 4, Spring Cloud Gateway |
-| `catalog-service` | 8081 | products, sellers, categories, facets | publishes product events (outbox → Kafka) | Boot 4 |
-| `orders-service` | 8082 | event-sourced orders, checkout saga, order read model | RabbitMQ commands to inventory and payments; order events to Kafka; consumes product and order events | Boot 4 |
-| `inventory-service` | 8083 | stock and all-or-nothing reservations | answers `ReserveStock`/`ReleaseStock`; stock events to Kafka | Boot 4 |
+| `catalog-service` | 8081 | products, sellers, categories, facets | publishes product events (outbox → Kafka); asks inventory for stock over RabbitMQ | Boot 4 |
+| `orders-service` | 8082 | event-sourced orders, checkout saga, order read model | RabbitMQ commands to inventory and payments; RabbitMQ queries to inventory and notifications; order events to Kafka; consumes product and order events | Boot 4 |
+| `inventory-service` | 8083 | stock and all-or-nothing reservations | answers `ReserveStock`/`ReleaseStock` and `GetStockLevels`; stock events to Kafka | Boot 4 |
 | `payments-service` | 8084 | event-sourced payments, refunds, card limit | answers `AuthorizePayment`/`RefundPayment`; payment events to Kafka | Boot 4 |
-| `notifications-service` | 8085 | notices per customer, live SSE stream | consumes order and payment events | **Boot 3.5**, Jackson 2 |
+| `notifications-service` | 8085 | notices per customer, live SSE stream | consumes order and payment events; answers `GetOrderNotices` from orders | **Boot 3.5**, Jackson 2 |
 | `reporting-service` | 8086 | sales, products, rejections and customer reports | consumes order events; rebuilds by replaying Kafka | Boot 4 |
 | `frontend` | 4200 | Angular 22 SPA served by nginx | proxies `/api` to the gateway | Angular, nginx |
 
 Three communication styles, each where it fits:
 
 - **HTTP** from the browser, through the gateway, for queries and user commands.
-- **RabbitMQ request/reply** for the saga's commands: point-to-point, with an answer, idempotent per order.
+- **RabbitMQ request/reply** for the saga's commands, point-to-point, with an answer, idempotent per order;
+  and for the reads of data another service owns and that changes too fast to copy (stock), with a
+  short timeout and a page that degrades instead of failing.
 - **Kafka** for integration events: published through the outbox, replayable, consumed by idempotent
   projections.
 
