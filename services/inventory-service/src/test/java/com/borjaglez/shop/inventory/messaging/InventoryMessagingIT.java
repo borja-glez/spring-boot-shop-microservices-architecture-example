@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +17,15 @@ import org.springframework.context.annotation.Import;
 
 import com.borjaglez.cqrs.kafka.KafkaEventBus;
 import com.borjaglez.cqrs.rabbitmq.RabbitMqCommandBus;
+import com.borjaglez.cqrs.rabbitmq.RabbitMqQueryBus;
 import com.borjaglez.cqrs.rabbitmq.RemoteHandlerException;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
+import com.borjaglez.shop.contracts.inventory.GetStockLevels;
 import com.borjaglez.shop.contracts.inventory.ReleaseStock;
 import com.borjaglez.shop.contracts.inventory.ReservationLine;
 import com.borjaglez.shop.contracts.inventory.ReserveStock;
+import com.borjaglez.shop.contracts.inventory.StockLevel;
+import com.borjaglez.shop.contracts.inventory.StockLevels;
 import com.borjaglez.shop.contracts.inventory.StockRelease;
 import com.borjaglez.shop.contracts.inventory.StockReservation;
 import com.borjaglez.shop.inventory.InventoryTestSupport;
@@ -32,7 +37,8 @@ import com.borjaglez.specrepository.core.Operators;
 
 /**
  * The inventory as the other services see it: products arrive from the catalog over Kafka, and the
- * checkout saga sends its commands over RabbitMQ and waits for the answers.
+ * checkout saga sends its commands over RabbitMQ and waits for the answers, and the catalog and
+ * orders ask for stock levels the same way.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Import({
@@ -45,6 +51,7 @@ class InventoryMessagingIT {
 
   @Autowired KafkaEventBus kafka;
   @Autowired RabbitMqCommandBus rabbit;
+  @Autowired RabbitMqQueryBus remoteQueries;
   @Autowired StockItemRepository stock;
   @Autowired InventoryTestSupport support;
 
@@ -100,5 +107,28 @@ class InventoryMessagingIT {
             e ->
                 assertThat(e.getRemoteExceptionType())
                     .isEqualTo(IllegalArgumentException.class.getName()));
+  }
+
+  @Test
+  void stockLevelsAreAnsweredOverRabbitMq() {
+    ReservationLine tea = support.product(6, 2);
+    ReservationLine honey = support.product(3, 1);
+    rabbit.dispatchAndReceive(new ReserveStock(UUID.randomUUID(), List.of(tea)));
+
+    StockLevels levels =
+        remoteQueries.ask(
+            new GetStockLevels(List.of(tea.productId(), honey.productId(), UUID.randomUUID())));
+
+    assertThat(levels.levels())
+        .containsExactlyInAnyOrder(
+            new StockLevel(tea.productId(), 4), new StockLevel(honey.productId(), 3));
+  }
+
+  @Test
+  void tooManyProductsInOneStockQueryFailOnTheCallerSide() {
+    List<UUID> ids = Stream.generate(UUID::randomUUID).limit(101).toList();
+
+    assertThatThrownBy(() -> remoteQueries.ask(new GetStockLevels(ids)))
+        .isInstanceOf(RemoteHandlerException.class);
   }
 }

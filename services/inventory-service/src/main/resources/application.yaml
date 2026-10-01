@@ -43,7 +43,7 @@ cqrs:
     queries:
       enabled: false
   rabbitmq:
-    # RabbitMQ carries the commands of the checkout saga (request and reply).
+    # RabbitMQ carries the commands of the checkout saga and GetStockLevels (request and reply).
     prefix: shop
     # Only the shared contracts and plain Java types may be deserialized (trusted-packages
     # allow-list). Spring
@@ -59,7 +59,7 @@ shop:
   chaos:
     # Demo fault injection (/api/inventory/chaos); off unless SHOP_CHAOS_ENABLED=true.
     service: inventory
-    messages: ReserveStock, ReleaseStock
+    messages: ReserveStock, ReleaseStock, GetStockLevels
   inventory:
     # Units a product starts with when the catalog publishes it.
     initial-stock: ${INVENTORY_INITIAL_STOCK:25}

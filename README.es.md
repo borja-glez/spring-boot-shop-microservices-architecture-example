@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/diagrams/architecture.svg" alt="Arquitectura de Mercado: navegador, frontend, gateway, seis servicios con su propia base de datos PostgreSQL, RabbitMQ para los comandos de la saga, Kafka para los eventos de integración y un pipeline de OpenTelemetry hacia Grafana" width="100%">
+  <img src="docs/assets/diagrams/architecture.svg" alt="Arquitectura de Mercado: navegador, frontend, gateway, seis servicios con su propia base de datos PostgreSQL, RabbitMQ para los comandos de la saga y las consultas remotas, Kafka para los eventos de integración y un pipeline de OpenTelemetry hacia Grafana" width="100%">
 </p>
 
 ## Las dos librerías
@@ -49,11 +49,12 @@ transportes intercambiables.
 
 - `CommandBus`, `QueryBus` y `EventBus` con handlers descubiertos por anotaciones.
 - Middleware de validación, propagación de contexto (correlation id) y observaciones de Micrometer.
-- **RabbitMQ** petición/respuesta para comandos y **Kafka** para eventos, sin cambiar el código.
+- **RabbitMQ** petición/respuesta para comandos y queries, y **Kafka** para eventos, sin cambiar el código.
 - Endpoint de Actuator, hints para imágenes nativas GraalVM, starters para Boot 3 y Boot 4.
 
 En Mercado: los controladores solo despachan comandos y queries, la saga de checkout habla con
-inventario y pagos por RabbitMQ, y los eventos de integración viajan por Kafka.
+inventario y pagos por RabbitMQ, la ficha de producto, el carrito y la página del pedido preguntan
+datos en vivo a inventario y notificaciones por RabbitMQ, y los eventos de integración viajan por Kafka.
 
 ```kotlin
 implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
@@ -177,19 +178,20 @@ pedidos; vendedores como `seller-ana` son dueños de productos) y:
 | Servicio | Puerto | Responsable de | Se comunica por | Stack |
 |---|---|---|---|---|
 | `gateway-service` | 8080 | enrutado, correlation id, inicio de las trazas | HTTP | Boot 4, Spring Cloud Gateway |
-| `catalog-service` | 8081 | productos, vendedores, categorías, facetas | publica eventos de producto (outbox → Kafka) | Boot 4 |
-| `orders-service` | 8082 | pedidos con event sourcing, saga de checkout, modelo de lectura de pedidos | comandos por RabbitMQ a inventario y pagos; eventos de pedido a Kafka; consume eventos de producto y de pedido | Boot 4 |
-| `inventory-service` | 8083 | stock y reservas todo o nada | responde `ReserveStock`/`ReleaseStock`; eventos de stock a Kafka | Boot 4 |
+| `catalog-service` | 8081 | productos, vendedores, categorías, facetas | publica eventos de producto (outbox → Kafka); pregunta el stock a inventario por RabbitMQ | Boot 4 |
+| `orders-service` | 8082 | pedidos con event sourcing, saga de checkout, modelo de lectura de pedidos | comandos por RabbitMQ a inventario y pagos; queries por RabbitMQ a inventario y notificaciones; eventos de pedido a Kafka; consume eventos de producto y de pedido | Boot 4 |
+| `inventory-service` | 8083 | stock y reservas todo o nada | responde `ReserveStock`/`ReleaseStock` y `GetStockLevels`; eventos de stock a Kafka | Boot 4 |
 | `payments-service` | 8084 | pagos con event sourcing, devoluciones, límite de tarjeta | responde `AuthorizePayment`/`RefundPayment`; eventos de pago a Kafka | Boot 4 |
-| `notifications-service` | 8085 | avisos por cliente, stream SSE en vivo | consume eventos de pedido y de pago | **Boot 3.5**, Jackson 2 |
+| `notifications-service` | 8085 | avisos por cliente, stream SSE en vivo | consume eventos de pedido y de pago; responde `GetOrderNotices` a orders | **Boot 3.5**, Jackson 2 |
 | `reporting-service` | 8086 | informes de ventas, productos, rechazos y clientes | consume eventos de pedido; se reconstruye releyendo Kafka | Boot 4 |
 | `frontend` | 4200 | SPA Angular 22 servida por nginx | redirige `/api` al gateway | Angular, nginx |
 
 Tres estilos de comunicación, cada uno donde encaja:
 
 - **HTTP** desde el navegador, a través del gateway, para queries y comandos del usuario.
-- **RabbitMQ petición/respuesta** para los comandos de la saga: punto a punto, con respuesta, idempotentes
-  por pedido.
+- **RabbitMQ petición/respuesta** para los comandos de la saga, punto a punto, con respuesta, idempotentes
+  por pedido; y para leer datos que son de otro servicio y cambian demasiado rápido para copiarlos (el
+  stock), con un timeout corto y una página que se degrada en lugar de fallar.
 - **Kafka** para los eventos de integración: publicados a través del outbox, releíbles y consumidos por
   proyecciones idempotentes.
 

@@ -13,7 +13,7 @@ Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions
 | `spring-boot-cqrs-core` | `platform/contracts` (API), `platform/es-kit` | `Command`, `Query`, `Event`, `@CqrsMessage`, `MessageContext`, `MessageSerializer` |
 | `spring-boot-cqrs-boot4-starter` | todos los servicios Boot 4 | Buses, descubrimiento de handlers, middleware, endpoint de Actuator, hints AOT |
 | `spring-boot-cqrs-boot3-starter` | `notifications-service` | Lo mismo para Spring Boot 3.5 / Jackson 2 |
-| `spring-boot-cqrs-rabbitmq` | orders, inventory, payments | `RabbitMqCommandBus` para los comandos petición/respuesta de la saga |
+| `spring-boot-cqrs-rabbitmq` | catalog, orders, inventory, payments, notifications | `RabbitMqCommandBus` para los comandos petición/respuesta de la saga, `RabbitMqQueryBus` para las consultas a otros servicios |
 | `spring-boot-cqrs-kafka` | todos los servicios salvo el gateway | Topic de eventos, contenedor de listeners, `KafkaMessagePublisher` usado por el outbox |
 | `specification-repository-boot4-starter` | servicios Boot 4, `es-kit` | `SpecificationRepository`, DSL, planes de consulta |
 | `specification-repository-boot3-starter` | `notifications-service` | Lo mismo para Spring Boot 3.5 |
@@ -190,6 +190,52 @@ cqrs:
       - java.util
       - java.lang
 ```
+
+### Petición/respuesta sobre RabbitMQ para consultas
+
+Tres páginas leen datos que son de otro servicio, mediante consultas enviadas por RabbitMQ con `RabbitMqQueryBus`:
+
+| Consulta (contrato) | La hace | La responde | Se ve en |
+|---|---|---|---|
+| `GetStockLevels` → `StockLevels` | catalog, orders | inventory | la ficha de producto, el carrito |
+| `GetOrderNotices` → `OrderNotices` | orders | notifications (Boot 3.5, Jackson 2) | la página del pedido |
+
+Los contratos viven en `platform/contracts` como los comandos, anotados con `@CqrsMessage`. Esa anotación es lo que los expone: con la exposición por defecto de la librería (`cqrs.rabbitmq.expose=annotated`), un servicio solo enlaza a su cola los mensajes anotados, así que sus propias consultas (`SearchStockQuery`, `MyNotificationsQuery`...) se quedan en el bus local aunque el bus de consultas de RabbitMQ esté activo. En el lado que responde, una consulta remota es un método `@HandleQuery` normal:
+
+```java
+@HandleQuery
+@Transactional(readOnly = true)
+public StockLevels levels(GetStockLevels query) {
+  return new StockLevels(
+      stock.query().where("productId", Operators.IN, query.getProductIds()).findAll().stream()
+          .map(item -> new StockLevel(item.getProductId(), item.available()))
+          .toList());
+}
+```
+
+En el lado que pregunta, la consulta pasa por un puerto de la capa de aplicación (`StockLevelsGateway`, `OrderNoticesGateway`), implementado en `infrastructure` sobre RabbitMQ ([`RabbitStockLevelsGateway`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/messaging/RabbitStockLevelsGateway.java) en catalog, [`RabbitRemoteQueries`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RabbitRemoteQueries.java) en orders). Los controladores siguen usando el `QueryBus` local; el handler local compone la respuesta:
+
+- La ficha de producto se lee en una transacción de solo lectura corta y el stock se pregunta después, así que ninguna conexión a la base de datos espera al broker.
+- Un timeout, un fallo remoto o un broker inalcanzable devuelven un `Optional` vacío: la página muestra el stock como desconocido en lugar de fallar.
+
+El timeout de respuesta de un `RabbitTemplate` de Spring es un único ajuste para todas las peticiones que pasan por él, y orders necesita dos: la saga espera hasta 5 segundos por un comando, y un comprador no debería esperar más que un momento por una página. Por eso los servicios que preguntan montan un segundo `RabbitMqQueryBus` sobre un template propio, configurado por el `RabbitTemplateConfigurer` de Boot igual que el de por defecto, cambiando solo el timeout ([`RemoteQueriesConfiguration`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RemoteQueriesConfiguration.java)):
+
+```java
+RabbitTemplate template = new RabbitTemplate();
+configurer.configure(template, connectionFactory);
+template.setReplyTimeout(replyTimeout.toMillis()); // shop.remote-queries.reply-timeout, 1 s
+RabbitMqQueryBus remoteQueries =
+    new RabbitMqQueryBus(
+        new RabbitMqPublisher(template, contextHeaderPrefix),
+        rabbitNaming,
+        messageNaming,
+        properties.getQueries().getExchange(),
+        middlewares.getIfAvailable(Collections::emptyList));
+```
+
+Catalog y notifications solo participan en consultas, así que desactivan los buses de comandos y eventos de RabbitMQ (`cqrs.rabbitmq.commands.enabled=false`, `cqrs.rabbitmq.events.enabled=false`).
+
+`GetOrderNotices` cruza las dos generaciones de Jackson en los dos sentidos: Jackson 3 escribe la consulta y lee la respuesta, Jackson 2 hace lo contrario. El conversor JSON que Spring AMQP monta por su cuenta escribe los valores de fecha y hora de Java como números con Jackson 2 (`1790676930.123456000`) y como texto ISO-8601 con Jackson 3, así que notifications declara su `cqrsMessageConverter` con el `ObjectMapper` de Spring Boot, que también escribe ISO-8601 ([`MessagingConfiguration`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/infrastructure/MessagingConfiguration.java)). `OrderNoticesOverRabbitIT` envía la consulta con los bytes que escribe Jackson 3 y comprueba el JSON en bruto de la respuesta.
 
 ### Kafka solo para eventos
 

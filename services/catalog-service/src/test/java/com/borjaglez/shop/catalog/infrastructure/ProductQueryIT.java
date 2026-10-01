@@ -10,10 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
+import com.borjaglez.shop.catalog.FakeStockLevels;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
+import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
@@ -23,7 +25,12 @@ import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
  * collection filters, and empty and null values.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class})
+@Import({
+  PostgresTestConfiguration.class,
+  KafkaTestConfiguration.class,
+  RabbitTestConfiguration.class,
+  FakeStockLevels.class
+})
 class ProductQueryIT {
 
   @Autowired ProductRepository products;

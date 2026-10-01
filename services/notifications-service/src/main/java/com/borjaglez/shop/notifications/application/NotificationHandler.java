@@ -11,6 +11,9 @@ import com.borjaglez.cqrs.command.annotation.CommandHandler;
 import com.borjaglez.cqrs.command.annotation.HandleCommand;
 import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
+import com.borjaglez.shop.contracts.notifications.GetOrderNotices;
+import com.borjaglez.shop.contracts.notifications.OrderNotice;
+import com.borjaglez.shop.contracts.notifications.OrderNotices;
 import com.borjaglez.shop.notifications.application.NotificationQueries.MarkReadCommand;
 import com.borjaglez.shop.notifications.application.NotificationQueries.MyNotificationsQuery;
 import com.borjaglez.shop.notifications.application.NotificationQueries.NotificationView;
@@ -23,7 +26,8 @@ import com.borjaglez.specrepository.jpa.SpecificationExecutableQuery;
 /**
  * Reads and marks the customer's notices. The queries are built on the server: the service is on
  * Boot 3, where the shared {@code QueryPlans} helper (Boot 4) is not available, so the API takes
- * plain parameters instead of HTTP filter plans.
+ * plain parameters instead of HTTP filter plans. {@link GetOrderNotices} is the only message that
+ * arrives from another service, the orders service, over RabbitMQ.
  */
 @QueryHandler
 @CommandHandler
@@ -54,6 +58,27 @@ public class NotificationHandler {
   @Transactional(readOnly = true)
   public Long unread(UnreadCountQuery query) {
     return ofCustomer(query.getCustomerId()).where("readAt", Operators.IS_NULL, null).count();
+  }
+
+  /** The customer only sees their own notices, whatever order id is asked for. */
+  @HandleQuery
+  @Transactional(readOnly = true)
+  public OrderNotices orderNotices(GetOrderNotices query) {
+    return new OrderNotices(
+        ofCustomer(query.getCustomerId())
+            .where("orderId", Operators.EQUALS, query.getOrderId())
+            .sort(Sort.by("occurredAt"))
+            .findAll()
+            .stream()
+            .map(
+                n ->
+                    new OrderNotice(
+                        n.getKind().name(),
+                        n.getTitle(),
+                        n.getBody(),
+                        n.getOccurredAt(),
+                        n.isRead()))
+            .toList());
   }
 
   @HandleCommand

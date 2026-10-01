@@ -14,30 +14,40 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 import com.borjaglez.cqrs.query.QueryBus;
+import com.borjaglez.shop.catalog.FakeStockLevels;
 import com.borjaglez.shop.catalog.application.query.GetCatalogFacetsQuery;
 import com.borjaglez.shop.catalog.application.query.GetProductQuery;
 import com.borjaglez.shop.catalog.application.query.ListCategoriesQuery;
+import com.borjaglez.shop.catalog.application.query.ProductViews.Availability;
 import com.borjaglez.shop.catalog.application.query.ProductViews.CatalogFacets;
 import com.borjaglez.shop.catalog.application.query.ProductViews.CategoryView;
 import com.borjaglez.shop.catalog.application.query.ProductViews.FacetValue;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductCard;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductDetail;
+import com.borjaglez.shop.catalog.application.query.ProductViews.StockStatus;
 import com.borjaglez.shop.catalog.application.query.SearchProductsQuery;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
+import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
 
 /** Read side over the seeded catalog, through the real query bus. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class})
+@Import({
+  PostgresTestConfiguration.class,
+  KafkaTestConfiguration.class,
+  RabbitTestConfiguration.class,
+  FakeStockLevels.class
+})
 class CatalogQueriesIT {
 
   @Autowired QueryBus queries;
+  @Autowired FakeStockLevels inventory;
 
   private static QueryPlan<Product> all() {
     return SpecificationQueryBuilder.forEntity(Product.class).build();
@@ -149,6 +159,58 @@ class CatalogQueriesIT {
 
     assertThat(detail.sku()).isEqualTo("CAF-001");
     assertThat(detail.description()).contains("caramelo");
+  }
+
+  /** The product page of a seeded product after telling the inventory its stock. */
+  private ProductDetail pageWithStock(String slug, Integer units) {
+    ProductDetail detail = queries.ask(new GetProductQuery(slug));
+    if (units == null) {
+      inventory.silentAbout(detail.id());
+    } else {
+      inventory.stock(detail.id(), units);
+    }
+    return queries.ask(new GetProductQuery(slug));
+  }
+
+  @Test
+  void productPageShowsTheStockTheInventoryReports() {
+    assertThat(pageWithStock("cafe-de-colombia-en-grano-1-kg-caf-001", 12).availability())
+        .isEqualTo(new Availability(StockStatus.IN_STOCK, 12));
+  }
+
+  @Test
+  void fewUnitsLeftIsLowStock() {
+    assertThat(pageWithStock("cafe-molido-natural-500-g-caf-002", 3).availability())
+        .isEqualTo(new Availability(StockStatus.LOW_STOCK, 3));
+  }
+
+  @Test
+  void noUnitsLeftIsOutOfStock() {
+    assertThat(pageWithStock("cafetera-italiana-de-aluminio-6-tazas-caf-003", 0).availability())
+        .isEqualTo(new Availability(StockStatus.OUT_OF_STOCK, 0));
+  }
+
+  @Test
+  void aProductTheInventoryDoesNotKnowYetIsOutOfStock() {
+    ProductDetail detail = queries.ask(new GetProductQuery("cafe-descafeinado-de-etiopia-caf-004"));
+
+    assertThat(detail.availability()).isEqualTo(new Availability(StockStatus.OUT_OF_STOCK, 0));
+  }
+
+  @Test
+  void theProductPageIsShownWhenTheInventoryDoesNotAnswer() {
+    ProductDetail detail = pageWithStock("te-verde-matcha-ceremonial-30-g-caf-005", null);
+
+    assertThat(detail.sku()).isEqualTo("CAF-005");
+    assertThat(detail.availability()).isEqualTo(Availability.unknown());
+  }
+
+  @Test
+  void productsNoLongerOnSaleHaveNoStock() {
+    ProductDetail detail = queries.ask(new GetProductQuery("rooibos-con-vainilla-caf-008"));
+
+    assertThat(detail.status()).isEqualTo(ProductStatus.DISCONTINUED);
+    assertThat(detail.availability()).isNull();
   }
 
   @Test

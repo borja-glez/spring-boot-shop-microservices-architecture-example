@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 import com.borjaglez.cqrs.command.CommandBus;
+import com.borjaglez.shop.catalog.FakeStockLevels;
 import com.borjaglez.shop.catalog.RecordedEvents;
 import com.borjaglez.shop.catalog.application.command.CreateProductCommand;
 import com.borjaglez.shop.catalog.application.command.PublishProductCommand;
@@ -22,6 +23,7 @@ import com.borjaglez.shop.contracts.catalog.ProductPublished;
 import com.borjaglez.shop.eskit.StoredEventRepository;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
+import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
 import com.borjaglez.specrepository.core.Operators;
 
 /**
@@ -29,7 +31,13 @@ import com.borjaglez.specrepository.core.Operators;
  * subscriber, here the catalog itself.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class, RecordedEvents.class})
+@Import({
+  PostgresTestConfiguration.class,
+  KafkaTestConfiguration.class,
+  RabbitTestConfiguration.class,
+  FakeStockLevels.class,
+  RecordedEvents.class
+})
 class CatalogEventsOverKafkaIT {
 
   private static final String PUBLISHED = "shop.catalog.1.event.product.product-published";

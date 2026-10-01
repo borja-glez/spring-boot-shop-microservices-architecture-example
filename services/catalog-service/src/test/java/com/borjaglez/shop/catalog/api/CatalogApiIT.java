@@ -16,12 +16,19 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
 
+import com.borjaglez.shop.catalog.FakeStockLevels;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
+import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
 
 /** The public API end to end: HTTP, buses, specification-repository and PostgreSQL. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class})
+@Import({
+  PostgresTestConfiguration.class,
+  KafkaTestConfiguration.class,
+  RabbitTestConfiguration.class,
+  FakeStockLevels.class
+})
 class CatalogApiIT {
 
   private static final ParameterizedTypeReference<Map<String, Object>> JSON =

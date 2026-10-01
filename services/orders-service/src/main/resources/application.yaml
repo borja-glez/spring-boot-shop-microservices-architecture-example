@@ -40,7 +40,8 @@ cqrs:
     prefix: shop
   kafka:
     prefix: shop
-    # Kafka carries integration events only; the checkout saga's commands go over RabbitMQ.
+    # Kafka carries integration events only; the checkout saga's commands and the reads from
+    # inventory and notifications go over RabbitMQ.
     commands:
       enabled: false
     queries:
@@ -54,6 +55,7 @@ cqrs:
       - com.borjaglez.shop.contracts.inventory
       - com.borjaglez.shop.contracts.payments
       - com.borjaglez.shop.contracts.orders
+      - com.borjaglez.shop.contracts.notifications
       - java.util
       - java.lang
 
@@ -61,6 +63,9 @@ shop:
   chaos:
     # Demo fault injection (/api/orders/chaos); off unless SHOP_CHAOS_ENABLED=true.
     service: orders
+  remote-queries:
+    # How long a cart quote or an order page waits for inventory or notifications.
+    reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}
   checkout:
     # Each step is retried with growing waits; see CheckoutProperties.
     max-attempts: ${CHECKOUT_MAX_ATTEMPTS:8}

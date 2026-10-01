@@ -16,10 +16,12 @@ import { FilterQuery } from '../filters/filter-model';
 import { toQueryParams } from '../filters/filter-serializer';
 import { PageResponse } from './models';
 import {
+  CartQuote,
   CheckoutView,
   HistoryEntry,
   OrderDetail,
   OrderItem,
+  OrderNotices,
   OrderStatus,
   OrderSummary,
   StoredEventView,
@@ -94,6 +96,16 @@ export class OrdersApi {
   /** The event stream of the order, straight from the event store: always current. */
   history(id: string): Observable<HistoryEntry[]> {
     return this.http.get<HistoryEntry[]>(`${BASE}/${encodeURIComponent(id)}/history`);
+  }
+
+  /** The notices the customer received about the order, from the notifications service. */
+  notices(id: string): Observable<OrderNotices> {
+    return this.http.get<OrderNotices>(`${BASE}/${encodeURIComponent(id)}/notices`);
+  }
+
+  /** Prices the cart and checks its stock without placing it. */
+  quote(items: OrderItem[]): Observable<CartQuote> {
+    return this.http.post<CartQuote>(`${BASE}/quote`, { items });
   }
 
   place(items: OrderItem[]): Observable<string> {

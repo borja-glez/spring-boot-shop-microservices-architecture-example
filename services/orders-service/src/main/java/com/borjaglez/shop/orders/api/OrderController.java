@@ -26,13 +26,17 @@ import com.borjaglez.shop.orders.application.command.CancelOrderCommand;
 import com.borjaglez.shop.orders.application.command.PlaceOrderCommand;
 import com.borjaglez.shop.orders.application.query.GetCheckoutQuery;
 import com.borjaglez.shop.orders.application.query.GetOrderHistoryQuery;
+import com.borjaglez.shop.orders.application.query.GetOrderNoticesQuery;
 import com.borjaglez.shop.orders.application.query.GetOrderQuery;
 import com.borjaglez.shop.orders.application.query.ListMyOrdersQuery;
+import com.borjaglez.shop.orders.application.query.OrderViews.CartQuote;
 import com.borjaglez.shop.orders.application.query.OrderViews.CheckoutView;
 import com.borjaglez.shop.orders.application.query.OrderViews.HistoryEntry;
 import com.borjaglez.shop.orders.application.query.OrderViews.OrderDetail;
+import com.borjaglez.shop.orders.application.query.OrderViews.OrderNoticesView;
 import com.borjaglez.shop.orders.application.query.OrderViews.OrderSummary;
 import com.borjaglez.shop.orders.application.query.OrderViews.StoredEventView;
+import com.borjaglez.shop.orders.application.query.QuoteCartQuery;
 import com.borjaglez.shop.orders.application.query.SearchEventStoreQuery;
 import com.borjaglez.shop.orders.domain.OrderView;
 import com.borjaglez.shop.support.web.CurrentUser;
@@ -87,6 +91,28 @@ class OrderController {
   @GetMapping("/{id}/checkout")
   CheckoutView checkout(@CurrentUser String customer, @PathVariable UUID id) {
     return queries.ask(new GetCheckoutQuery(id, customer));
+  }
+
+  /**
+   * The notices the customer received about the order. They live in the notifications service,
+   * asked over RabbitMQ; {@code available} is false when it did not answer.
+   */
+  @GetMapping("/{id}/notices")
+  OrderNoticesView notices(@CurrentUser String customer, @PathVariable UUID id) {
+    return queries.ask(new GetOrderNoticesQuery(id, customer));
+  }
+
+  /**
+   * Prices the cart and checks its stock without placing it. Prices come from the local catalog
+   * projection, stock from the inventory over RabbitMQ.
+   */
+  @PostMapping("/quote")
+  CartQuote quote(@Valid @RequestBody PlaceOrderRequest body) {
+    return queries.ask(
+        new QuoteCartQuery(
+            body.items().stream()
+                .map(i -> new QuoteCartQuery.Item(i.productId(), i.quantity()))
+                .toList()));
   }
 
   @PostMapping

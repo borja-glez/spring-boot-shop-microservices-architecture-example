@@ -30,6 +30,14 @@ spring:
       observation-enabled: true
     template:
       observation-enabled: true
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:shop}
+    password: ${RABBIT_PASSWORD:shop-dev}
+    listener:
+      simple:
+        observation-enabled: true
   mvc:
     problemdetails:
       enabled: true
@@ -46,11 +54,24 @@ cqrs:
     prefix: shop
   kafka:
     prefix: shop
-    # This service only listens to integration events.
+    # Kafka brings the integration events this service turns into notices.
     commands:
       enabled: false
     queries:
       enabled: false
+  rabbitmq:
+    # RabbitMQ brings GetOrderNotices from the orders service (request and reply): a Boot 4 service
+    # (Jackson 3) asking a Boot 3 one (Jackson 2). This service only answers queries.
+    prefix: shop
+    commands:
+      enabled: false
+    events:
+      enabled: false
+    # Only the shared contracts and plain Java types may be deserialized.
+    trusted-packages:
+      - com.borjaglez.shop.contracts.notifications
+      - java.util
+      - java.lang
 
 management:
   # Traces for every request; exported only when MANAGEMENT_OTLP_TRACING_ENDPOINT is set, and logs

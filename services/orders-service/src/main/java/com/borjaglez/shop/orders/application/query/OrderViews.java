@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.borjaglez.shop.contracts.notifications.OrderNotice;
 import com.borjaglez.shop.eskit.StoredEvent;
 import com.borjaglez.shop.orders.domain.CheckoutSaga;
 import com.borjaglez.shop.orders.domain.CheckoutStep;
@@ -51,6 +52,50 @@ public final class OrderViews {
       int quantity,
       BigDecimal unitPrice,
       BigDecimal subtotal) {}
+
+  /**
+   * A cart priced with the current catalog prices and checked against the current stock.
+   *
+   * @param total sum of the lines that can be ordered
+   * @param stockChecked whether the inventory answered; when not, only prices were checked
+   * @param orderable whether every line can be ordered as it is
+   */
+  public record CartQuote(
+      List<QuoteLine> lines,
+      BigDecimal total,
+      String currency,
+      boolean stockChecked,
+      boolean orderable) {}
+
+  /**
+   * A cart line as it would be ordered now.
+   *
+   * @param unitPrice {@code null} when the product is not for sale
+   * @param available free units; {@code null} when unknown
+   * @param problem why the line cannot be ordered as it is; {@code null} when it can
+   */
+  public record QuoteLine(
+      UUID productId,
+      String sku,
+      String name,
+      int quantity,
+      BigDecimal unitPrice,
+      BigDecimal subtotal,
+      Integer available,
+      QuoteProblem problem) {}
+
+  /** Why a cart line cannot be ordered as it is. */
+  public enum QuoteProblem {
+    NOT_FOR_SALE,
+    NOT_ENOUGH_STOCK
+  }
+
+  /**
+   * The notices sent about an order.
+   *
+   * @param available whether the notifications service answered
+   */
+  public record OrderNoticesView(boolean available, List<OrderNotice> notices) {}
 
   /**
    * One event of an order's stream and the state the order had right after it.

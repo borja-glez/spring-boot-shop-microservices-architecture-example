@@ -10,10 +10,13 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
+import com.borjaglez.shop.catalog.application.query.ProductViews.Availability;
 import com.borjaglez.shop.catalog.application.query.ProductViews.CatalogFacets;
 import com.borjaglez.shop.catalog.application.query.ProductViews.CategoryView;
 import com.borjaglez.shop.catalog.application.query.ProductViews.FacetValue;
@@ -31,7 +34,10 @@ import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.jpa.SpecificationExecutableQuery;
 
-/** Answers the public read side of the catalog. Every read uses specification-repository. */
+/**
+ * Answers the public read side of the catalog. Every read uses specification-repository; the stock
+ * shown on a product page comes from the inventory service, asked over RabbitMQ.
+ */
 @QueryHandler
 public class CatalogQueryHandler {
 
@@ -39,10 +45,19 @@ public class CatalogQueryHandler {
 
   private final ProductRepository products;
   private final CategoryRepository categories;
+  private final StockLevelsGateway stock;
+  private final TransactionTemplate readOnly;
 
-  public CatalogQueryHandler(ProductRepository products, CategoryRepository categories) {
+  public CatalogQueryHandler(
+      ProductRepository products,
+      CategoryRepository categories,
+      StockLevelsGateway stock,
+      PlatformTransactionManager transactionManager) {
     this.products = products;
     this.categories = categories;
+    this.stock = stock;
+    this.readOnly = new TransactionTemplate(transactionManager);
+    this.readOnly.setReadOnly(true);
   }
 
   @HandleQuery
@@ -54,9 +69,25 @@ public class CatalogQueryHandler {
         .map(ProductViews::card);
   }
 
+  /**
+   * The page is read in its own short transaction and the stock asked afterwards, so no database
+   * connection waits for the inventory's answer.
+   */
   @HandleQuery
-  @Transactional(readOnly = true)
   public ProductDetail product(GetProductQuery query) {
+    ProductDetail detail = readOnly.execute(status -> page(query));
+    if (detail.status() != ProductStatus.ACTIVE) {
+      return detail;
+    }
+    Availability availability =
+        stock
+            .available(List.of(detail.id()))
+            .map(units -> Availability.of(units.getOrDefault(detail.id(), 0)))
+            .orElseGet(Availability::unknown);
+    return detail.withAvailability(availability);
+  }
+
+  private ProductDetail page(GetProductQuery query) {
     return products
         .query()
         .where("slug", Operators.EQUALS, query.getSlug())

@@ -19,6 +19,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.borjaglez.cqrs.command.CommandBus;
+import com.borjaglez.shop.catalog.FakeStockLevels;
 import com.borjaglez.shop.catalog.application.command.ChangeProductPriceCommand;
 import com.borjaglez.shop.catalog.application.command.CreateProductCommand;
 import com.borjaglez.shop.catalog.application.command.DiscontinueProductCommand;
@@ -32,6 +33,7 @@ import com.borjaglez.shop.support.error.ConflictException;
 import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
+import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
 import com.borjaglez.specrepository.core.Operators;
 
 /**
@@ -39,7 +41,12 @@ import com.borjaglez.specrepository.core.Operators;
  * seller-fermin in the "despensa" category, which the query tests leave alone.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class})
+@Import({
+  PostgresTestConfiguration.class,
+  KafkaTestConfiguration.class,
+  RabbitTestConfiguration.class,
+  FakeStockLevels.class
+})
 class CatalogCommandsIT {
 
   private static final String SELLER = "seller-fermin";

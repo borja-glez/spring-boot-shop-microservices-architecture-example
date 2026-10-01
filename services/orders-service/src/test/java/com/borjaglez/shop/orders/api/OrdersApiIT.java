@@ -2,9 +2,11 @@ package com.borjaglez.shop.orders.api;
 
 import static com.borjaglez.shop.orders.OrdersTestSupport.published;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.awaitility.Awaitility.await;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +23,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
 
+import com.borjaglez.shop.contracts.notifications.OrderNotice;
+import com.borjaglez.shop.orders.FakeRemoteReads;
 import com.borjaglez.shop.orders.application.projection.CatalogProductProjector;
 import com.borjaglez.shop.orders.checkout.CheckoutDriver;
 import com.borjaglez.shop.orders.checkout.FakeCheckout;
@@ -41,6 +45,7 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
   KafkaTestConfiguration.class,
   RabbitTestConfiguration.class,
   FakeCheckout.class,
+  FakeRemoteReads.class,
   CheckoutDriver.class
 })
 class OrdersApiIT {
@@ -53,6 +58,7 @@ class OrdersApiIT {
   @LocalServerPort int port;
   @Autowired CatalogProductProjector catalog;
   @Autowired CheckoutDriver checkout;
+  @Autowired FakeRemoteReads remote;
   RestClient http;
   String customer;
 
@@ -111,6 +117,127 @@ class OrdersApiIT {
                         assertThat(order.get("total")).isEqualTo(16.0);
                       });
             });
+  }
+
+  private ResponseEntity<Map<String, Object>> quote(Map<UUID, Integer> items) {
+    return http.post()
+        .uri("/api/orders/quote")
+        .header("X-Shop-User", customer)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+            Map.of(
+                "items",
+                items.entrySet().stream()
+                    .map(e -> Map.of("productId", e.getKey(), "quantity", e.getValue()))
+                    .toList()))
+        .retrieve()
+        .toEntity(JSON);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static List<Map<String, Object>> lines(ResponseEntity<Map<String, Object>> response) {
+    return (List<Map<String, Object>>) response.getBody().get("lines");
+  }
+
+  @Test
+  void theQuotePricesTheCartAndChecksItsStock() {
+    UUID tea = product("4.50");
+    UUID honey = product("7.00");
+    UUID gone = UUID.randomUUID();
+    remote.stock(tea, 10);
+    remote.stock(honey, 1);
+
+    var response = quote(Map.of(tea, 2, honey, 3, gone, 1));
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody())
+        .containsEntry("total", 30.0)
+        .containsEntry("currency", "EUR")
+        .containsEntry("stockChecked", true)
+        .containsEntry("orderable", false);
+    assertThat(lines(response))
+        .extracting(l -> l.get("productId"), l -> l.get("available"), l -> l.get("problem"))
+        .containsExactlyInAnyOrder(
+            tuple(tea.toString(), 10, null),
+            tuple(honey.toString(), 1, "NOT_ENOUGH_STOCK"),
+            tuple(gone.toString(), null, "NOT_FOR_SALE"));
+  }
+
+  @Test
+  void withoutTheInventoryTheQuoteOnlyChecksPrices() {
+    UUID coffee = product("9.90");
+    remote.inventorySilentAbout(coffee);
+
+    var response = quote(Map.of(coffee, 1));
+
+    assertThat(response.getBody())
+        .containsEntry("stockChecked", false)
+        .containsEntry("orderable", true)
+        .containsEntry("total", 9.9);
+    assertThat(lines(response))
+        .singleElement()
+        .satisfies(l -> assertThat(l.get("available")).isNull());
+  }
+
+  @Test
+  void anEmptyCartCannotBeQuoted() {
+    assertThat(quote(Map.of()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+  }
+
+  private UUID viewedOrder() {
+    UUID orderId = UUID.fromString((String) placeOrder(product("1.00"), 1).getBody().get("id"));
+    await()
+        .atMost(Duration.ofSeconds(30))
+        .until(() -> get("/api/orders/{id}", orderId).getStatusCode().is2xxSuccessful());
+    return orderId;
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void theOrderShowsTheNoticesTheCustomerReceived() {
+    UUID orderId = viewedOrder();
+    remote.notices(
+        orderId,
+        new OrderNotice(
+            "ORDER_CONFIRMED",
+            "Order confirmed",
+            "Your order is on its way",
+            OffsetDateTime.parse("2026-09-29T10:00:00Z"),
+            false));
+
+    var response = get("/api/orders/{id}/notices", orderId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).containsEntry("available", true);
+    assertThat((List<Map<String, Object>>) response.getBody().get("notices"))
+        .singleElement()
+        .satisfies(
+            n -> {
+              assertThat(n.get("kind")).isEqualTo("ORDER_CONFIRMED");
+              assertThat(n.get("sentAt")).isEqualTo("2026-09-29T10:00:00Z");
+            });
+  }
+
+  @Test
+  void withoutNotificationsTheOrderSaysSo() {
+    UUID orderId = viewedOrder();
+    remote.notificationsSilentAbout(orderId);
+
+    var response = get("/api/orders/{id}/notices", orderId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).containsEntry("available", false);
+  }
+
+  @Test
+  void anotherCustomersNoticesAreNotFound() {
+    UUID orderId = viewedOrder();
+    customer = "cliente-intruso";
+
+    var response = get("/api/orders/{id}/notices", orderId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getBody()).containsEntry("code", "order-not-found");
   }
 
   @Test

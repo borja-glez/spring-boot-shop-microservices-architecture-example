@@ -4,11 +4,13 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /**
- * PostgreSQL and Kafka for the integration tests. The shared test-support module is built against
- * Spring Boot 4, so this Boot 3 service declares its own containers (same images).
+ * PostgreSQL, Kafka and RabbitMQ for the integration tests. The shared test-support module is built
+ * against Spring Boot 4, so this Boot 3 service declares its own containers (same images).
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class TestContainers {
@@ -23,5 +25,13 @@ public class TestContainers {
   @ServiceConnection
   KafkaContainer kafka() {
     return new KafkaContainer("apache/kafka:4.3.1");
+  }
+
+  @Bean
+  @ServiceConnection
+  RabbitMQContainer rabbitmq() {
+    return new RabbitMQContainer(
+        DockerImageName.parse("rabbitmq:4.3-management-alpine")
+            .asCompatibleSubstituteFor("rabbitmq"));
   }
 }
