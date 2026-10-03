@@ -27,6 +27,12 @@ spring:
     username: ${RABBIT_USER:shop}
     password: ${RABBIT_PASSWORD:shop-dev}
 
+# The payments backoffice filters by order, customer, status, amount and date; the decline reason
+# can be searched.
+specrepository:
+  http:
+    allowed-operators: [eq, neq, in, notin, contains, gt, gte, lt, lte, between, isnull, isnotnull]
+
 server:
   port: ${SERVER_PORT:8084}
 

@@ -23,6 +23,11 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
 
+# Reports are narrowed by date ranges and currencies, the product report also by SKU or name.
+specrepository:
+  http:
+    allowed-operators: [eq, in, gt, gte, lt, lte, between, contains, startswith]
+
 server:
   port: ${SERVER_PORT:8086}
 

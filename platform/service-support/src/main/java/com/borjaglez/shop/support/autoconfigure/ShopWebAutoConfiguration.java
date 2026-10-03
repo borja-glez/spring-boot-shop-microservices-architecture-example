@@ -23,8 +23,7 @@ import com.borjaglez.shop.support.web.ProblemDetailsExceptionHandler;
 import com.borjaglez.shop.support.web.problem.DataAccessProblemMapper;
 import com.borjaglez.shop.support.web.problem.DomainProblemMapper;
 import com.borjaglez.shop.support.web.problem.ProblemMapper;
-import com.borjaglez.shop.support.web.problem.SpecificationHttpProblemMapper;
-import com.borjaglez.shop.support.web.problem.SpecificationQueryProblemMapper;
+import com.borjaglez.shop.support.web.problem.SpecificationProblemMapper;
 import com.borjaglez.shop.support.web.problem.UserHeaderProblemMapper;
 import com.borjaglez.shop.support.web.problem.ValidationProblemMapper;
 
@@ -110,24 +109,13 @@ public class ShopWebAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(name = "com.borjaglez.specrepository.core.DisallowedFieldException")
-  static class SpecificationQueryIntegration {
+  @ConditionalOnClass(name = "com.borjaglez.specrepository.http.HttpFilterSyntaxException")
+  static class SpecificationIntegration {
 
     @Bean
     @Order(40)
-    SpecificationQueryProblemMapper specificationQueryProblemMapper() {
-      return new SpecificationQueryProblemMapper();
-    }
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(name = "com.borjaglez.specrepository.http.HttpFilterSyntaxException")
-  static class SpecificationHttpIntegration {
-
-    @Bean
-    @Order(50)
-    SpecificationHttpProblemMapper specificationHttpProblemMapper() {
-      return new SpecificationHttpProblemMapper();
+    SpecificationProblemMapper specificationProblemMapper() {
+      return new SpecificationProblemMapper();
     }
   }
 }
