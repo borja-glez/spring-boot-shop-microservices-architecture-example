@@ -1,6 +1,7 @@
 package com.borjaglez.shop.reporting.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -86,6 +87,24 @@ class ReportingControllerTest {
   @Test
   void topProductsCannotFilterOnTheAggregatedFields() throws Exception {
     mvc.perform(get("/api/reporting/top-products").param("filter", "quantity:gte:10"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void topProductsRejectAValueAboveTheLimit() throws Exception {
+    mvc.perform(
+            get("/api/reporting/top-products").param("filter", "name:contains:" + "x".repeat(201)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"))
+        .andExpect(jsonPath("$.detail").value(containsString("value too long (max 200")));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void reportsRejectOperatorsTheyDoNotOffer() throws Exception {
+    mvc.perform(get("/api/reporting/summary").param("filter", "currency:neq:EUR"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("invalid-filter"));
     verifyNoInteractions(queries);

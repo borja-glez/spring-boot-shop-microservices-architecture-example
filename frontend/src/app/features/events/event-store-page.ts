@@ -64,7 +64,14 @@ const PAGE_SIZE = 20;
 
     @if (eventsPage(); as page) {
       <p class="count">
-        {{ page.totalElements }} {{ page.totalElements === 1 ? 'event' : 'events' }}
+        @if (page.content.length === 0) {
+          No events
+        } @else {
+          Events {{ page.page * page.size + 1 }}–{{ page.page * page.size + page.content.length }}
+          @if (page.hasNext) {
+            (more on the next page)
+          }
+        }
       </p>
       <div class="panel table">
         <table>
@@ -117,7 +124,7 @@ const PAGE_SIZE = 20;
           </tbody>
         </table>
       </div>
-      @if (page.totalPages > 1) {
+      @if (page.page > 0 || page.hasNext) {
         <nav class="pages" aria-label="Pages">
           <button
             type="button"
@@ -127,11 +134,11 @@ const PAGE_SIZE = 20;
           >
             Previous
           </button>
-          <span>Page {{ page.page + 1 }} of {{ page.totalPages }}</span>
+          <span>Page {{ page.page + 1 }}</span>
           <button
             type="button"
             class="button secondary"
-            [disabled]="page.page + 1 >= page.totalPages"
+            [disabled]="!page.hasNext"
             (click)="this.page.set(page.page + 1)"
           >
             Next

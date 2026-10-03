@@ -29,6 +29,11 @@ spring:
     username: ${RABBIT_USER:shop}
     password: ${RABBIT_PASSWORD:shop-dev}
 
+# The stock screen searches by name and SKU; everything else is ids, statuses, counts and dates.
+specrepository:
+  http:
+    allowed-operators: [eq, neq, in, notin, contains, startswith, gt, gte, lt, lte, between, isnull, isnotnull]
+
 server:
   port: ${SERVER_PORT:8083}
 

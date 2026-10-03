@@ -26,8 +26,10 @@ import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.InvalidFilterException;
 import com.borjaglez.specrepository.core.InvalidFilterValueException;
+import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.http.HttpFilterSyntaxException;
 import com.borjaglez.specrepository.http.HttpUnknownOperatorException;
+import com.borjaglez.specrepository.http.spring.FilterableQuery;
 
 /** Endpoints that raise every kind of failure the support module has to translate. */
 @RestController
@@ -133,5 +135,19 @@ class SampleController {
   @GetMapping("/page")
   Map<String, Integer> page(Pageable pageable) {
     return Map.of("page", pageable.getPageNumber(), "size", pageable.getPageSize());
+  }
+
+  /** Only a type for the plan: nothing is queried. */
+  static class Item {}
+
+  /** A filterable endpoint, to check the shop's limits and problems on real request parameters. */
+  @GetMapping("/items")
+  Map<String, Integer> items(
+      @FilterableQuery(
+              value = Item.class,
+              filterableFields = {"id", "name"},
+              sortableFields = {"name"})
+          QueryPlan<Item> plan) {
+    return Map.of("conditions", plan.rootCondition().conditions().size());
   }
 }

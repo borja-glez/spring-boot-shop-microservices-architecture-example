@@ -126,8 +126,7 @@ Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 
 | 10 | `UserHeaderProblemMapper` | `X-Shop-User` ausente a 401 `missing-user`, mal formado a 400 `invalid-user` |
 | 20 | `DataAccessProblemMapper` | bloqueo optimista a 409 `concurrent-modification`, violaciones de integridad a 409 `data-integrity-violation` |
 | 30 | `ValidationProblemMapper` | fallos de Bean Validation lanzados por el bus de comandos a 400 `validation-failed` |
-| 40 | `SpecificationQueryProblemMapper` | campos no permitidos, valores no convertibles y filtros rechazados a 400 `invalid-filter` |
-| 50 | `SpecificationHttpProblemMapper` | sintaxis mal formada de `filter` / `orFilter` / `sort` a 400 `invalid-filter` |
+| 40 | `SpecificationProblemMapper` | `filter` / `orFilter` / `sort` mal formados, peticiones por encima de los límites `specrepository.http.*`, operadores que el servicio no ofrece, campos no permitidos, valores no convertibles y filtros rechazados a 400 `invalid-filter`, con el `field` cuando se conoce |
 | 100 | solo en el gateway | fallos de conexión a 503 `service-unavailable` |
 
 Todo lo que ningún mapper reclama se convierte en un 500 `internal-error` cuyo cuerpo nunca contiene el mensaje de la excepción. Las `IllegalArgumentException` o `IllegalStateException` genéricas no se traducen a 4xx de forma intencionada: un error de programación debe parecerlo. Para dar soporte a una nueva familia de excepciones basta con declarar otro bean `ProblemMapper`.

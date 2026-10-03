@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,6 +188,58 @@ class CatalogApiIT {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
+  }
+
+  @Test
+  void searchesATermWithAnApostropheIgnoringCaseAndAccents() {
+    // Case-insensitive terms are bound as query parameters, quotes included.
+    var response = get("/api/catalog/products?filter=name:contains:D'OLIVA DE L'EMPORDA");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(content(response)).extracting(p -> p.get("sku")).containsExactly("ACE-004");
+  }
+
+  @Test
+  void anInListAboveTheLimitIsABadRequest() {
+    String sellers =
+        IntStream.rangeClosed(1, 51).mapToObj(i -> "seller-" + i).collect(Collectors.joining("|"));
+
+    var response = get("/api/catalog/products?filter=seller.id:in:" + sellers);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getHeaders().getContentType())
+        .isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+    assertThat(response.getBody())
+        .containsEntry("code", "invalid-filter")
+        .containsEntry(
+            "detail",
+            "Invalid filter expression 'seller.id:in': too many values (max 50) for field 'seller.id'");
+  }
+
+  @Test
+  void aSearchTermAboveTheCatalogLimitIsABadRequest() {
+    var response = get("/api/catalog/products?filter=name:contains:" + "a".repeat(101));
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody()).containsEntry("code", "invalid-filter");
+    assertThat((String) response.getBody().get("detail")).contains("max 100 characters");
+  }
+
+  @Test
+  void aDisallowedFieldNamesItInTheProblem() {
+    var response = get("/api/catalog/products?filter=seller.email:startswith:ana");
+
+    assertThat(response.getBody())
+        .containsEntry("code", "invalid-filter")
+        .containsEntry("field", "seller.email");
+  }
+
+  @Test
+  void aDisallowedPageableSortNamesItInTheProblem() {
+    var response = get("/api/catalog/products?sort=id,asc");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody()).containsEntry("field", "id");
   }
 
   @Test

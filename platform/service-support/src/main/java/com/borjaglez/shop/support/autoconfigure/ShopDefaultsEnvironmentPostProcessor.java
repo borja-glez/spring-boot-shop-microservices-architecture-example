@@ -20,6 +20,22 @@ public class ShopDefaultsEnvironmentPostProcessor implements EnvironmentPostProc
           // Never let a client ask for an unbounded page.
           Map.entry("spring.data.web.pageable.max-page-size", 100),
           Map.entry("spring.data.web.pageable.default-page-size", 20),
+          // Bounds of the HTTP filter syntax of specification-repository, tighter than the
+          // library's (20 filters, 5 sort fields, 100 values, 1000 characters): no shop screen
+          // sends more than a few filters, two sort fields, a list of a few ids or a short text.
+          // Above them the parser answers 400 before any SQL runs.
+          Map.entry("specrepository.http.max-filters", 10),
+          Map.entry("specrepository.http.max-sort-fields", 3),
+          Map.entry("specrepository.http.max-values-per-filter", 50),
+          Map.entry("specrepository.http.max-value-length", 200),
+          // Operators a client may use: comparisons and lists, which an index can serve. A service
+          // that offers text search adds contains, startswith... in its application.yaml.
+          Map.entry(
+              "specrepository.http.allowed-operators",
+              "eq,neq,in,notin,gt,gte,lt,lte,between,isnull,isnotnull"),
+          // The library's 400 advice is off: SpecificationProblemMapper answers its exceptions with
+          // the shop's problem shape (code, type, correlationId), as every other error.
+          Map.entry("specrepository.http.problem-details.enabled", false),
           Map.entry("spring.jpa.open-in-view", false),
           // PostgreSQL waits forever on a socket by default: when the database pod goes away, a
           // query on a connection to its old address never returns and the thread that ran it

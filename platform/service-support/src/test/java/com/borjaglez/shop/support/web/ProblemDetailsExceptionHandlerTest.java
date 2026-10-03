@@ -77,7 +77,8 @@ class ProblemDetailsExceptionHandlerTest {
     mvc.perform(get("/filter-syntax"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("invalid-filter"))
-        .andExpect(jsonPath("$.detail").value(containsString("operator must not be empty")));
+        .andExpect(jsonPath("$.detail").value(containsString("operator must not be empty")))
+        .andExpect(jsonPath("$.field").doesNotExist());
   }
 
   @Test
@@ -92,7 +93,8 @@ class ProblemDetailsExceptionHandlerTest {
     mvc.perform(get("/disallowed-field"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("invalid-filter"))
-        .andExpect(jsonPath("$.detail").value(containsString("seller.email")));
+        .andExpect(jsonPath("$.detail").value(containsString("seller.email")))
+        .andExpect(jsonPath("$.field").value("seller.email"));
   }
 
   @Test
@@ -108,7 +110,8 @@ class ProblemDetailsExceptionHandlerTest {
     mvc.perform(get("/filter-operator-at-query-time"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("invalid-filter"))
-        .andExpect(jsonPath("$.detail").value(containsString("like")));
+        .andExpect(jsonPath("$.detail").value(containsString("like")))
+        .andExpect(jsonPath("$.field").value("name"));
   }
 
   @Test

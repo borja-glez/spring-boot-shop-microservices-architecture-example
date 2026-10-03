@@ -65,6 +65,7 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
     log(problem, exception);
     ProblemDetail body = ProblemDetail.forStatusAndDetail(problem.status(), problem.detail());
     decorate(body, problem.code(), problem.errors(), request);
+    problem.properties().forEach(body::setProperty);
     return ResponseEntity.status(problem.status()).body(body);
   }
 

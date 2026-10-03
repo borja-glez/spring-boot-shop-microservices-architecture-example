@@ -77,14 +77,16 @@ por listas blancas de campos.
 - `?filter=price.amount:between:5|20&orFilter=...&sort=...` convertido en un `QueryPlan` inmutable.
 - Listas blancas de campos filtrables y ordenables por endpoint.
 - Agrupaciones y agregados (`COUNT DISTINCT`, `HAVING`) para facetas e informes.
+- Condiciones y ordenaciones del servidor sobre un plan del cliente, límites en la petición (`specrepository.http.*`).
 
 En Mercado: la búsqueda del catálogo, las facetas, «mis pedidos», el explorador del event store, el
 backoffice y todos los informes son consultas de specification-repository combinadas con condiciones
 del servidor.
 
 ```kotlin
-implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.4.0")
-implementation("com.borjaglez.specrepository:specification-repository-http:0.4.0")
+implementation(platform("com.borjaglez.specrepository:specification-repository-bom:1.0.0"))
+implementation("com.borjaglez.specrepository:specification-repository-boot4-starter")
+implementation("com.borjaglez.specrepository:specification-repository-http")
 ```
 
 </td>

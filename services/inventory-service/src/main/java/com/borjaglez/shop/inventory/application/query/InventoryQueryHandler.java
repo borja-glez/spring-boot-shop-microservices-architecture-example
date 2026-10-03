@@ -32,7 +32,18 @@ public class InventoryQueryHandler {
   /** A product page asks for one product and a cart for at most its 20 lines. */
   static final int MAX_STOCK_LEVELS = 100;
 
-  private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "reservedAt");
+  /**
+   * Newest first, then by order: a server sort, so it may break ties with {@code orderId}, which
+   * the client can filter by but not sort by.
+   */
+  private static final Sort NEWEST_FIRST =
+      Sort.by(Sort.Order.desc("reservedAt"), Sort.Order.asc("orderId"));
+
+  /**
+   * The lists take the client's filters: a combination the indexes do not cover must not hold a
+   * connection for long. Spring applies the transaction timeout to every JPA query run in it.
+   */
+  static final int LIST_TIMEOUT_SECONDS = 5;
 
   private final StockItemRepository stock;
   private final ReservationRepository reservations;
@@ -43,7 +54,7 @@ public class InventoryQueryHandler {
   }
 
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = LIST_TIMEOUT_SECONDS)
   public Page<StockView> stock(SearchStockQuery query) {
     return stock
         .query(query.getPlan())
@@ -53,7 +64,7 @@ public class InventoryQueryHandler {
   }
 
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = LIST_TIMEOUT_SECONDS)
   public Page<ReservationView> reservations(SearchReservationsQuery query) {
     return reservations
         .query(query.getPlan())

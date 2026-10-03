@@ -43,6 +43,19 @@ public class CatalogQueryHandler {
 
   private static final int MAX_FACET_VALUES = 20;
 
+  /**
+   * Newest first when the shopper picks no order. A server sort: {@code id} is not a sortable field
+   * of the search, but it breaks ties between products published at the same instant, so a page
+   * never repeats or skips a product.
+   */
+  static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("id"));
+
+  /**
+   * Public reads take the shopper's filters: a combination the indexes do not cover must not hold a
+   * connection for long. Spring applies the transaction timeout to every JPA query run in it.
+   */
+  static final int SEARCH_TIMEOUT_SECONDS = 5;
+
   private final ProductRepository products;
   private final CategoryRepository categories;
   private final StockLevelsGateway stock;
@@ -61,10 +74,11 @@ public class CatalogQueryHandler {
   }
 
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = SEARCH_TIMEOUT_SECONDS)
   public Page<ProductCard> search(SearchProductsQuery query) {
     return onSale(query.getPlan())
         .leftFetch("seller")
+        .sortedByDefault(NEWEST_FIRST)
         .findAll(query.getPageable())
         .map(ProductViews::card);
   }
@@ -102,7 +116,7 @@ public class CatalogQueryHandler {
   }
 
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = SEARCH_TIMEOUT_SECONDS)
   public CatalogFacets facets(GetCatalogFacetsQuery query) {
     // Each facet ignores its own filter (disjunctive faceting), so shoppers can pick several
     // sellers or tags and see what each extra choice would add.

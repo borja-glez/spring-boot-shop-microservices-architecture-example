@@ -19,7 +19,7 @@ sequenceDiagram
   C->>C: @ProductFilter parses filter/orFilter/sort into QueryPlan<Product> and checks its whitelist
   C->>Q: ask(new SearchProductsQuery(plan, pageable))
   Q->>H: middleware (context, tracing, metrics)
-  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).findAll(pageable)
+  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).sortedByDefault(newest).findAll(pageable)
   R-->>H: Page<Product> (whitelist checked, one SQL query)
   H-->>C: Page<ProductCard>
   C-->>UI: PageResponse JSON
@@ -42,6 +42,8 @@ GET /api/catalog/products
 | `orFilter` | `cond;cond;...` | Repeatable; each group needs at least one matching condition |
 | `sort` | `field,asc` / `field,desc` | Repeatable; only sortable fields |
 | `page`, `size` | integers | `size` defaults to 20 and is capped at 100 (`spring.data.web.pageable.*`) |
+
+Each request is bounded before any SQL runs (`specrepository.http.*`, see [The libraries in practice](libraries.md#limits-and-operators)): at most 10 `filter` and `orFilter` conditions, 3 `sort` fields, 50 values in an `in` or `notin` list and 100 characters per value in the catalog. Above them, the answer is a 400 `invalid-filter`.
 
 Operators:
 
@@ -98,18 +100,21 @@ CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
 
 `seller.email` exists on the entity but is private: it is in neither list, so it can never be filtered or sorted on, and product views never expose it. The whitelist is checked while the argument is resolved, so a disallowed field is rejected before the controller method runs. The `Pageable` is passed as it is: its sort comes from the same `sort` parameter, and the repository checks it against the same whitelist. Facets declare no sortable fields, so a `sort` on them is rejected too.
 
-Shoppers type "cafe" and expect "Café". The HTTP syntax has no way to ask for case-insensitive matching, so the server decides it for the fields it knows are text: `caseInsensitiveFields` makes `eq`, `neq`, `contains`, `notcontains`, `startswith` and `endswith` on `name` and `description` compare `unaccent(upper(...))` on both sides, which on PostgreSQL ignores case and accents (the catalog's first migration creates the `unaccent` extension).
+Shoppers type "cafe" and expect "Café". The HTTP syntax has no way to ask for case-insensitive matching, so the server decides it for the fields it knows are text: `caseInsensitiveFields` makes `eq`, `neq`, `contains`, `notcontains`, `startswith` and `endswith` on `name` and `description` compare `unaccent(upper(...))` on both sides, which on PostgreSQL ignores case and accents (the catalog's first migration creates the `unaccent` extension). The search term is sent to the database as a bind parameter, so `filter=name:contains:d'oliva` finds "Aceite d'Oliva de l'Empordà" like any other term.
 
 ## What the server adds
 
 [`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) receives the client plan and derives it with `products.query(plan)`:
 
 ```java
+static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("id"));
+
 @HandleQuery
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, timeout = SEARCH_TIMEOUT_SECONDS) // 5 s
 public Page<ProductCard> search(SearchProductsQuery query) {
   return onSale(query.getPlan())
       .leftFetch("seller")
+      .sortedByDefault(NEWEST_FIRST)
       .findAll(query.getPageable())
       .map(ProductViews::card);
 }
@@ -123,6 +128,8 @@ private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPl
 |---|---|
 | `where(status = ACTIVE)` | The public never sees drafts or discontinued products, even if it filters on `status`. On a derived query it is a server condition: ANDed with the client's filters, not checked against the whitelist, and never widened by an `orFilter`. The client's own filters and sort keep their whitelist. |
 | `leftFetch("seller")` | The seller is loaded in the same query (left fetch join), avoiding one query per product. |
+| `sortedByDefault(NEWEST_FIRST)` | Without a `sort`, the newest products come first, then by `id`. A sort set on a derived query is the server's: `id` is not a sortable field, but it is not checked against the whitelist, and it keeps products published in the same instant in a stable order across pages. A client `sort=id,asc` is still a 400. |
+| `timeout = 5` | The transaction timeout bounds every query of the search: a filter combination the indexes do not cover cannot hold a connection for long. |
 
 ## Facets
 
@@ -173,7 +180,9 @@ Every rejected filter is a 400 RFC 9457 problem with code `invalid-filter`; no r
 | `filter=seller.email:startswith:ana` | whitelist, while resolving the argument (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
 | `sort=seller.email,asc` | whitelist | `Field 'seller.email' is not allowed for sorting` |
 | `filter=price.amount:gte:abc` | value conversion (`InvalidFilterValueException`) | `Invalid filter on field 'price.amount': cannot convert 'abc' to BigDecimal` |
-| `filter=name:like:cafe` | HTTP parser (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
+| `filter=name:like:cafe` | HTTP parser, operator outside `allowed-operators` (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
+| `filter=seller.id:in:` with 51 sellers | HTTP parser, `max-values-per-filter` (`HttpFilterSyntaxException`) | `Invalid filter expression 'seller.id:in': too many values (max 50) for field 'seller.id'` |
+| `filter=name:contains:` with 101 characters | HTTP parser, `max-value-length` | `... value too long (max 100 characters) for field 'name'` (the value is not echoed) |
 | malformed parameter | HTTP parser (`HttpFilterSyntaxException`) | the parser's message |
 
 ```json
@@ -184,11 +193,12 @@ Every rejected filter is a 400 RFC 9457 problem with code `invalid-filter`; no r
   "detail": "Field 'seller.email' is not allowed for filtering",
   "instance": "/api/catalog/products",
   "code": "invalid-filter",
+  "field": "seller.email",
   "correlationId": "5b1d0c9e-2f4a-4b7e-8a61-0f3c2d9e7a44"
 }
 ```
 
-Two mappers in `service-support` produce these answers: [`SpecificationHttpProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationHttpProblemMapper.java) for syntax errors found while parsing, and [`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) for disallowed fields (`DisallowedFieldException`) and filters the query engine rejects when it runs, such as unconvertible values (`InvalidFilterException`). Because the handler walks the cause chain, the answer is the same whether the exception is thrown in the controller or inside the query bus.
+[`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java) in `service-support` produces these answers, for the errors found while parsing (`HttpFilterSyntaxException`, `HttpUnknownOperatorException`), disallowed fields (`DisallowedFieldException`) and filters the query engine rejects when it runs, such as unconvertible values (`InvalidFilterException`). When the exception names a field, the problem carries it in `field`, as the library's own problem details do. Because the handler walks the cause chain, the answer is the same whether the exception is thrown in the controller or inside the query bus. The library's advice for these exceptions is turned off (`specrepository.http.problem-details.enabled=false`) so that every error of the shop has the same shape.
 
 ## The Filter Lab
 

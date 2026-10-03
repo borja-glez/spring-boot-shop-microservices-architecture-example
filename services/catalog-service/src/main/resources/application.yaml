@@ -29,6 +29,14 @@ spring:
     username: ${RABBIT_USER:shop}
     password: ${RABBIT_PASSWORD:shop-dev}
 
+# The HTTP filter syntax of the public search (limits shared by every service in the shop
+# defaults). The catalog is the one endpoint that offers the whole syntax, and its search box needs
+# no more than 100 characters.
+specrepository:
+  http:
+    max-value-length: 100
+    allowed-operators: [eq, neq, contains, notcontains, startswith, endswith, gt, gte, lt, lte, between, in, notin, isnull, isnotnull, isempty, isnotempty]
+
 server:
   port: ${SERVER_PORT:8081}
 

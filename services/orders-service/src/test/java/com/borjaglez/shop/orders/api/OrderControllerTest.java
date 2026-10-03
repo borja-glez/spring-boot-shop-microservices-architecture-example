@@ -1,6 +1,7 @@
 package com.borjaglez.shop.orders.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -14,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -202,7 +206,7 @@ class OrderControllerTest {
   void theExplorerReturnsPayloadsAsJson() throws Exception {
     when(queries.ask(any(Query.class)))
         .thenReturn(
-            new PageImpl<>(
+            new SliceImpl<>(
                 List.of(
                     new StoredEventView(
                         7,
@@ -224,11 +228,38 @@ class OrderControllerTest {
                 .param("filter", "streamType:eq:order"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content[0].payload.orderId").value(ORDER.toString()))
-        .andExpect(jsonPath("$.content[0].globalPosition").value(7));
+        .andExpect(jsonPath("$.content[0].globalPosition").value(7))
+        .andExpect(jsonPath("$.hasNext").value(false))
+        .andExpect(jsonPath("$.totalElements").doesNotExist());
 
     ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
     verify(queries).ask(captor.capture());
     assertThat(((SearchEventStoreQuery) captor.getValue()).getPlan().rootCondition().conditions())
         .hasSize(2);
+  }
+
+  @Test
+  void myOrdersRejectTextSearchOperators() throws Exception {
+    // Orders allows comparisons and lists only (specrepository.http.allowed-operators).
+    mvc.perform(
+            get("/api/orders")
+                .header("X-Shop-User", "cliente-lucia")
+                .param("filter", "lines.sku:contains:CAF"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"))
+        .andExpect(jsonPath("$.detail").value(containsString("contains")));
+    verifyNoInteractions(queries);
+  }
+
+  @Test
+  void theExplorerRejectsAnInListAboveTheLimit() throws Exception {
+    String streams =
+        IntStream.rangeClosed(1, 51).mapToObj(i -> "s" + i).collect(Collectors.joining("|"));
+
+    mvc.perform(get("/api/orders/events").param("filter", "streamId:in:" + streams))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"))
+        .andExpect(jsonPath("$.detail").value(containsString("too many values (max 50)")));
+    verifyNoInteractions(queries);
   }
 }

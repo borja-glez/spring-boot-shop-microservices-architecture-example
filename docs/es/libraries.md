@@ -1,12 +1,12 @@
 # Las librerías en la práctica
 
-Mercado es la aplicación de referencia de dos librerías open source de Borja González, ambas publicadas en Maven Central: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`, 0.5.0) y [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`, 0.4.0). spring-boot-cqrs da a cada servicio sus buses de comandos, consultas y eventos, los ejecuta en local o sobre RabbitMQ y Kafka, y añade validación, propagación de contexto y observabilidad alrededor de cada handler. specification-repository es la única forma en que los servicios leen sus bases de datos: un DSL de consultas fluido sobre repositorios Spring Data JPA, más una sintaxis de filtros HTTP que convierte los parámetros de la petición en planes de consulta con lista blanca. Esta página muestra cómo se configuran y se usan ambas, con el código real que hay detrás de cada pieza.
+Mercado es la aplicación de referencia de dos librerías open source de Borja González, ambas publicadas en Maven Central: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`, 0.5.0) y [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`, 1.0.0). spring-boot-cqrs da a cada servicio sus buses de comandos, consultas y eventos, los ejecuta en local o sobre RabbitMQ y Kafka, y añade validación, propagación de contexto y observabilidad alrededor de cada handler. specification-repository es la única forma en que los servicios leen sus bases de datos: un DSL de consultas fluido sobre repositorios Spring Data JPA, más una sintaxis de filtros HTTP que convierte los parámetros de la petición en planes de consulta con lista blanca. Esta página muestra cómo se configuran y se usan ambas, con el código real que hay detrás de cada pieza.
 
 <p align="center"><img src="../assets/diagrams/libraries.svg" alt="Cómo spring-boot-cqrs y spring-boot-specification-repository atienden una petición" width="100%"></p>
 
 ## Dependencias
 
-Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.5.0"`, `specrepo = "0.4.0"`).
+Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.5.0"`, `specrepo = "1.0.0"`). specification-repository se importa como BOM, `platform(libs.specrepo.bom)`, desde las convenciones del build ([`shop.boot-service-conventions`](../../build-logic/src/main/kotlin/shop.boot-service-conventions.gradle.kts), `shop.boot3-service-conventions`, `shop.library-conventions`), así que sus módulos se declaran sin versión y el core, el módulo JPA, el módulo HTTP y los dos starters comparten siempre una misma versión.
 
 | Artefacto | Lo usa | Propósito |
 |---|---|---|
@@ -18,7 +18,8 @@ Las versiones vienen de [`gradle/libs.versions.toml`](../../gradle/libs.versions
 | `spring-boot-cqrs-jdbc` | `platform/es-kit` (API), `notifications-service` | `JdbcIdempotencyStore`, las marcas de los proyectores `@Idempotent` en `cqrs_processed_message` |
 | `specification-repository-boot4-starter` | servicios Boot 4, `es-kit` | `SpecificationRepository`, DSL, planes de consulta |
 | `specification-repository-boot3-starter` | `notifications-service` | Lo mismo para Spring Boot 3.5 |
-| `specification-repository-http` | todos los servicios con un endpoint filtrable | `@FilterableQuery`, parser de filtros HTTP |
+| `specification-repository-http` | todos los servicios con un endpoint filtrable | `@FilterableQuery`, parser de filtros HTTP, propiedades `specrepository.http.*` |
+| `specification-repository-bom` | convenciones del build (`platform(...)`) | Una sola versión para todos los módulos anteriores |
 
 Para compilar contra copias locales de las librerías (por ejemplo, para probar cambios aún no publicados), consulta [Despliegue](deployment.md#compilar-contra-copias-locales-de-las-librerías).
 
@@ -350,6 +351,35 @@ Operadores: `eq`, `neq`, `contains`, `notcontains`, `startswith`, `endswith`, `g
 
 El controlador pasa el `Pageable` tal cual: Spring construye su ordenación a partir del mismo parámetro `sort`, y el repositorio también la comprueba contra la lista blanca del plan.
 
+#### Límites y operadores
+
+El parser rechaza las peticiones desmesuradas antes de ejecutar ningún SQL. Los valores por defecto de la librería son generosos (20 filtros, 5 campos de ordenación, 100 valores por lista `in`, 1000 caracteres por valor); la tienda los ajusta para todos los servicios en [`ShopDefaultsEnvironmentPostProcessor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/autoconfigure/ShopDefaultsEnvironmentPostProcessor.java), el mismo sitio que limita el tamaño de página a 100, y cada servicio enumera en su `application.yaml` los operadores que ofrece:
+
+```yaml
+# Valores por defecto de la tienda (todos los servicios Boot 4)
+specrepository.http.max-filters: 10
+specrepository.http.max-sort-fields: 3
+specrepository.http.max-values-per-filter: 50
+specrepository.http.max-value-length: 200
+specrepository.http.allowed-operators: eq,neq,in,notin,gt,gte,lt,lte,between,isnull,isnotnull
+
+# catalog-service/application.yaml: la búsqueda pública ofrece toda la sintaxis, con un texto más corto
+specrepository:
+  http:
+    max-value-length: 100
+    allowed-operators: [eq, neq, contains, notcontains, startswith, endswith, gt, gte, lt, lte, between, in, notin, isnull, isnotnull, isempty, isnotempty]
+```
+
+| Servicio | Operadores | Por qué |
+|---|---|---|
+| catalog | los 17 | la búsqueda pública y el Filter Lab muestran toda la sintaxis |
+| orders | los de por defecto: comparaciones, listas, nulos | "mis pedidos" y el explorador del event store filtran por ids, estados, importes y fechas; un `contains` sobre el event store recorrería una tabla que no deja de crecer |
+| inventory | los de por defecto más `contains` y `startswith` | la pantalla de stock busca por nombre y SKU |
+| payments | los de por defecto más `contains` | se puede buscar en el motivo de rechazo |
+| reporting | `eq`, `in`, `gt`, `gte`, `lt`, `lte`, `between`, `contains`, `startswith` | rangos de fechas y monedas, más SKU o nombre en el informe de productos |
+
+`filter=seller.id:in:` con 51 vendedores, un undécimo `filter`, un cuarto `sort` o un valor de 201 caracteres (101 en el catálogo) se responden con 400 `invalid-filter`, cuyo `detail` nombra el límite y el campo sin repetir el valor; también un operador que el servicio no ofrece. [`HttpFilterLimitsTest`](../../platform/service-support/src/test/java/com/borjaglez/shop/support/web/HttpFilterLimitsTest.java) comprueba los valores por defecto, y `CatalogApiIT`, `OrderControllerTest` y `ReportingControllerTest` los servicios.
+
 Los endpoints que exponen la misma entidad comparten una única declaración mediante una anotación compuesta, ya que `@FilterableQuery` funciona como meta-anotación. La búsqueda del catálogo y sus facetas usan [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), que además declara los campos de texto que se comparan sin distinguir mayúsculas ni acentos (`caseInsensitiveFields`), y permite que la búsqueda añada sus campos ordenables mediante un atributo `@AliasFor`:
 
 ```java
@@ -384,7 +414,7 @@ Los cuatro informes de pedidos comparten [`@OrderReportFilter`](../../services/r
 | `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` (`@OrderReportFilter`) | `placedAt`, `placedDay`, `currency` | ninguno |
 | `GET /api/reporting/top-products` | `order.placedAt`, `order.placedDay`, `sku`, `name` | ninguno |
 
-Cualquier otro campo, un parámetro mal formado, un operador desconocido o un valor que no se puede convertir al tipo del campo se responde con 400 `invalid-filter` ([`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) traduce `DisallowedFieldException` e `InvalidFilterException`). Consulta [Consultas](querying.md).
+Cualquier otro campo, un parámetro mal formado, una petición por encima de un límite, un operador que el servicio no ofrece o un valor que no se puede convertir al tipo del campo se responde con 400 `invalid-filter`, con un miembro `field` cuando el error nombra uno ([`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java) traduce `HttpFilterSyntaxException`, `HttpUnknownOperatorException`, `DisallowedFieldException` e `InvalidFilterException`). Desde la 1.0.0 el módulo HTTP registra su propio advice, que responde a esas mismas excepciones con un `ProblemDetail` 400 sencillo; la tienda lo desactiva (`specrepository.http.problem-details.enabled=false` en sus valores por defecto) porque su handler genérico respondería antes de todos modos, y así todos los errores mantienen una única forma: `code`, `type` y `correlationId`. Una aplicación sin gestión de errores propia obtiene los 400 solo con la librería. Consulta [Consultas](querying.md).
 
 ### Condiciones del servidor sobre un plan del cliente
 
@@ -393,7 +423,7 @@ Un plan del cliente a menudo necesita condiciones que el cliente no debe control
 | En la consulta derivada | Efecto | Se usa en |
 |---|---|---|
 | `where(...)` | una **condición del servidor**: se combina con AND con los filtros del cliente, no se comprueba contra la lista blanca (puede usar un campo por el que el cliente no puede filtrar) y un `orFilter` del cliente nunca la amplía | "Mis pedidos" (`customerId = user`), catálogo (`status = ACTIVE`), todos los informes |
-| `sortedByDefault(sort)` | una ordenación que solo se usa cuando el cliente no ha pedido ninguna; debe ser uno de los campos ordenables | pedidos (los más recientes primero), event store, inventario, pagos |
+| `sortedByDefault(sort)` | una **ordenación del servidor**, que solo se usa cuando el cliente no ha pedido ninguna; no se comprueba contra la lista blanca, así que puede desempatar con un campo por el que el cliente no puede ordenar | catálogo (los más recientes primero, después `id`), pedidos (los más recientes primero, después `orderId`), event store, inventario, pagos |
 | `leftFetch(paths...)` | fetch joins | la búsqueda del catálogo hace fetch de `seller` |
 | `select(fields...).selectInto(type)` | lee las columnas indicadas directamente en un record, sin entidades gestionadas | listado de pagos |
 | `groupBy`, `select`, agregados, `having` y después `findRows()` / `findRow()` | una consulta agrupada sobre las mismas filas | facetas y categorías del catálogo, todos los informes |
@@ -422,7 +452,9 @@ return views
     .findAll(query.getPageable());
 ```
 
-Las facetas disyuntivas necesitan lo contrario de una condición del servidor: cada faceta prescinde del propio filtro del cliente sobre su campo. La consulta derivada no puede quitar filtros del cliente, así que lo hace [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java), en `service-support`, que conserva todo lo demás del plan (consulta [Consultas](querying.md#facetas)).
+`NEWEST_ORDERS` es `placedAt` descendente y después `orderId`. `orderId` no es un campo ordenable del endpoint, pero una ordenación fijada en la consulta derivada es del servidor: no se comprueba contra la lista blanca, mientras que un `?sort=orderId,asc` del cliente sigue siendo un 400. El desempate evita que dos pedidos hechos en el mismo instante se intercambien entre páginas.
+
+Las facetas disyuntivas necesitan lo contrario de una condición del servidor: cada faceta prescinde del propio filtro del cliente sobre su campo. La consulta derivada no puede quitar filtros del cliente, así que lo hace [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java), en `service-support`. Desde la 1.0.0 un `QueryPlan` no tiene constructor público, así que reconstruye el plan del cliente con `SpecificationQueryBuilder` sin las condiciones sobre ese campo, conservando los grupos alternativos, la ordenación y la lista blanca; solo acepta lo que puede enviar un cliente, y las facetas añaden después sus condiciones del servidor (consulta [Consultas](querying.md#facetas)).
 
 ### Facetas e informes: agrupación y agregados
 
@@ -441,7 +473,22 @@ return placed(query.getPlan(), ReportStatus.CONFIRMED)   // orders.query(plan) +
 
 (de [`ReportsHandler.salesByDay`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
 
-La lista blanca también cubre los campos de `having`. El informe de productos más vendidos conserva los productos que han vendido al menos `minUnits` con `having(SUM, "quantity", ...)`, y `quantity` no es un filtro del cliente, así que `topProducts` comprueba el plan del cliente contra su lista blanca (`allowedFieldsPolicy().validate(plan)`) y después deja que la consulta agrupada use cualquier campo.
+`having` es entrada del servidor: la sintaxis HTTP no lo tiene, así que la lista blanca no lo comprueba. El informe de productos más vendidos conserva los productos que han vendido al menos `minUnits` sobre la consulta derivada, con la lista blanca restrictiva del cliente, aunque `quantity` no sea un campo por el que el cliente pueda filtrar:
+
+```java
+return lines
+    .query(query.getPlan())                                // filtros del cliente, con su lista blanca
+    .where("order.status", Operators.EQUALS, ReportStatus.CONFIRMED)
+    .groupBy("sku", "name", "order.currency")
+    .select("sku", "name", "order.currency")
+    .sumAs("units", "quantity")
+    .countDistinctAs("orders", "order.orderId")
+    .sumAs("revenue", "revenue")
+    .having(AggregateFunction.SUM, "quantity", Operators.GREATER_THAN_OR_EQUAL, minUnits)
+    .findRows()
+```
+
+Hasta la 0.4.0 la lista blanca también cubría `having`, y el informe tenía que validar a mano el plan del cliente y pasar la consulta agrupada a `allowAll()`. Un `filter=quantity:gte:10` del cliente sigue siendo un 400 (`ReportsIT`, `ReportingControllerTest`).
 
 Las facetas del catálogo usan el mismo mecanismo con `countDistinctAs` por categoría, vendedor y etiqueta, y `minAs`/`maxAs` con `findRow()` para el rango de precios. Consulta [Consultas](querying.md#facetas) y [Modelos de lectura](read-models.md#reporting-service).
 
@@ -450,6 +497,7 @@ Las facetas del catálogo usan el mismo mecanismo con `countDistinctAs` por cate
 | Lectura | Cómo |
 |---|---|
 | Búsqueda pública del catálogo, facetas, categorías | `query(plan)...findAll(pageable)`, `findRows()`, `findRow()` |
+| Explorador del event store | `query(plan)...findSlice(pageable)`: sin `COUNT(*)` sobre una tabla que no deja de crecer |
 | Detalle de producto, comprobaciones de propiedad, SKU duplicado | `query()...findOne()` / `count()` |
 | Cargar un agregado con event sourcing | `EventStore.load`: `query().where(...).sort(Sort.by("version")).findAll()` |
 | Comprobación de concurrencia optimista al añadir | `query()...count()` de las filas versionadas del stream |
@@ -458,6 +506,22 @@ Las facetas del catálogo usan el mismo mecanismo con `countDistinctAs` por cate
 | Búsqueda y métricas de la saga | `CheckoutSagaRepository.query()` |
 | Informes | `query(plan)...findRows()` con `HAVING` |
 | Listado de pagos | `query(plan)...selectInto(...).findAll(pageable)` |
+
+### Exponer los filtros con seguridad
+
+La [guía de seguridad](https://github.com/borja-glez/spring-boot-specification-repository/blob/main/docs/security.md) de la librería enumera lo que una aplicación debe añadir a la API de filtros HTTP. En Mercado:
+
+| Punto | Dónde |
+|---|---|
+| Listas blancas estrechas, denegar por defecto | cada `@FilterableQuery` declara sus listas; los campos privados (`seller.email`, `customerId` en "mis pedidos") no están en ninguna |
+| Propiedad y visibilidad en el servidor | condiciones del servidor: `customerId = usuario`, `status = ACTIVE`, `status = CONFIRMED` |
+| Traducir los errores del cliente a 400 | `SpecificationProblemMapper`, recorriendo las causas de las excepciones envueltas |
+| Limitar el tamaño de página | `spring.data.web.pageable.max-page-size=100` en los valores por defecto de la tienda |
+| Ajustar límites y operadores | `specrepository.http.*` en los valores por defecto de la tienda y en cada `application.yaml` |
+| `findSlice` en tablas grandes | el explorador del event store |
+| Timeouts de consulta | `@Transactional(readOnly = true, timeout = 5)` en cada handler que ejecuta un plan del cliente, `timeout = 10` en los informes; Spring lo aplica a todas las consultas JPA de la transacción |
+| Indexar las columnas filtrables | las migraciones indexan las columnas por las que filtran y ordenan las pantallas (por ejemplo `product.published_at`) |
+| No pasar nunca la petición a las partes de confianza | agrupación, agregados, `having`, fetches y selecciones se escriben en los handlers; `minUnits` es un número |
 
 ## Relacionado
 
