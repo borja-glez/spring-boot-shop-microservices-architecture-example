@@ -27,7 +27,7 @@ Both projections tolerate out-of-order delivery across event types. `catalog_pro
 
 ## Reporting service
 
-`reporting-service` projects the order events into its own two tables with [`ReportProjector`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/projection/ReportProjector.java), idempotently (es-kit's `IdempotentConsumer`, consumer `reporting.orders`) and with a status that only moves forward:
+`reporting-service` projects the order events into its own two tables with [`ReportProjector`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/projection/ReportProjector.java), idempotently (`@Idempotent(name = "reporting.orders")`) and with a status that only moves forward:
 
 - `report_order`: one row per order with customer, status, total, currency, line count, rejection reason, `placed_at` and `placed_day`. The day is stored as a column because reports group by it and the query DSL groups by columns, not expressions.
 - `report_line`: one row per order line with SKU, name, quantity and revenue, linked to its order.
@@ -54,7 +54,7 @@ All reports are grouped queries of specification-repository ([`ReportsHandler`](
 
 1. **Pause.** Stop the container, so no event is applied to half-cleared tables.
 2. **Rewind.** With the Kafka `AdminClient`, move the consumer group to the earliest offset of every partition of the topic. The broker refuses while the group still has members, which leave a moment after the stop, so the call is retried.
-3. **Clear.** In one transaction, delete `report_line`, `report_order` and the `processed_message` markers. Without clearing the markers the replayed events would be skipped as duplicates.
+3. **Clear.** In one transaction, delete `report_line`, `report_order` and the idempotency markers (`JdbcIdempotencyStore.deleteProcessedBefore(now)` on `cqrs_processed_message`). Without clearing the markers the replayed events would be skipped as duplicates.
 4. **Resume.** Start the container again, whatever happened in steps 2 and 3.
 
 The order is deliberate. If the rewind fails, the tables are untouched and consumption continues where it was. If the clear fails after the rewind, the markers are still there and the replayed events are skipped as duplicates, so nothing is counted twice either. Events published during the rebuild wait in Kafka and are read afterwards. [`RebuildIT`](../../services/reporting-service/src/test/java/com/borjaglez/shop/reporting/application/RebuildIT.java) checks against a real Kafka that a rebuild gives the same numbers and that an order published right after the rewind is not lost. The Reports page has a button that triggers it.
@@ -71,11 +71,11 @@ The order is deliberate. If the rewind fails, the tables are untouched and consu
 | `OrderCancelled` | `ORDER_CANCELLED` |
 | `PaymentRefunded` | `PAYMENT_REFUNDED`, with the amount |
 
-- **One notice per event.** The primary key of `notification` is the event id: a redelivered event adds nothing.
+- **One notice per event.** [`NotificationProjector`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/NotificationProjector.java) is `@Idempotent` (`notifications.notices`, with the JDBC store of `spring-boot-cqrs-jdbc`), and the primary key of `notification` is the event id: a redelivered event adds nothing.
 - **Notices that arrive before their order.** Kafka orders events per type, so an `OrderConfirmed` can be processed before its `OrderPlaced`. The notice is stored without a customer and addressed when `OrderPlaced` arrives ([`NotificationProjector`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/NotificationProjector.java)). When both are processed at the same moment on different partitions, neither transaction sees the other's insert; [`PendingNotificationsSweeper`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/PendingNotificationsSweeper.java) closes that gap every `shop.notifications.sweep-interval` (10 s), looking only at notices from the last day, 500 at a time.
 - **Live over SSE.** `GET /api/notifications/stream?user=<id>` keeps a server-sent events connection open. [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) pushes each notice after its transaction commits, from a virtual thread so that a slow browser never blocks the Kafka consumer, sends a heartbeat comment every 20 seconds so proxies do not close idle connections, and ends each connection after 30 minutes (the browser reconnects). `shop.notifications.sse.connections` reports the open connections.
 - **REST side.** `GET /api/notifications` (optionally `unread=true`, paged, size capped at 100), `GET /api/notifications/unread-count` and `POST /api/notifications/{id}/read`, all through its own command and query buses.
-- **Self-contained.** It does not use `service-support`, `es-kit` or `test-support`, which are built against Boot 4. It has its own RFC 9457 handler with the same `code` property, idempotency by primary key, observability configuration and Testcontainers 1.x setup.
+- **Self-contained.** It does not use `service-support`, `es-kit` or `test-support`, which are built against Boot 4. It has its own RFC 9457 handler with the same `code` property, its own Flyway migration for `cqrs_processed_message`, observability configuration and Testcontainers 1.x setup.
 
 ## Consistency window
 

@@ -146,6 +146,7 @@ Cada servicio lee sus ajustes de variables de entorno con valores por defecto lo
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | sin definir (no se exporta) | servicios Boot 4 |
 | `MANAGEMENT_OTLP_TRACING_ENDPOINT`, `MANAGEMENT_OTLP_METRICS_EXPORT_URL`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `MANAGEMENT_OTLP_LOGGING_ENDPOINT` | sin definir | notifications (Boot 3.5) |
 | `CHECKOUT_REPLY_TIMEOUT` | `5s` | orders |
+| `REMOTE_QUERY_TIMEOUT` | `1s` | catalog, orders |
 | `CHECKOUT_MAX_ATTEMPTS`, `CHECKOUT_COMPENSATION_MAX_ATTEMPTS` | `8`, `20` | orders |
 | `PAYMENTS_CARD_LIMIT` | `300` | payments |
 | `INVENTORY_INITIAL_STOCK` | `25` | inventory |

@@ -5,14 +5,16 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.cqrs.event.annotation.EventHandler;
 import com.borjaglez.cqrs.event.annotation.HandleEvent;
+import com.borjaglez.cqrs.idempotency.Idempotent;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
 import com.borjaglez.shop.contracts.orders.OrderPlaced;
 import com.borjaglez.shop.contracts.orders.OrderRejected;
-import com.borjaglez.shop.eskit.IdempotentConsumer;
 import com.borjaglez.shop.orders.domain.OrderView;
 import com.borjaglez.shop.orders.domain.OrderViewLine;
 import com.borjaglez.shop.orders.domain.OrderViewRepository;
@@ -25,17 +27,16 @@ public class OrderViewProjector {
   static final String CONSUMER = "orders.order-view";
 
   private final OrderViewRepository views;
-  private final IdempotentConsumer idempotent;
 
-  public OrderViewProjector(OrderViewRepository views, IdempotentConsumer idempotent) {
+  public OrderViewProjector(OrderViewRepository views) {
     this.views = views;
-    this.idempotent = idempotent;
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderPlaced event) {
     apply(
-        event,
         event.getOrderId(),
         view ->
             view.placed(
@@ -52,37 +53,36 @@ public class OrderViewProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderConfirmed event) {
-    apply(event, event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
+    apply(event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderRejected event) {
     apply(
-        event,
-        event.getOrderId(),
-        view -> view.rejected(event.getReason(), event.getDetail(), at(event)));
+        event.getOrderId(), view -> view.rejected(event.getReason(), event.getDetail(), at(event)));
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderCancelled event) {
-    apply(event, event.getOrderId(), view -> view.cancelled(event.getReason(), at(event)));
+    apply(event.getOrderId(), view -> view.cancelled(event.getReason(), at(event)));
   }
 
-  private void apply(Event event, UUID orderId, Consumer<OrderView> change) {
-    idempotent.once(
-        CONSUMER,
-        event,
-        () -> {
-          OrderView view =
-              views
-                  .query()
-                  .where("orderId", Operators.EQUALS, orderId)
-                  .findOne()
-                  .orElseGet(() -> OrderView.unknown(orderId));
-          change.accept(view);
-          views.save(view);
-        });
+  private void apply(UUID orderId, Consumer<OrderView> change) {
+    OrderView view =
+        views
+            .query()
+            .where("orderId", Operators.EQUALS, orderId)
+            .findOne()
+            .orElseGet(() -> OrderView.unknown(orderId));
+    change.accept(view);
+    views.save(view);
   }
 
   private static OffsetDateTime at(Event event) {

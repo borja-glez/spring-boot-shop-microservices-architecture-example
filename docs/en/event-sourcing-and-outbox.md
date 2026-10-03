@@ -27,7 +27,7 @@ Indexes:
 - `event_store_pending_idx`: `(global_position)` where `published_at is null`, which keeps the relay's query and the backlog metrics cheap whatever the size of the store.
 - `event_store_stream_idx` and `event_store_type_idx` for loading streams and exploring by type.
 
-The same migration creates `processed_message (consumer, message_id, processed_at)`, the idempotency markers of consumers.
+es-kit's next migration, [`V1000_1__cqrs_processed_message.sql`](../../platform/es-kit/src/main/resources/db/eskit/V1000_1__cqrs_processed_message.sql), creates `cqrs_processed_message (handler_id, message_id, processed_at)`, the idempotency markers of consumers. Flyway owns the schema, so services set `cqrs.jdbc.initialize-schema=never` (a default of `service-support`).
 
 ## Two ways to use the same table
 
@@ -109,7 +109,7 @@ Inventory does the same for `StockReserved`, `StockReleased` (stream `reservatio
 
 <p align="center"><img src="../assets/diagrams/cqrs-event-sourcing.svg" alt="Write side and read side of orders: event-sourced aggregate, event store, relay to Kafka, projection and queries" width="100%"></p>
 
-A service turns the relay on by declaring an [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java) bean; catalog, orders, inventory and payments declare `KafkaOutboxDestination`. Reporting includes es-kit only for its idempotent consumers and declares none.
+A service turns the relay on by declaring an [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java) bean; catalog, orders, inventory and payments declare `KafkaOutboxDestination`. Reporting includes es-kit only for its idempotency markers and consumer metrics and declares none.
 
 [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) runs on its own thread (`OutboxRelayScheduler`, a `SmartLifecycle` started after the context is ready and stopped before the database goes away), every `shop.outbox.relay.interval` (500 ms by default):
 
@@ -135,31 +135,32 @@ The relay also registers two demo faults, `relay.paused` (stops publishing, as i
 | `shop.outbox.relay.batch-size` | `100` | Rows locked and published per transaction |
 | `shop.event-store.event-packages` | `com.borjaglez.shop.contracts` | Where `@CqrsMessage` events are looked up |
 
+spring-boot-cqrs ships a transactional outbox of its own in `spring-boot-cqrs-jdbc` (`OutboxEventBus` plus a relay over a `cqrs_outbox` table, `cqrs.outbox.enabled`), for applications whose events are not stored anyway. Mercado publishes from its event store instead: for orders and payments the event store already is the source of truth, and writing every event to a second table would add nothing. A state-based service without an event store would use `OutboxEventBus`.
+
 ## At-least-once delivery and idempotent consumers
 
-If the relay publishes a row and the process dies before the transaction commits, the row is still pending and will be published again. Kafka may also redeliver to a consumer group during a rebalance. Delivery is therefore at least once, and every consumer applies each event at most once through [`IdempotentConsumer`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/IdempotentConsumer.java):
+If the relay publishes a row and the process dies before the transaction commits, the row is still pending and will be published again. Kafka may also redeliver to a consumer group during a rebalance. Delivery is therefore at least once, and every consumer applies each event at most once: each `@HandleEvent` method of a projector carries spring-boot-cqrs's `@Idempotent`, with the consumer name as its handler id.
 
 ```java
-@Transactional
-public boolean once(String consumer, String messageId, Runnable effect) {
-  boolean seen = processed.query()
-      .where("consumer", Operators.EQUALS, consumer)
-      .where("messageId", Operators.EQUALS, messageId)
-      .count() > 0;
-  if (seen) {
-    meters.counter("shop.consumer.events", "consumer", consumer, "outcome", "duplicate").increment();
-    return false;
+@EventHandler
+public class OrderViewProjector {
+
+  static final String CONSUMER = "orders.order-view";
+
+  @HandleEvent
+  @Idempotent(name = CONSUMER)
+  public void on(OrderConfirmed event) {
+    apply(event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
   }
-  processed.save(new ProcessedMessage(consumer, messageId, OffsetDateTime.now(clock)));
-  effect.run();
-  meters.counter("shop.consumer.events", "consumer", consumer, "outcome", "applied").increment();
-  return true;
+  ...
 }
 ```
 
-The marker and the effect commit in the same transaction: if the effect fails, neither is stored and the redelivery tries again; if it succeeds, redeliveries are skipped. The `(consumer, message_id)` primary key also stops two concurrent deliveries of the same event. The overload that takes the `Event` also records `shop.consumer.lag`, the time between the event and its projection.
+The markers live in `cqrs_processed_message (handler_id, message_id)`, keyed by the event id and written by `JdbcIdempotencyStore` from `spring-boot-cqrs-jdbc`. The library opens a transaction around the handler (joining the current one if there is one) and inserts the marker in it, so the marker and the handler's database work commit together: if the handler fails, neither is stored and the redelivery runs it again; if it succeeds, redeliveries are skipped. The primary key also stops two concurrent deliveries of the same event: the second one waits on the uncommitted row and then sees a duplicate. Markers older than `cqrs.idempotency.retention` (7 days by default) are deleted on a schedule, so the retention must stay longer than an event can wait before it is redelivered.
 
-Consumer names: `orders.catalog-products`, `orders.order-view`, `inventory.catalog-products`, `reporting.orders`. `notifications-service` (Boot 3.5, without es-kit) reaches the same guarantee by keying each notice on the event id.
+es-kit's [`ConsumerMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/ConsumerMetrics.java) wraps the store (es-kit declares the `IdempotentInvoker` bean with the wrapped store) and, as a bus middleware, knows the event being dispatched. It counts `shop.consumer.events` by `outcome` (`applied` or `duplicate`) and times `shop.consumer.lag`, the time between the event and its projection, both tagged with the consumer name.
+
+Consumer names: `orders.catalog-products`, `orders.order-view`, `inventory.catalog-products`, `reporting.orders`. `notifications-service` (Boot 3.5, without es-kit) uses `@Idempotent` with the same JDBC store (`notifications.notices`), without the `shop.consumer` metrics, and also keys each notice on the event id.
 
 ## Ordering
 

@@ -19,6 +19,8 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.borjaglez.cqrs.idempotency.IdempotencyStore;
+import com.borjaglez.cqrs.idempotency.IdempotentInvoker;
 import com.borjaglez.cqrs.naming.MessageNamingStrategy;
 import com.borjaglez.cqrs.serialization.MessageSerializer;
 import com.borjaglez.shop.eskit.kafka.KafkaClientMetricsPostProcessor;
@@ -29,16 +31,18 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Metrics;
 
 /**
- * Wires the event store, the relay and idempotent consumers. The entities and repositories of this
- * module are added to the application's auto-configuration packages, so no {@code @EntityScan} is
- * needed. Services add {@code classpath:db/eskit} to their Flyway locations.
+ * Wires the event store, the relay and the metrics of the idempotent consumers. The entities and
+ * repositories of this module are added to the application's auto-configuration packages, so no
+ * {@code @EntityScan} is needed. Services add {@code classpath:db/eskit} to their Flyway locations.
  */
 @AutoConfiguration(
     afterName = {
       "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
       "com.borjaglez.cqrs.autoconfigure.CqrsAutoConfiguration",
-      "com.borjaglez.cqrs.autoconfigure.CqrsSerializationAutoConfiguration"
-    })
+      "com.borjaglez.cqrs.autoconfigure.CqrsSerializationAutoConfiguration",
+      "com.borjaglez.cqrs.jdbc.CqrsJdbcIdempotencyAutoConfiguration"
+    },
+    beforeName = "com.borjaglez.cqrs.autoconfigure.CqrsIdempotencyAutoConfiguration")
 @AutoConfigurationPackage
 @EnableConfigurationProperties(EventStoreProperties.class)
 @ImportRuntimeHints(EsKitRuntimeHints.class)
@@ -71,9 +75,15 @@ public class EventStoreAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
-  IdempotentConsumer idempotentConsumer(
-      ProcessedMessageRepository processed, Clock clock, ObjectProvider<MeterRegistry> meters) {
-    return new IdempotentConsumer(processed, clock, meters(meters));
+  ConsumerMetrics consumerMetrics(Clock clock, ObjectProvider<MeterRegistry> meters) {
+    return new ConsumerMetrics(clock, meters(meters));
+  }
+
+  /** The {@code @Idempotent} handlers go through the JDBC store, measured. */
+  @Bean
+  @ConditionalOnMissingBean
+  IdempotentInvoker idempotentInvoker(IdempotencyStore store, ConsumerMetrics metrics) {
+    return new IdempotentInvoker(metrics.meter(store));
   }
 
   @Bean

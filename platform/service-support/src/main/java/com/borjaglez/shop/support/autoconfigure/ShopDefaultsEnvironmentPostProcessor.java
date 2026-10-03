@@ -37,6 +37,8 @@ public class ShopDefaultsEnvironmentPostProcessor implements EnvironmentPostProc
           Map.entry("management.info.env.enabled", true),
           // Native images: the contracts a service only sends or records also need hints.
           Map.entry("cqrs.aot.message-packages", "com.borjaglez.shop.contracts"),
+          // Flyway creates the tables of spring-boot-cqrs-jdbc (es-kit's db/eskit).
+          Map.entry("cqrs.jdbc.initialize-schema", "never"),
           // Every request is traced: a demo wants whole traces, not a 10% sample.
           Map.entry("management.tracing.sampling.probability", 1.0),
           // Latency histograms (buckets) for the timers the dashboards and alerts use; without

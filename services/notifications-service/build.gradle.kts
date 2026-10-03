@@ -9,6 +9,7 @@ dependencies {
     implementation(libs.cqrs.boot3.starter)
     implementation(libs.cqrs.kafka)
     implementation(libs.cqrs.rabbitmq)
+    implementation(libs.cqrs.jdbc)
     implementation(libs.spring.kafka)
     implementation(libs.spring.boot.starter.amqp)
     implementation(libs.specrepo.boot3.starter)

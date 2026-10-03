@@ -66,14 +66,14 @@ La caché de contextos de test de Spring mantiene un conjunto de contenedores po
 
 | Área | Tests |
 |---|---|
-| es-kit | `EventStoreIT`, `AggregateStoreIT` (concurrencia optimista), `OutboxRelayIT` (orden global, parada ante un fallo y reintento, correlation id y traza de cada evento, fallos de caos, métricas), `IdempotentConsumerIT` |
+| es-kit | `EventStoreIT`, `AggregateStoreIT` (concurrencia optimista), `OutboxRelayIT` (orden global, parada ante un fallo y reintento, correlation id y traza de cada evento, fallos de caos, métricas), `IdempotentConsumersIT` (un evento entregado de nuevo se aplica una vez, un evento fallido no deja marca y se aplica en la nueva entrega, cuentas de aplicados y duplicados, retraso) |
 | catalog | `CatalogApiIT` (de HTTP a PostgreSQL de extremo a extremo), `CatalogCommandsIT`, `CatalogQueriesIT`, `ProductRepositoryIT` y `ProductQueryIT` (semántica del DSL sobre PostgreSQL), `CatalogEventsOverKafkaIT`, `StockLevelsOverRabbitIT` (stock consultado por RabbitMQ, timeouts y fallos remotos) |
-| orders | `OrdersApiIT`, `OrderCommandsIT`, `OrderQueriesIT`, `OrderViewProjectorIT`, `CatalogProductProjectorIT` (eventos de catálogo desordenados), `OrdersOverKafkaIT`, `RemoteQueriesOverRabbitIT` (stock y avisos consultados por RabbitMQ con el timeout corto), `CqrsActuatorIT` |
+| orders | `OrdersApiIT`, `OrderCommandsIT`, `OrderQueriesIT`, `OrderViewProjectorIT` y `CatalogProductProjectorIT` (eventos de catálogo desordenados, nuevas entregas despachadas por `EventHandlerRegistry` como hace el consumidor de Kafka), `OrdersOverKafkaIT`, `RemoteQueriesOverRabbitIT` (stock y avisos consultados por RabbitMQ con el timeout corto), `CqrsActuatorIT` |
 | saga de checkout | `CheckoutSagaIT`, `CheckoutOverRabbitIT`, `DueCheckoutsIT`, `CheckoutTracingIT`; consulta [Saga de checkout](checkout-saga.md#tests) |
 | inventory | `InventoryCommandsIT`, `InventoryMessagingIT` (productos desde Kafka, comandos y `GetStockLevels` por RabbitMQ) |
 | payments | `PaymentCommandsIT`, `PaymentsOverRabbitIT` |
-| reporting | `ReportsIT`, `RebuildIT` (vaciado, reproducción desde el offset 0 con un Kafka real, mismas cifras) |
-| notifications | `NotificationsIT`, `CqrsActuatorIT` (starter de Boot 3), `CrossGenerationIT`, `OrderNoticesOverRabbitIT` (una consulta escrita por Jackson 3 y respondida por Jackson 2) |
+| reporting | `ReportsIT` (nuevas entregas por `EventHandlerRegistry`), `RebuildIT` (vaciado, reproducción desde el offset 0 con un Kafka real, mismas cifras) |
+| notifications | `NotificationsIT`, `CqrsActuatorIT` (starter de Boot 3), `CrossGenerationIT`, `OrderNoticesOverRabbitIT` (una consulta escrita por Jackson 3, respondida por Jackson 2 y leída por su nombre lógico sea cual sea el nombre de clase que le dio el emisor) |
 | gateway | `GatewayRoutingIT` (enrutado, cabecera de usuario, correlation id, problemas 404 y 503); `ExternalTraceHeadersFilterTest` para las cabeceras de traza |
 
 Los tests de la saga sustituyen inventory y payments por [`FakeCheckout`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/FakeCheckout.java), que responde por pedido según lo guioniza cada test, y hacen avanzar la saga paso a paso con [`CheckoutDriver`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/CheckoutDriver.java) mientras el ejecutor programado está desactivado (`shop.checkout.enabled=false`). Del mismo modo, [`FakeStockLevels`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/FakeStockLevels.java) y [`FakeRemoteReads`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/FakeRemoteReads.java) sustituyen a los servicios que catalog y orders consultan por RabbitMQ, respondiendo por producto y por pedido.

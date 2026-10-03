@@ -50,6 +50,9 @@ cqrs:
       enabled: false
     events:
       enabled: false
+    queries:
+      # How long a product page waits for the inventory before showing no stock.
+      reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}
     # Only the shared contracts and plain Java types may be deserialized.
     trusted-packages:
       - com.borjaglez.shop.contracts.inventory
@@ -72,6 +75,3 @@ shop:
   chaos:
     # Demo fault injection (/api/catalog/chaos); off unless SHOP_CHAOS_ENABLED=true.
     service: catalog
-  remote-queries:
-    # How long a product page waits for the inventory before showing no stock.
-    reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}

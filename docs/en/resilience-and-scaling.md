@@ -13,7 +13,7 @@ Mercado is built to keep its promises when parts of it fail: an order is never c
 | Inventory slow or down, seen from a page | `GetStockLevels` gets no answer within 1 s | The product page shows the stock as unknown and still sells the product; the cart quote checks prices only (`stockChecked: false`) and lets the order go ahead, since the saga reserves the stock anyway. |
 | Notifications down | `GetOrderNotices` gets no answer within 1 s | The order page says the notices are not available; everything else on it comes from orders. |
 | Kafka down (`relay.paused`) | The relay cannot publish | Events stay in `event_store` with `published_at` null. The saga continues, since it uses RabbitMQ. Read models, reports and notices freeze and catch up in order when the broker is back. Alert "Events are not reaching Kafka". |
-| Duplicate delivery (`relay.duplicate`) | Every event is published twice | Idempotent consumers keep one marker per `(consumer, event id)`; notifications key notices on the event id. Duplicates show up only in `shop.consumer.events{outcome="duplicate"}`. |
+| Duplicate delivery (`relay.duplicate`) | Every event is published twice | Idempotent consumers keep one marker per `(consumer, event id)` in `cqrs_processed_message`; notifications also key notices on the event id. Duplicates show up only in `shop.consumer.events{outcome="duplicate"}`. |
 | Cards declined (`payments.decline-all`) | Every new payment is declined | A business answer, not a failure: the order is rejected with `card-limit-exceeded` and the stock released. |
 | Events out of order | Kafka orders per event type only | Projections keep as-of timestamps and monotonic statuses; see [Event sourcing and outbox](event-sourcing-and-outbox.md#ordering). |
 | A product not yet known to inventory | `ReserveStock` for a product whose `ProductPublished` has not arrived | Treated as a technical failure, so the saga retries instead of rejecting the order as out of stock. |
@@ -57,8 +57,8 @@ The Chaos page of the shop (`/chaos`) shows every service's faults with an expla
 
 | Timeout | Value | Where |
 |---|---|---|
-| RabbitMQ reply, saga commands | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` in orders; a missing reply is a retryable failure of the step |
-| RabbitMQ reply, queries to other services | 1 s (`REMOTE_QUERY_TIMEOUT`) | `shop.remote-queries.reply-timeout` in catalog and orders, on a template of its own; a missing reply leaves that part of the page empty |
+| RabbitMQ reply, saga commands | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `cqrs.rabbitmq.commands.reply-timeout` in orders; a missing reply is a retryable failure of the step |
+| RabbitMQ reply, queries to other services | 1 s (`REMOTE_QUERY_TIMEOUT`) | `cqrs.rabbitmq.queries.reply-timeout` in catalog and orders, on a template of its own; a missing reply leaves that part of the page empty |
 | JDBC socket | 30 s | `socketTimeout` data-source property, from `ShopDefaultsEnvironmentPostProcessor` |
 | Hikari connection acquisition | 5 s | `spring.datasource.hikari.connection-timeout` in every service |
 | Saga lease | 30 s | `shop.checkout.lease`; longer than any step |

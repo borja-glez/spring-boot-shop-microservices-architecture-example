@@ -13,9 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.borjaglez.cqrs.event.registry.EventHandlerRegistry;
 import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
-import com.borjaglez.shop.eskit.ProcessedMessageRepository;
 import com.borjaglez.shop.orders.application.projection.CatalogProductProjector;
 import com.borjaglez.shop.orders.domain.CatalogProduct;
 import com.borjaglez.shop.orders.domain.CatalogProductRepository;
@@ -44,7 +45,8 @@ class CatalogProductProjectorIT {
 
   @Autowired CatalogProductProjector projector;
   @Autowired CatalogProductRepository products;
-  @Autowired ProcessedMessageRepository processed;
+  @Autowired EventHandlerRegistry handlers;
+  @Autowired JdbcTemplate jdbc;
 
   private CatalogProduct product(UUID id) {
     return products.query().where("productId", Operators.EQUALS, id).findOne().orElseThrow();
@@ -68,10 +70,15 @@ class CatalogProductProjectorIT {
     ProductPriceChanged change = at(priceChanged(id, "5.00", "6.00"), T2);
     projector.on(at(published(id, "CAF-101", "5.00"), T1));
 
-    projector.on(change);
-    projector.on(change);
+    handlers.handle(change);
+    handlers.handle(change);
 
-    assertThat(processed.query().where("messageId", Operators.EQUALS, change.getEventId()).count())
+    assertThat(
+            jdbc.queryForObject(
+                "select count(*) from cqrs_processed_message where handler_id = ? and message_id = ?",
+                Integer.class,
+                "orders.catalog-products",
+                change.getEventId()))
         .isEqualTo(1);
     assertThat(product(id).getPrice()).isEqualByComparingTo("6.00");
   }

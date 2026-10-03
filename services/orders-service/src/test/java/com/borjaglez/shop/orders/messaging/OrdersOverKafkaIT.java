@@ -12,12 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.borjaglez.cqrs.command.CommandBus;
 import com.borjaglez.cqrs.kafka.KafkaEventBus;
 import com.borjaglez.cqrs.query.QueryBus;
 import com.borjaglez.shop.eskit.EventStore;
-import com.borjaglez.shop.eskit.ProcessedMessageRepository;
 import com.borjaglez.shop.eskit.RecordedEvent;
 import com.borjaglez.shop.orders.application.command.CancelOrderCommand;
 import com.borjaglez.shop.orders.application.command.PlaceOrderCommand;
@@ -59,7 +59,7 @@ class OrdersOverKafkaIT {
   @Autowired CatalogProductRepository catalog;
   @Autowired OrderViewRepository views;
   @Autowired EventStore eventStore;
-  @Autowired ProcessedMessageRepository processed;
+  @Autowired JdbcTemplate jdbc;
 
   private boolean orderable(UUID productId) {
     return catalog
@@ -123,11 +123,11 @@ class OrdersOverKafkaIT {
         .atMost(PATIENCE)
         .until(
             () ->
-                processed
-                        .query()
-                        .where("consumer", Operators.EQUALS, "orders.order-view")
-                        .where("messageId", Operators.EQUALS, storedId)
-                        .count()
+                jdbc.queryForObject(
+                        "select count(*) from cqrs_processed_message"
+                            + " where handler_id = 'orders.order-view' and message_id = ?",
+                        Integer.class,
+                        storedId)
                     == 1);
   }
 }

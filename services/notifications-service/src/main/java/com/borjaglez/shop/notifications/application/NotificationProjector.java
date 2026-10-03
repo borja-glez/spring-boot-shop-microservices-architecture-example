@@ -13,6 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.cqrs.event.annotation.EventHandler;
 import com.borjaglez.cqrs.event.annotation.HandleEvent;
+import com.borjaglez.cqrs.idempotency.Idempotent;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
 import com.borjaglez.shop.contracts.orders.OrderPlaced;
@@ -26,13 +27,15 @@ import com.borjaglez.shop.notifications.domain.OrderOwnerRepository;
 import com.borjaglez.specrepository.core.Operators;
 
 /**
- * Turns order and payment events from Kafka into notices. Every event is applied once (the notice
- * is keyed by the event id) and events can arrive in any order across types: a notice whose order
- * is not known yet waits until {@code OrderPlaced} arrives, or until {@link
- * PendingNotificationsSweeper} finds its owner.
+ * Turns order and payment events from Kafka into notices. Every event is applied once ({@link
+ * Idempotent}, and the notice is keyed by the event id) and events can arrive in any order across
+ * types: a notice whose order is not known yet waits until {@code OrderPlaced} arrives, or until
+ * {@link PendingNotificationsSweeper} finds its owner.
  */
 @EventHandler
 public class NotificationProjector {
+
+  static final String CONSUMER = "notifications.notices";
 
   private final NotificationRepository notifications;
   private final OrderOwnerRepository owners;
@@ -48,6 +51,7 @@ public class NotificationProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   @Transactional
   public void on(OrderPlaced event) {
     OrderOwner owner =
@@ -64,12 +68,14 @@ public class NotificationProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   @Transactional
   public void on(OrderConfirmed event) {
     record(event, event.getOrderId(), NotificationKind.ORDER_CONFIRMED, null, null, null);
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   @Transactional
   public void on(OrderRejected event) {
     record(
@@ -77,6 +83,7 @@ public class NotificationProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   @Transactional
   public void on(OrderCancelled event) {
     record(
@@ -84,6 +91,7 @@ public class NotificationProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   @Transactional
   public void on(PaymentRefunded event) {
     record(
@@ -117,11 +125,6 @@ public class NotificationProjector {
       String detail,
       BigDecimal amount,
       String currency) {
-    boolean known =
-        notifications.query().where("eventId", Operators.EQUALS, event.getEventId()).count() > 0;
-    if (known) {
-      return;
-    }
     Notification notification =
         Notification.of(
             event.getEventId(),

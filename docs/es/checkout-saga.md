@@ -93,7 +93,7 @@ public interface InventoryGateway {
 | `initial-backoff` / `max-backoff` | `1s` / `30s` | Esperas entre reintentos |
 | `lease` | `30s` | Cuánto tiempo pertenece una saga reclamada al ejecutor que la reclamó |
 
-El timeout de respuesta de RabbitMQ es `spring.rabbitmq.template.reply-timeout`, `5s` por defecto (`CHECKOUT_REPLY_TIMEOUT`).
+El timeout de respuesta de RabbitMQ es `cqrs.rabbitmq.commands.reply-timeout`, `5s` por defecto (`CHECKOUT_REPLY_TIMEOUT`).
 
 ## Ejecutar la saga en varias réplicas
 

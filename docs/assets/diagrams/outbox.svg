@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" role="img" aria-labelledby="title desc">
 <title id="title">Transactional outbox and idempotent consumers</title>
-<desc id="desc">A command handler writes state and an event_store row with published_at null in one transaction. OutboxRelay selects unpublished rows ordered by global_position with FOR UPDATE SKIP LOCKED, publishes them to Kafka shop.events, waits for the broker ack and marks published_at. Delivery is at-least-once, so consumers record (consumer, eventId) in processed_message in the same transaction as the projection update and drop duplicates: an exactly-once effect.</desc>
+<desc id="desc">A command handler writes state and an event_store row with published_at null in one transaction. OutboxRelay selects unpublished rows ordered by global_position with FOR UPDATE SKIP LOCKED, publishes them to Kafka shop.events, waits for the broker ack and marks published_at. Delivery is at-least-once, so @Idempotent handlers record (handler, eventId) in cqrs_processed_message in the same transaction as the projection update and drop duplicates: an exactly-once effect.</desc>
 <defs>
 <filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.45"/></filter>
 <filter id="gl" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -91,11 +91,11 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <text x="787.5" y="272" font-size="10" class="mono" fill="#f0883e" text-anchor="middle">publish</text>
 <text x="787.5" y="326" font-size="10" class="mono" fill="#3fb950" text-anchor="middle">ack</text>
 <rect x="930" y="150" width="230" height="196" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.2" filter="url(#sh)" />
-<text x="946" y="176" font-size="14" fill="#e6edf3" font-weight="600">IdempotentConsumer</text>
+<text x="946" y="176" font-size="14" fill="#e6edf3" font-weight="600">@Idempotent handler</text>
 <text x="946" y="194" font-size="10.6" class="mono" fill="#8b949e">consumer group: reporting</text>
 <rect x="942" y="206" width="206" height="72" rx="8" fill="#0f1a1c" stroke="#39c5bb" stroke-width="1.2" stroke-dasharray="4 3" />
-<text x="954" y="226" font-size="10.6" class="mono" fill="#39c5bb">insert processed_message</text>
-<text x="954" y="243" font-size="10.6" class="mono" fill="#39c5bb">  (consumer, eventId)</text>
+<text x="954" y="226" font-size="10.6" class="mono" fill="#39c5bb">insert cqrs_processed_message</text>
+<text x="954" y="243" font-size="10.6" class="mono" fill="#39c5bb">  (handler, eventId)</text>
 <text x="954" y="260" font-size="10.6" class="mono" fill="#e6edf3">+ update projection</text>
 <text x="1140" y="274" font-size="9.5" class="mono" fill="#39c5bb" text-anchor="end">same tx</text>
 <g opacity="0"><rect x="942" y="292" width="206" height="40" rx="8" fill="#3fb950" fill-opacity=".12" stroke="#3fb950" stroke-opacity=".6"/><text x="1045.0" y="309" font-size="11.5" fill="#3fb950" font-weight="600" text-anchor="middle">✓ first delivery</text><text x="1045.0" y="325" font-size="10.5" class="mono" fill="#3fb950" text-anchor="middle">projection updated</text><animate attributeName="opacity" dur="10.0s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.600;0.615;0.725;0.740;1"/></g>

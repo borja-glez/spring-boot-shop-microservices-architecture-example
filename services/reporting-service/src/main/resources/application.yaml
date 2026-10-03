@@ -16,8 +16,8 @@ spring:
         jdbc.time_zone: UTC
         default_batch_fetch_size: 50
   flyway:
-    # Service migrations plus es-kit's (its processed_message table makes the projections
-    # idempotent; its event store is not used here).
+    # Service migrations plus es-kit's (its cqrs_processed_message table holds the markers of the
+    # @Idempotent projections; its event store is not used here).
     locations: classpath:db/migration,classpath:db/eskit
     out-of-order: true
   kafka:
