@@ -2,13 +2,17 @@ package com.borjaglez.shop.catalog.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -32,6 +36,8 @@ import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
+import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
+import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
@@ -69,6 +75,48 @@ class CatalogQueriesIT {
         .containsExactly(
             "CAF-001", "CAF-002", "CAF-003", "CAF-004", "CAF-005", "CAF-006", "ELE-005", "LIB-004");
     assertThat(page.getContent()).allMatch(p -> p.status() == ProductStatus.ACTIVE);
+  }
+
+  @Test
+  void searchWithoutASortListsTheNewestFirstWithAStableTieBreaker() {
+    // The whitelist of the public search: id is not a sortable field, but the default sort the
+    // handler adds on the derived query is server input and may use it.
+    QueryPlan<Product> clientPlan =
+        SpecificationQueryBuilder.forEntity(Product.class)
+            .allowedFields(
+                AllowedFieldsPolicy.of(
+                    Set.of("categories.slug"),
+                    Set.of("name", "sku", "price.amount", "publishedAt")))
+            .build();
+
+    Page<ProductCard> page =
+        queries.ask(new SearchProductsQuery(clientPlan, PageRequest.of(0, 100)));
+
+    assertThat(page.getContent()).hasSizeGreaterThan(1);
+    assertThat(page.getContent())
+        .isSortedAccordingTo(
+            Comparator.comparing(
+                    ProductCard::publishedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                // PostgreSQL orders uuids byte by byte, as their text form; UUID.compareTo does
+                // not.
+                .thenComparing(card -> card.id().toString()));
+  }
+
+  @Test
+  void aClientSortOutsideTheWhitelistIsStillRejected() {
+    QueryPlan<Product> clientPlan =
+        SpecificationQueryBuilder.forEntity(Product.class)
+            .allowedFields(AllowedFieldsPolicy.of(Set.of(), Set.of("name")))
+            .build();
+
+    assertThat(
+            NestedExceptionUtils.getMostSpecificCause(
+                catchThrowable(
+                    () ->
+                        queries.ask(
+                            new SearchProductsQuery(
+                                clientPlan, PageRequest.of(0, 10, Sort.by("id")))))))
+        .isInstanceOf(DisallowedFieldException.class);
   }
 
   private static QueryPlan<Product> taggedEcoOrTea() {

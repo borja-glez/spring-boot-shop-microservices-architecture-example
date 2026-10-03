@@ -21,7 +21,18 @@ import com.borjaglez.shop.support.error.NotFoundException;
 @QueryHandler
 public class PaymentQueryHandler {
 
-  private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "updatedAt");
+  /**
+   * Last updated first, then by order: a server sort, so it may break ties with {@code orderId},
+   * which the client can filter by but not sort by.
+   */
+  private static final Sort NEWEST_FIRST =
+      Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.asc("orderId"));
+
+  /**
+   * The lists take the client's filters: a combination the indexes do not cover must not hold a
+   * connection for long. Spring applies the transaction timeout to every JPA query run in it.
+   */
+  static final int LIST_TIMEOUT_SECONDS = 5;
 
   /**
    * The list reads its columns straight into {@link PaymentSummary}, in constructor order, without
@@ -48,7 +59,7 @@ public class PaymentQueryHandler {
   }
 
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = LIST_TIMEOUT_SECONDS)
   public Page<PaymentSummary> payments(SearchPaymentsQuery query) {
     return views
         .query(query.getPlan())
