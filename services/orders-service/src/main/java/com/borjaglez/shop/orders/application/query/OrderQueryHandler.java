@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,13 @@ import com.borjaglez.specrepository.core.Operators;
 @QueryHandler
 public class OrderQueryHandler {
 
-  private static final Sort NEWEST_ORDERS = Sort.by(Sort.Direction.DESC, "placedAt");
+  /**
+   * Newest first when the customer picks no order. {@code orderId} is not a sortable field of "my
+   * orders", but this is a server sort: it is not checked against the whitelist, and it breaks the
+   * ties between orders placed at the same instant so pages never overlap.
+   */
+  static final Sort NEWEST_ORDERS = Sort.by(Sort.Order.desc("placedAt"), Sort.Order.asc("orderId"));
+
   private static final Sort NEWEST_EVENTS = Sort.by(Sort.Direction.DESC, "globalPosition");
 
   private final OrderViewRepository views;
@@ -49,8 +56,14 @@ public class OrderQueryHandler {
     this.sagas = sagas;
   }
 
+  /**
+   * The lists take the client's filters: a combination the indexes do not cover must not hold a
+   * connection for long. Spring applies the transaction timeout to every JPA query run in it.
+   */
+  static final int LIST_TIMEOUT_SECONDS = 5;
+
   @HandleQuery
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, timeout = LIST_TIMEOUT_SECONDS)
   public Page<OrderSummary> myOrders(ListMyOrdersQuery query) {
     // customerId is a server condition: the client cannot filter by it, and its orFilter
     // alternatives stay within the current customer's orders.
@@ -113,13 +126,17 @@ public class OrderQueryHandler {
         .orElseThrow(() -> notFound(query.getOrderId()));
   }
 
+  /**
+   * The event store only grows, so the explorer reads a {@code Slice}: one row more than the page
+   * to know whether there is a next one, and no {@code COUNT(*)} over the whole table.
+   */
   @HandleQuery
-  @Transactional(readOnly = true)
-  public Page<StoredEventView> events(SearchEventStoreQuery query) {
+  @Transactional(readOnly = true, timeout = LIST_TIMEOUT_SECONDS)
+  public Slice<StoredEventView> events(SearchEventStoreQuery query) {
     return storedEvents
         .query(query.getPlan())
         .sortedByDefault(NEWEST_EVENTS)
-        .findAll(query.getPageable())
+        .findSlice(query.getPageable())
         .map(OrderViews::stored);
   }
 

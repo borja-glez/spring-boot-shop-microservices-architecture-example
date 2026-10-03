@@ -14,7 +14,7 @@ import {
 
 import { FilterQuery } from '../filters/filter-model';
 import { toQueryParams } from '../filters/filter-serializer';
-import { PageResponse } from './models';
+import { PageResponse, SliceResponse } from './models';
 import {
   CartQuote,
   CheckoutView,
@@ -118,9 +118,10 @@ export class OrdersApi {
     });
   }
 
-  events(query: FilterQuery): Observable<PageResponse<StoredEventView>> {
+  /** The event store only grows, so the explorer pages without a total. */
+  events(query: FilterQuery): Observable<SliceResponse<StoredEventView>> {
     const queryString = toQueryParams(query);
-    return this.http.get<PageResponse<StoredEventView>>(
+    return this.http.get<SliceResponse<StoredEventView>>(
       queryString ? `${BASE}/events?${queryString}` : `${BASE}/events`,
     );
   }

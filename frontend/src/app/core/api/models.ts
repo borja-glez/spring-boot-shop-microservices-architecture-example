@@ -71,6 +71,14 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
+/** A page without a total: the server skips the count and only says whether more rows follow. */
+export interface SliceResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+}
+
 /** Fields the public search accepts (the whitelist declared by the catalog controller). */
 export const FILTERABLE_FIELDS = [
   'name',

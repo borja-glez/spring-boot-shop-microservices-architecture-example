@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 
 import com.borjaglez.cqrs.command.CommandBus;
 import com.borjaglez.cqrs.query.QueryBus;
@@ -270,7 +271,7 @@ class OrderQueriesIT {
     UUID orderId = place(lucia, product("CAF-" + lucia.substring(8, 12)));
     cancel(lucia, orderId);
 
-    Page<StoredEventView> page =
+    Slice<StoredEventView> page =
         queries.ask(
             new SearchEventStoreQuery(
                 SpecificationQueryBuilder.forEntity(StoredEvent.class)
@@ -281,5 +282,17 @@ class OrderQueriesIT {
     assertThat(page.getContent()).extracting(StoredEventView::version).containsExactly(3L, 2L, 1L);
     assertThat(page.getContent().getLast().payload()).contains(orderId.toString());
     assertThat(page.getContent().getLast().publishedAt()).isNull();
+    assertThat(page.hasNext()).isFalse();
+
+    // A slice knows whether more rows follow without counting the event store.
+    Slice<StoredEventView> firstTwo =
+        queries.ask(
+            new SearchEventStoreQuery(
+                SpecificationQueryBuilder.forEntity(StoredEvent.class)
+                    .where("streamId", Operators.EQUALS, orderId.toString())
+                    .build(),
+                PageRequest.of(0, 2)));
+    assertThat(firstTwo.getContent()).extracting(StoredEventView::version).containsExactly(3L, 2L);
+    assertThat(firstTwo.hasNext()).isTrue();
   }
 }

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +42,7 @@ import com.borjaglez.shop.orders.application.query.SearchEventStoreQuery;
 import com.borjaglez.shop.orders.domain.OrderView;
 import com.borjaglez.shop.support.web.CurrentUser;
 import com.borjaglez.shop.support.web.PageResponse;
+import com.borjaglez.shop.support.web.SliceResponse;
 import com.borjaglez.specrepository.core.QueryPlan;
 import com.borjaglez.specrepository.http.spring.FilterableQuery;
 
@@ -143,7 +145,7 @@ class OrderController {
    * it is public on purpose, to watch event sourcing and the outbox at work.
    */
   @GetMapping("/events")
-  PageResponse<StoredEventView> events(
+  SliceResponse<StoredEventView> events(
       @FilterableQuery(
               value = StoredEvent.class,
               filterableFields = {
@@ -158,7 +160,7 @@ class OrderController {
               sortableFields = {"globalPosition", "occurredAt"})
           QueryPlan<StoredEvent> plan,
       Pageable pageable) {
-    Page<StoredEventView> page = queries.ask(new SearchEventStoreQuery(plan, pageable));
-    return PageResponse.of(page);
+    Slice<StoredEventView> slice = queries.ask(new SearchEventStoreQuery(plan, pageable));
+    return SliceResponse.of(slice);
   }
 }

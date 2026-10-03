@@ -11,7 +11,8 @@ import com.borjaglez.specrepository.core.QueryPlan;
 import lombok.Getter;
 
 /**
- * Rows of the event store matching the client plan. Answered with a {@code Page<StoredEventView>}.
+ * Rows of the event store matching the client plan. Answered with a {@code Slice<StoredEventView>}:
+ * the event store only grows, so the explorer pages without counting it.
  */
 @Getter
 public class SearchEventStoreQuery extends Query {
