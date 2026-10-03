@@ -19,7 +19,7 @@ sequenceDiagram
   C->>C: @ProductFilter parses filter/orFilter/sort into QueryPlan<Product> and checks its whitelist
   C->>Q: ask(new SearchProductsQuery(plan, pageable))
   Q->>H: middleware (context, tracing, metrics)
-  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).findAll(pageable)
+  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).sortedByDefault(newest).findAll(pageable)
   R-->>H: Page<Product> (whitelist checked, one SQL query)
   H-->>C: Page<ProductCard>
   C-->>UI: PageResponse JSON
@@ -42,6 +42,8 @@ GET /api/catalog/products
 | `orFilter` | `cond;cond;...` | Repetible; cada grupo necesita al menos una condición que se cumpla |
 | `sort` | `field,asc` / `field,desc` | Repetible; solo campos ordenables |
 | `page`, `size` | enteros | `size` vale 20 por defecto y tiene un máximo de 100 (`spring.data.web.pageable.*`) |
+
+Cada petición se acota antes de ejecutar ningún SQL (`specrepository.http.*`, consulta [Las librerías en la práctica](libraries.md#límites-y-operadores)): como mucho 10 condiciones `filter` y `orFilter`, 3 campos `sort`, 50 valores en una lista `in` o `notin` y 100 caracteres por valor en el catálogo. Por encima, la respuesta es un 400 `invalid-filter`.
 
 Operadores:
 
@@ -98,18 +100,21 @@ CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
 
 `seller.email` existe en la entidad pero es privado: no está en ninguna de las dos listas, así que nunca se puede filtrar ni ordenar por él, y las vistas de producto nunca lo exponen. La lista blanca se comprueba al resolver el argumento, de modo que un campo no permitido se rechaza antes de que se ejecute el método del controlador. El `Pageable` se pasa tal cual: su ordenación sale del mismo parámetro `sort` y el repositorio la comprueba contra la misma lista blanca. Las facetas no declaran campos ordenables, así que un `sort` sobre ellas también se rechaza.
 
-Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servidor lo decide para los campos que sabe que son texto: `caseInsensitiveFields` hace que `eq`, `neq`, `contains`, `notcontains`, `startswith` y `endswith` sobre `name` y `description` comparen `unaccent(upper(...))` en ambos lados, lo que en PostgreSQL ignora mayúsculas y acentos (la primera migración del catálogo crea la extensión `unaccent`).
+Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servidor lo decide para los campos que sabe que son texto: `caseInsensitiveFields` hace que `eq`, `neq`, `contains`, `notcontains`, `startswith` y `endswith` sobre `name` y `description` comparen `unaccent(upper(...))` en ambos lados, lo que en PostgreSQL ignora mayúsculas y acentos (la primera migración del catálogo crea la extensión `unaccent`). El término de búsqueda llega a la base de datos como parámetro enlazado, así que `filter=name:contains:d'oliva` encuentra "Aceite d'Oliva de l'Empordà" como cualquier otro término.
 
 ## Lo que añade el servidor
 
 [`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) recibe el plan del cliente y lo deriva con `products.query(plan)`:
 
 ```java
+static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("id"));
+
 @HandleQuery
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, timeout = SEARCH_TIMEOUT_SECONDS) // 5 s
 public Page<ProductCard> search(SearchProductsQuery query) {
   return onSale(query.getPlan())
       .leftFetch("seller")
+      .sortedByDefault(NEWEST_FIRST)
       .findAll(query.getPageable())
       .map(ProductViews::card);
 }
@@ -123,6 +128,8 @@ private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPl
 |---|---|
 | `where(status = ACTIVE)` | El público nunca ve borradores ni productos descatalogados, aunque filtre por `status`. En una consulta derivada es una condición del servidor: se combina con AND con los filtros del cliente, no se comprueba contra la lista blanca y un `orFilter` nunca la amplía. Los filtros y la ordenación del propio cliente siguen sujetos a su lista blanca. |
 | `leftFetch("seller")` | El vendedor se carga en la misma consulta (left fetch join), evitando una consulta por producto. |
+| `sortedByDefault(NEWEST_FIRST)` | Sin `sort`, los productos más recientes van primero, y después por `id`. Una ordenación fijada en una consulta derivada es del servidor: `id` no es un campo ordenable, pero no se comprueba contra la lista blanca, y mantiene en un orden estable entre páginas los productos publicados en el mismo instante. Un `sort=id,asc` del cliente sigue siendo un 400. |
+| `timeout = 5` | El timeout de la transacción acota todas las consultas de la búsqueda: una combinación de filtros que los índices no cubren no puede retener una conexión mucho tiempo. |
 
 ## Facetas
 
@@ -173,7 +180,9 @@ Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; 
 | `filter=seller.email:startswith:ana` | lista blanca, al resolver el argumento (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
 | `sort=seller.email,asc` | lista blanca | `Field 'seller.email' is not allowed for sorting` |
 | `filter=price.amount:gte:abc` | conversión de valores (`InvalidFilterValueException`) | `Invalid filter on field 'price.amount': cannot convert 'abc' to BigDecimal` |
-| `filter=name:like:cafe` | parser HTTP (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
+| `filter=name:like:cafe` | parser HTTP, operador fuera de `allowed-operators` (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
+| `filter=seller.id:in:` con 51 vendedores | parser HTTP, `max-values-per-filter` (`HttpFilterSyntaxException`) | `Invalid filter expression 'seller.id:in': too many values (max 50) for field 'seller.id'` |
+| `filter=name:contains:` con 101 caracteres | parser HTTP, `max-value-length` | `... value too long (max 100 characters) for field 'name'` (el valor no se repite) |
 | parámetro mal formado | parser HTTP (`HttpFilterSyntaxException`) | el mensaje del parser |
 
 ```json
@@ -184,11 +193,12 @@ Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; 
   "detail": "Field 'seller.email' is not allowed for filtering",
   "instance": "/api/catalog/products",
   "code": "invalid-filter",
+  "field": "seller.email",
   "correlationId": "5b1d0c9e-2f4a-4b7e-8a61-0f3c2d9e7a44"
 }
 ```
 
-Dos mappers de `service-support` generan estas respuestas: [`SpecificationHttpProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationHttpProblemMapper.java) para los errores de sintaxis encontrados al parsear, y [`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) para los campos no permitidos (`DisallowedFieldException`) y los filtros que el motor de consultas rechaza al ejecutarse, como los valores no convertibles (`InvalidFilterException`). Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas.
+[`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java), de `service-support`, genera estas respuestas: para los errores encontrados al parsear (`HttpFilterSyntaxException`, `HttpUnknownOperatorException`), los campos no permitidos (`DisallowedFieldException`) y los filtros que el motor de consultas rechaza al ejecutarse, como los valores no convertibles (`InvalidFilterException`). Cuando la excepción nombra un campo, el problema lo lleva en `field`, como los problem details de la propia librería. Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas. El advice de la librería para estas excepciones está desactivado (`specrepository.http.problem-details.enabled=false`) para que todos los errores de la tienda tengan la misma forma.
 
 ## El Filter Lab
 

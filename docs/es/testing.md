@@ -16,7 +16,7 @@ Mercado se prueba por capas, cada una más barata y rápida que la siguiente: te
 
 ## Tests unitarios de dominio
 
-Ejemplos: [`OrderTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/OrderTest.java), [`CheckoutSagaTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/CheckoutSagaTest.java) (todas las transiciones de la saga, incluidas las que deben rechazarse), `ProductTest` y `MoneyTest` (catalog), `StockItemTest` (inventory), `PaymentTest` (payments), `NotificationTest` (notifications) y, en la plataforma, `EventSourcedAggregateTest`, `EventTypeRegistryTest`, `QueryPlansTest`, `ChaosTest` y `MicrometerTraceCarrierTest`.
+Ejemplos: [`OrderTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/OrderTest.java), [`CheckoutSagaTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/CheckoutSagaTest.java) (todas las transiciones de la saga, incluidas las que deben rechazarse), `ProductTest` y `MoneyTest` (catalog), `StockItemTest` (inventory), `PaymentTest` (payments), `NotificationTest` (notifications) y, en la plataforma, `EventSourcedAggregateTest`, `EventTypeRegistryTest`, `QueryPlansTest`, `PageResponseTest`, `SliceResponseTest`, `ChaosTest` y `MicrometerTraceCarrierTest`.
 
 ## Tests de arquitectura
 
@@ -36,7 +36,7 @@ class ArchitectureTest {
 
 ## Slices web
 
-`ProductControllerTest`, `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` y `NotificationControllerTest` ejecutan el controlador aislado con `CommandBus` y `QueryBus` simulados, y comprueban qué mensaje se despacha para cada petición y cómo se genera la respuesta. `service-support` registra su autoconfiguración web para el slice `@WebMvcTest`, así que estos tests ven el filtro de correlación, la resolución de `@CurrentUser` y los problem details reales; specification-repository hace lo mismo con `HttpFilterAutoConfiguration`, de modo que los parámetros `@FilterableQuery`, incluidas anotaciones compuestas como `@ProductFilter`, se resuelven y rechazan los campos no permitidos igual que en el servicio en ejecución. El propio `service-support` los prueba con `ProblemDetailsExceptionHandlerTest`, `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` y `ShopDefaultsTest`.
+`ProductControllerTest`, `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` y `NotificationControllerTest` ejecutan el controlador aislado con `CommandBus` y `QueryBus` simulados, y comprueban qué mensaje se despacha para cada petición y cómo se genera la respuesta. `service-support` registra su autoconfiguración web para el slice `@WebMvcTest`, así que estos tests ven el filtro de correlación, la resolución de `@CurrentUser` y los problem details reales; specification-repository hace lo mismo con `HttpFilterAutoConfiguration`, de modo que los parámetros `@FilterableQuery`, incluidas anotaciones compuestas como `@ProductFilter`, se resuelven y rechazan los campos no permitidos igual que en el servicio en ejecución. El propio `service-support` los prueba con `ProblemDetailsExceptionHandlerTest`, `HttpFilterLimitsTest` (los límites y operadores `specrepository.http.*` de los valores por defecto de la tienda, respondidos con 400 `invalid-filter`), `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` y `ShopDefaultsTest`.
 
 ## Tests de integración
 

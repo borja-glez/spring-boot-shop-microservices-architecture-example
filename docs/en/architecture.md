@@ -126,8 +126,7 @@ Every Boot 4 service answers errors as RFC 9457 problem details (`application/pr
 | 10 | `UserHeaderProblemMapper` | missing `X-Shop-User` to 401 `missing-user`, malformed to 400 `invalid-user` |
 | 20 | `DataAccessProblemMapper` | optimistic locking to 409 `concurrent-modification`, integrity violations to 409 `data-integrity-violation` |
 | 30 | `ValidationProblemMapper` | Bean Validation failures raised by the command bus to 400 `validation-failed` |
-| 40 | `SpecificationQueryProblemMapper` | disallowed fields, unconvertible values and rejected filters to 400 `invalid-filter` |
-| 50 | `SpecificationHttpProblemMapper` | malformed `filter` / `orFilter` / `sort` syntax to 400 `invalid-filter` |
+| 40 | `SpecificationProblemMapper` | malformed `filter` / `orFilter` / `sort`, requests above the `specrepository.http.*` limits, operators a service does not offer, disallowed fields, unconvertible values and rejected filters to 400 `invalid-filter`, with the `field` when known |
 | 100 | gateway only | connection failures to 503 `service-unavailable` |
 
 Anything no mapper claims becomes a 500 `internal-error` whose body never contains the exception message. Generic `IllegalArgumentException` or `IllegalStateException` are intentionally not mapped to 4xx: a programming error must look like one. A new exception family is supported by declaring another `ProblemMapper` bean.

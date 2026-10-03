@@ -16,7 +16,7 @@ Mercado is tested in layers, each cheaper and faster than the next: plain unit t
 
 ## Domain unit tests
 
-Examples: [`OrderTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/OrderTest.java), [`CheckoutSagaTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/CheckoutSagaTest.java) (every transition of the saga, including the ones that must be refused), `ProductTest` and `MoneyTest` (catalog), `StockItemTest` (inventory), `PaymentTest` (payments), `NotificationTest` (notifications), and in the platform `EventSourcedAggregateTest`, `EventTypeRegistryTest`, `QueryPlansTest`, `ChaosTest` and `MicrometerTraceCarrierTest`.
+Examples: [`OrderTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/OrderTest.java), [`CheckoutSagaTest`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/domain/CheckoutSagaTest.java) (every transition of the saga, including the ones that must be refused), `ProductTest` and `MoneyTest` (catalog), `StockItemTest` (inventory), `PaymentTest` (payments), `NotificationTest` (notifications), and in the platform `EventSourcedAggregateTest`, `EventTypeRegistryTest`, `QueryPlansTest`, `PageResponseTest`, `SliceResponseTest`, `ChaosTest` and `MicrometerTraceCarrierTest`.
 
 ## Architecture tests
 
@@ -36,7 +36,7 @@ class ArchitectureTest {
 
 ## Web slices
 
-`ProductControllerTest`, `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` and `NotificationControllerTest` run the controller alone with mocked `CommandBus` and `QueryBus`, checking which message is dispatched for each request and how the answer is rendered. `service-support` registers its web auto-configuration for the `@WebMvcTest` slice, so these tests see the real correlation filter, `@CurrentUser` resolution and problem details; specification-repository does the same with `HttpFilterAutoConfiguration`, so `@FilterableQuery` parameters, including composed annotations such as `@ProductFilter`, resolve and reject disallowed fields as in the running service. `service-support` itself tests them with `ProblemDetailsExceptionHandlerTest`, `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` and `ShopDefaultsTest`.
+`ProductControllerTest`, `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` and `NotificationControllerTest` run the controller alone with mocked `CommandBus` and `QueryBus`, checking which message is dispatched for each request and how the answer is rendered. `service-support` registers its web auto-configuration for the `@WebMvcTest` slice, so these tests see the real correlation filter, `@CurrentUser` resolution and problem details; specification-repository does the same with `HttpFilterAutoConfiguration`, so `@FilterableQuery` parameters, including composed annotations such as `@ProductFilter`, resolve and reject disallowed fields as in the running service. `service-support` itself tests them with `ProblemDetailsExceptionHandlerTest`, `HttpFilterLimitsTest` (the `specrepository.http.*` limits and operators of the shop defaults, answered with 400 `invalid-filter`), `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` and `ShopDefaultsTest`.
 
 ## Integration tests
 

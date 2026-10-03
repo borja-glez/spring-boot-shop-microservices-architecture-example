@@ -1,12 +1,12 @@
 # The libraries in practice
 
-Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`, 0.5.0) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`, 0.4.0). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
+Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`, 0.5.0) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`, 1.0.0). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
 
 <p align="center"><img src="../assets/diagrams/libraries.svg" alt="How spring-boot-cqrs and spring-boot-specification-repository serve one request" width="100%"></p>
 
 ## Dependencies
 
-Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.5.0"`, `specrepo = "0.4.0"`).
+Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.5.0"`, `specrepo = "1.0.0"`). specification-repository is imported as a BOM, `platform(libs.specrepo.bom)`, by the build conventions ([`shop.boot-service-conventions`](../../build-logic/src/main/kotlin/shop.boot-service-conventions.gradle.kts), `shop.boot3-service-conventions`, `shop.library-conventions`), so its modules are declared without a version and the core, the JPA module, the HTTP module and both starters always share one release.
 
 | Artifact | Used by | Purpose |
 |---|---|---|
@@ -18,7 +18,8 @@ Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml
 | `spring-boot-cqrs-jdbc` | `platform/es-kit` (API), `notifications-service` | `JdbcIdempotencyStore`, the markers of the `@Idempotent` projectors in `cqrs_processed_message` |
 | `specification-repository-boot4-starter` | Boot 4 services, `es-kit` | `SpecificationRepository`, DSL, query plans |
 | `specification-repository-boot3-starter` | `notifications-service` | The same for Spring Boot 3.5 |
-| `specification-repository-http` | every service with a filterable endpoint | `@FilterableQuery`, HTTP filter parser |
+| `specification-repository-http` | every service with a filterable endpoint | `@FilterableQuery`, HTTP filter parser, `specrepository.http.*` properties |
+| `specification-repository-bom` | build conventions (`platform(...)`) | One version for every module above |
 
 To build against local checkouts of the libraries instead (for example to try unreleased library changes), see [Deployment](deployment.md#building-against-local-checkouts-of-the-libraries).
 
@@ -350,6 +351,35 @@ Operators: `eq`, `neq`, `contains`, `notcontains`, `startswith`, `endswith`, `gt
 
 The controller passes the `Pageable` as it is: Spring builds its sort from the same `sort` parameter, and the repository checks it against the plan's whitelist too.
 
+#### Limits and operators
+
+The parser rejects oversized requests before any SQL runs. The library's defaults are generous (20 filters, 5 sort fields, 100 values per `in` list, 1000 characters per value); the shop tightens them for every service in [`ShopDefaultsEnvironmentPostProcessor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/autoconfigure/ShopDefaultsEnvironmentPostProcessor.java), the same place that caps the page size at 100, and each service lists the operators it offers in its `application.yaml`:
+
+```yaml
+# Shop defaults (every Boot 4 service)
+specrepository.http.max-filters: 10
+specrepository.http.max-sort-fields: 3
+specrepository.http.max-values-per-filter: 50
+specrepository.http.max-value-length: 200
+specrepository.http.allowed-operators: eq,neq,in,notin,gt,gte,lt,lte,between,isnull,isnotnull
+
+# catalog-service/application.yaml: the public search offers the whole syntax, with a shorter text
+specrepository:
+  http:
+    max-value-length: 100
+    allowed-operators: [eq, neq, contains, notcontains, startswith, endswith, gt, gte, lt, lte, between, in, notin, isnull, isnotnull, isempty, isnotempty]
+```
+
+| Service | Operators | Why |
+|---|---|---|
+| catalog | all 17 | the public search and the Filter Lab show the whole syntax |
+| orders | defaults: comparisons, lists, null checks | "my orders" and the event store explorer filter by ids, statuses, amounts and dates; a `contains` on the event store would scan a table that only grows |
+| inventory | defaults plus `contains`, `startswith` | the stock screen searches by name and SKU |
+| payments | defaults plus `contains` | the decline reason can be searched |
+| reporting | `eq`, `in`, `gt`, `gte`, `lt`, `lte`, `between`, `contains`, `startswith` | date ranges and currencies, plus SKU or name in the product report |
+
+`filter=seller.id:in:` with 51 sellers, an 11th `filter`, a 4th `sort` or a 201-character value (101 in the catalog) is a 400 `invalid-filter` whose `detail` names the limit and the field without echoing the value; so is an operator a service does not list. [`HttpFilterLimitsTest`](../../platform/service-support/src/test/java/com/borjaglez/shop/support/web/HttpFilterLimitsTest.java) checks the defaults, `CatalogApiIT`, `OrderControllerTest` and `ReportingControllerTest` the services.
+
 Endpoints that expose the same entity share one declaration through a composed annotation, since `@FilterableQuery` works as a meta-annotation. The catalog search and its facets both use [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), which also declares the text fields matched ignoring case and accents (`caseInsensitiveFields`), and lets the search add its sortable fields through an `@AliasFor` attribute:
 
 ```java
@@ -384,7 +414,7 @@ The four order reports share [`@OrderReportFilter`](../../services/reporting-ser
 | `GET /api/reporting/summary`, `/sales-by-day`, `/rejections`, `/customers` (`@OrderReportFilter`) | `placedAt`, `placedDay`, `currency` | none |
 | `GET /api/reporting/top-products` | `order.placedAt`, `order.placedDay`, `sku`, `name` | none |
 
-Any other field, a malformed parameter, an unknown operator or a value that cannot be converted to the field's type is answered with 400 `invalid-filter` ([`SpecificationQueryProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationQueryProblemMapper.java) maps `DisallowedFieldException` and `InvalidFilterException`). See [Querying](querying.md).
+Any other field, a malformed parameter, a request above a limit, an operator the service does not offer or a value that cannot be converted to the field's type is answered with 400 `invalid-filter`, with a `field` member when the error names one ([`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java) maps `HttpFilterSyntaxException`, `HttpUnknownOperatorException`, `DisallowedFieldException` and `InvalidFilterException`). Since 1.0.0 the HTTP module registers its own advice that answers the same exceptions with a plain 400 `ProblemDetail`; the shop turns it off (`specrepository.http.problem-details.enabled=false` in the shop defaults) because its catch-all handler would answer first anyway, and so every error keeps one shape: `code`, `type` and `correlationId`. An application without its own error handling gets the 400s from the library alone. See [Querying](querying.md).
 
 ### Server conditions on a client plan
 
@@ -393,7 +423,7 @@ A client plan often needs conditions the client must not control: the owner of t
 | On the derived query | Effect | Used in |
 |---|---|---|
 | `where(...)` | a **server condition**: ANDed with the client's filters, not checked against the whitelist (it may use a field the client cannot filter by) and never widened by a client `orFilter` | "My orders" (`customerId = user`), catalog (`status = ACTIVE`), every report |
-| `sortedByDefault(sort)` | a sort used only when the client asked for none; it must be one of the sortable fields | orders (newest first), event store, inventory, payments |
+| `sortedByDefault(sort)` | a **server sort**, used only when the client asked for none; it is not checked against the whitelist, so it can break ties with a field the client cannot sort by | catalog (newest first, then `id`), orders (newest first, then `orderId`), event store, inventory, payments |
 | `leftFetch(paths...)` | fetch joins | catalog search fetches `seller` |
 | `select(fields...).selectInto(type)` | reads the given columns straight into a record, without managed entities | payments list |
 | `groupBy`, `select`, aggregates, `having`, then `findRows()` / `findRow()` | a grouped query over the same rows | catalog facets and categories, all reports |
@@ -422,7 +452,9 @@ return views
     .findAll(query.getPageable());
 ```
 
-Disjunctive facets need the opposite of a server condition: each facet drops the client's own filter on its field. The derived query cannot remove client filters, so [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java) in `service-support` does it, keeping everything else of the plan (see [Querying](querying.md#facets)).
+`NEWEST_ORDERS` is `placedAt` descending, then `orderId`. `orderId` is not a sortable field of the endpoint, but a sort set on the derived query is the server's: it is not checked against the whitelist, while `?sort=orderId,asc` from the client is still a 400. The tie-breaker keeps two orders placed in the same instant from swapping between pages.
+
+Disjunctive facets need the opposite of a server condition: each facet drops the client's own filter on its field. The derived query cannot remove client filters, so [`QueryPlans.without`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/query/QueryPlans.java) in `service-support` does it. Since 1.0.0 a `QueryPlan` has no public constructor, so it rebuilds the client plan through `SpecificationQueryBuilder` without the conditions on that field, keeping the alternative groups, the sort and the whitelist; it accepts only what a client can send, and the facets add their server conditions afterwards (see [Querying](querying.md#facets)).
 
 ### Facets and reports: grouping and aggregates
 
@@ -441,7 +473,22 @@ return placed(query.getPlan(), ReportStatus.CONFIRMED)   // orders.query(plan) +
 
 (from [`ReportsHandler.salesByDay`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/query/ReportsHandler.java))
 
-The whitelist also covers the fields of `having`. The top products report keeps the products that sold at least `minUnits` with `having(SUM, "quantity", ...)`, and `quantity` is not a client filter, so `topProducts` checks the client plan against its whitelist (`allowedFieldsPolicy().validate(plan)`) and then lets the grouped query use every field.
+`having` is server input: the HTTP syntax has none, so the whitelist does not check it. The top products report keeps the products that sold at least `minUnits` on the derived query, under the client's restrictive whitelist, although `quantity` is not a field the client may filter by:
+
+```java
+return lines
+    .query(query.getPlan())                                // client filters, still whitelisted
+    .where("order.status", Operators.EQUALS, ReportStatus.CONFIRMED)
+    .groupBy("sku", "name", "order.currency")
+    .select("sku", "name", "order.currency")
+    .sumAs("units", "quantity")
+    .countDistinctAs("orders", "order.orderId")
+    .sumAs("revenue", "revenue")
+    .having(AggregateFunction.SUM, "quantity", Operators.GREATER_THAN_OR_EQUAL, minUnits)
+    .findRows()
+```
+
+Up to 0.4.0 the whitelist covered `having` too, and the report had to validate the client plan by hand and switch the grouped query to `allowAll()`. A client `filter=quantity:gte:10` is still a 400 (`ReportsIT`, `ReportingControllerTest`).
 
 Catalog facets use the same mechanism with `countDistinctAs` per category, seller and tag, and `minAs`/`maxAs` with `findRow()` for the price range. See [Querying](querying.md#facets) and [Read models](read-models.md#reporting-service).
 
@@ -450,6 +497,7 @@ Catalog facets use the same mechanism with `countDistinctAs` per category, selle
 | Read | How |
 |---|---|
 | Public catalog search, facets, categories | `query(plan)...findAll(pageable)`, `findRows()`, `findRow()` |
+| Event store explorer | `query(plan)...findSlice(pageable)`: no `COUNT(*)` over a table that only grows |
 | Product detail, ownership checks, duplicate SKU | `query()...findOne()` / `count()` |
 | Loading an event-sourced aggregate | `EventStore.load`: `query().where(...).sort(Sort.by("version")).findAll()` |
 | Optimistic concurrency check on append | `query()...count()` of the stream's versioned rows |
@@ -458,6 +506,22 @@ Catalog facets use the same mechanism with `countDistinctAs` per category, selle
 | Saga lookup and metrics | `CheckoutSagaRepository.query()` |
 | Reports | `query(plan)...findRows()` with `HAVING` |
 | Payments list | `query(plan)...selectInto(...).findAll(pageable)` |
+
+### Exposing the filters safely
+
+The library's [security guide](https://github.com/borja-glez/spring-boot-specification-repository/blob/main/docs/security.md) lists what an application must add to the HTTP filter API. In Mercado:
+
+| Point | Where |
+|---|---|
+| Whitelist narrowly, deny by default | every `@FilterableQuery` declares its lists; private fields (`seller.email`, `customerId` in "my orders") are in none |
+| Ownership and visibility on the server | server conditions: `customerId = user`, `status = ACTIVE`, `status = CONFIRMED` |
+| Map client errors to 400 | `SpecificationProblemMapper`, walking the causes of wrapped exceptions |
+| Cap the page size | `spring.data.web.pageable.max-page-size=100` in the shop defaults |
+| Tighten limits and operators | `specrepository.http.*` in the shop defaults and each `application.yaml` |
+| `findSlice` on large tables | the event store explorer |
+| Query timeouts | `@Transactional(readOnly = true, timeout = 5)` on every handler that runs a client plan, `timeout = 10` on the reports; Spring applies it to every JPA query of the transaction |
+| Index filterable columns | the migrations index the columns the screens filter and sort by (for example `product.published_at`) |
+| Never pass request input to trusted parts | grouping, aggregates, `having`, fetches and selections are written in the handlers; `minUnits` is a number |
 
 ## Related
 

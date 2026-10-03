@@ -76,13 +76,15 @@ whitelists.
 - `?filter=price.amount:between:5|20&orFilter=...&sort=...` parsed into an immutable `QueryPlan`.
 - Per-endpoint whitelists of filterable and sortable fields.
 - Grouping and aggregates (`COUNT DISTINCT`, `HAVING`) for facets and reports.
+- Server conditions and server sorts on a client plan, limits on the request (`specrepository.http.*`).
 
 In Mercado: the catalog search, facets, "my orders", the event store explorer, the backoffice and
 every report are specification-repository queries composed with server-side conditions.
 
 ```kotlin
-implementation("com.borjaglez.specrepository:specification-repository-boot4-starter:0.4.0")
-implementation("com.borjaglez.specrepository:specification-repository-http:0.4.0")
+implementation(platform("com.borjaglez.specrepository:specification-repository-bom:1.0.0"))
+implementation("com.borjaglez.specrepository:specification-repository-boot4-starter")
+implementation("com.borjaglez.specrepository:specification-repository-http")
 ```
 
 </td>
