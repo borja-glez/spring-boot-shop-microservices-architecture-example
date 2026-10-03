@@ -2,11 +2,13 @@ plugins {
     id("shop.library-conventions")
 }
 
-description = "Event sourcing kit: event store that doubles as outbox, relay and idempotent consumers"
+description = "Event sourcing kit: event store that doubles as outbox, relay and consumer metrics"
 
 dependencies {
     api(project(":platform:service-support"))
     api(libs.cqrs.core)
+    // JdbcIdempotencyStore for the @Idempotent handlers; its table is created by db/eskit.
+    api(libs.cqrs.jdbc)
     api(libs.specrepo.boot4.starter)
     api(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.autoconfigure)

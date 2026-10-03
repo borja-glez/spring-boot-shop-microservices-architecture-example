@@ -1,12 +1,12 @@
 # The libraries in practice
 
-Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central in version 0.4.0: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
+Mercado is the reference application of two open-source libraries by Borja González, both published on Maven Central: [spring-boot-cqrs](https://github.com/borja-glez/spring-boot-cqrs) (`com.borjaglez.cqrs`, 0.5.0) and [spring-boot-specification-repository](https://github.com/borja-glez/spring-boot-specification-repository) (`com.borjaglez.specrepository`, 0.4.0). spring-boot-cqrs gives every service its command, query and event buses, runs them locally or over RabbitMQ and Kafka, and adds validation, context propagation and observability around every handler. specification-repository is the only way the services read their databases: a fluent query DSL on Spring Data JPA repositories, plus an HTTP filter syntax that turns request parameters into whitelisted query plans. This page shows how both are wired and used, with the real code behind each piece.
 
 <p align="center"><img src="../assets/diagrams/libraries.svg" alt="How spring-boot-cqrs and spring-boot-specification-repository serve one request" width="100%"></p>
 
 ## Dependencies
 
-Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.4.0"`, `specrepo = "0.4.0"`).
+Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml) (`cqrs = "0.5.0"`, `specrepo = "0.4.0"`).
 
 | Artifact | Used by | Purpose |
 |---|---|---|
@@ -15,6 +15,7 @@ Versions come from [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml
 | `spring-boot-cqrs-boot3-starter` | `notifications-service` | The same for Spring Boot 3.5 / Jackson 2 |
 | `spring-boot-cqrs-rabbitmq` | catalog, orders, inventory, payments, notifications | `RabbitMqCommandBus` for the saga's request/reply commands, `RabbitMqQueryBus` for the queries to other services |
 | `spring-boot-cqrs-kafka` | every service except the gateway | Event topic, listener container, `KafkaMessagePublisher` used by the outbox |
+| `spring-boot-cqrs-jdbc` | `platform/es-kit` (API), `notifications-service` | `JdbcIdempotencyStore`, the markers of the `@Idempotent` projectors in `cqrs_processed_message` |
 | `specification-repository-boot4-starter` | Boot 4 services, `es-kit` | `SpecificationRepository`, DSL, query plans |
 | `specification-repository-boot3-starter` | `notifications-service` | The same for Spring Boot 3.5 |
 | `specification-repository-http` | every service with a filterable endpoint | `@FilterableQuery`, HTTP filter parser |
@@ -44,6 +45,8 @@ public class OrderPlaced extends Event {
 ```
 
 With `cqrs.naming.prefix: shop` the wire name of this event is `shop.orders.1.event.order.order-placed` (the `1` is the default `version` of `@CqrsMessage`). The event store keeps that name, never the Java class name, so classes can move without rewriting history. Replies to saga commands are plain records such as [`StockReservation`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/inventory/StockReservation.java) and [`PaymentAuthorization`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/payments/PaymentAuthorization.java). [`ContractsConventionsTest`](../../platform/contracts/src/test/java/com/borjaglez/shop/contracts/ContractsConventionsTest.java) checks all four rules with ArchUnit.
+
+The same name travels with every message over RabbitMQ and Kafka, in the `cqrs.message.name` header, next to the class name of the producer (`__TypeId__` on RabbitMQ, `cqrs.payload.type` on Kafka). A consumer reads an incoming `@CqrsMessage` message as the local class registered under that name, and only falls back to the producer's class name when it cannot resolve the name. A producer can therefore rename or move a contract class as long as its `@CqrsMessage` coordinates stay the same. The version is part of the name: a `version = 2` contract is a different message. `OrderNoticesOverRabbitIT` sends `GetOrderNotices` under a class name notifications does not have and still gets the answer.
 
 Commands and queries that never leave their service (for example `CreateProductCommand` or `SearchProductsQuery`) stay in the service's `application` package and carry no `@CqrsMessage`.
 
@@ -102,7 +105,7 @@ The same `@HandleCommand` methods of inventory and payments answer the commands 
 
 ### Event handlers as projectors
 
-Events consumed from Kafka are dispatched to `@EventHandler` classes with one `@HandleEvent` method per event type. In Mercado they are projectors that update a local read model, always through es-kit's [`IdempotentConsumer`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/IdempotentConsumer.java):
+Events consumed from Kafka are dispatched to `@EventHandler` classes with one `@HandleEvent` method per event type. In Mercado they are projectors that update a local read model, each method marked `@Idempotent` so that a redelivered event is applied once ([`JdbcIdempotencyStore`](event-sourcing-and-outbox.md#at-least-once-delivery-and-idempotent-consumers) from `spring-boot-cqrs-jdbc` keeps the markers):
 
 ```java
 @EventHandler
@@ -111,19 +114,18 @@ public class OrderViewProjector {
   static final String CONSUMER = "orders.order-view";
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
   public void on(OrderConfirmed event) {
-    apply(event, event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
+    apply(event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
   }
 
-  private void apply(Event event, UUID orderId, Consumer<OrderView> change) {
-    idempotent.once(CONSUMER, event, () -> {
-      OrderView view = views.query()
-          .where("orderId", Operators.EQUALS, orderId)
-          .findOne()
-          .orElseGet(() -> OrderView.unknown(orderId));
-      change.accept(view);
-      views.save(view);
-    });
+  private void apply(UUID orderId, Consumer<OrderView> change) {
+    OrderView view = views.query()
+        .where("orderId", Operators.EQUALS, orderId)
+        .findOne()
+        .orElseGet(() -> OrderView.unknown(orderId));
+    change.accept(view);
+    views.save(view);
   }
 }
 ```
@@ -175,7 +177,7 @@ public StockReservation reserve(UUID orderId, List<ReservationLine> lines) {
 }
 ```
 
-A missing reply (`RemoteReplyTimeoutException`, after `spring.rabbitmq.template.reply-timeout`, 5 seconds by default) or a failure in the remote handler (`RemoteHandlerException`) reaches the saga as an exception, which it retries. A business refusal is never an exception: it comes back as a value (`StockReservation.reserved() == false`, `PaymentAuthorization.authorized() == false`). See [Checkout saga](checkout-saga.md).
+A missing reply (`RemoteReplyTimeoutException`, after `cqrs.rabbitmq.commands.reply-timeout`, 5 seconds by default) or a failure in the remote handler (`RemoteHandlerException`) reaches the saga as an exception, which it retries. A business refusal is never an exception: it comes back as a value (`StockReservation.reserved() == false`, `PaymentAuthorization.authorized() == false`). See [Checkout saga](checkout-saga.md).
 
 Services that receive objects over RabbitMQ restrict deserialization to the contract packages and plain Java types. Spring AMQP compares whole package names, so each subpackage is listed:
 
@@ -218,24 +220,31 @@ On the asking side the query goes through a port of the application layer (`Stoc
 - The product page is read in a short read-only transaction and the stock asked afterwards, so no database connection waits for the broker.
 - A timeout, a remote failure or a broker that cannot be reached returns an empty `Optional`: the page shows the stock as unknown instead of failing.
 
-The reply timeout of a Spring `RabbitTemplate` is one setting for every request sent through it, and orders needs two: the saga waits up to 5 seconds for a command, a shopper should not wait more than a moment for a page. So the asking services build a second `RabbitMqQueryBus` on a template of their own, configured by Boot's `RabbitTemplateConfigurer` like the default one, with only the timeout changed ([`RemoteQueriesConfiguration`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RemoteQueriesConfiguration.java)):
+The reply timeout of a Spring `RabbitTemplate` is one setting for every request sent through it, and orders needs two: the saga waits up to 5 seconds for a command, a shopper should not wait more than a moment for a page. The library takes one per bus: when `cqrs.rabbitmq.commands.reply-timeout` or `cqrs.rabbitmq.queries.reply-timeout` is set, that bus gets a `RabbitTemplate` of its own (`cqrsCommandRabbitTemplate`, `cqrsQueryRabbitTemplate`), configured like Boot's `rabbitTemplate` with only the timeout changed. Orders sets both, catalog only the query one:
+
+```yaml
+cqrs:
+  rabbitmq:
+    commands:
+      # How long a checkout step waits for inventory or payments before retrying.
+      reply-timeout: ${CHECKOUT_REPLY_TIMEOUT:5s}
+    queries:
+      # How long a cart quote or an order page waits for inventory or notifications.
+      reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}
+```
+
+The gateways take the auto-configured `RabbitMqQueryBus` and nothing else ([`RemoteQueriesConfiguration`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RemoteQueriesConfiguration.java)):
 
 ```java
-RabbitTemplate template = new RabbitTemplate();
-configurer.configure(template, connectionFactory);
-template.setReplyTimeout(replyTimeout.toMillis()); // shop.remote-queries.reply-timeout, 1 s
-RabbitMqQueryBus remoteQueries =
-    new RabbitMqQueryBus(
-        new RabbitMqPublisher(template, contextHeaderPrefix),
-        rabbitNaming,
-        messageNaming,
-        properties.getQueries().getExchange(),
-        middlewares.getIfAvailable(Collections::emptyList));
+@Bean
+RabbitRemoteQueries remoteQueries(RabbitMqQueryBus remoteQueries) {
+  return new RabbitRemoteQueries(remoteQueries);
+}
 ```
 
 The catalog and notifications only take part in queries, so they turn the RabbitMQ command and event buses off (`cqrs.rabbitmq.commands.enabled=false`, `cqrs.rabbitmq.events.enabled=false`).
 
-`GetOrderNotices` crosses the two Jackson generations in both directions: Jackson 3 writes the query and reads the answer, Jackson 2 does the opposite. The JSON converter Spring AMQP builds on its own writes Java time values as numbers under Jackson 2 (`1790676930.123456000`) and as ISO-8601 text under Jackson 3, so notifications declares its `cqrsMessageConverter` with Spring Boot's `ObjectMapper`, which writes ISO-8601 as well ([`MessagingConfiguration`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/infrastructure/MessagingConfiguration.java)). `OrderNoticesOverRabbitIT` sends the query with the bytes Jackson 3 writes and checks the reply's raw JSON.
+`GetOrderNotices` crosses the two Jackson generations in both directions: Jackson 3 writes the query and reads the answer, Jackson 2 does the opposite. The library's RabbitMQ converter uses the application's Jackson mapper (Boot's `ObjectMapper` under Jackson 2, its `JsonMapper` under Jackson 3), so `spring.jackson.*` settings apply and dates travel as ISO-8601 text on both generations. `OrderNoticesOverRabbitIT` sends the query with the bytes Jackson 3 writes and checks the reply's raw JSON.
 
 ### Kafka for events only
 
@@ -287,7 +296,7 @@ Every repository extends `SpecificationRepository` and declares no methods: ther
 public interface ProductRepository extends SpecificationRepository<Product, UUID> {}
 ```
 
-This includes the platform: es-kit's `StoredEventRepository` and `ProcessedMessageRepository` read the event store and the idempotency markers the same way. The only SQL written by hand is where the DSL cannot express row locking: the outbox relay's `FOR UPDATE SKIP LOCKED` batch and the saga runner's claim statement.
+This includes the platform: es-kit's `StoredEventRepository` reads the event store the same way. The idempotency markers belong to spring-boot-cqrs, whose JDBC store writes and reads them. The only SQL written by hand is where the DSL cannot express row locking: the outbox relay's `FOR UPDATE SKIP LOCKED` batch and the saga runner's claim statement.
 
 ### Fluent DSL
 
@@ -444,7 +453,6 @@ Catalog facets use the same mechanism with `countDistinctAs` per category, selle
 | Product detail, ownership checks, duplicate SKU | `query()...findOne()` / `count()` |
 | Loading an event-sourced aggregate | `EventStore.load`: `query().where(...).sort(Sort.by("version")).findAll()` |
 | Optimistic concurrency check on append | `query()...count()` of the stream's versioned rows |
-| Idempotency markers | `IdempotentConsumer`: `query()...count()` |
 | Outbox metrics | `count()` of pending rows, `findSlice` for the oldest |
 | Read models and projections | `query()...findOne()` in every projector |
 | Saga lookup and metrics | `CheckoutSagaRepository.query()` |

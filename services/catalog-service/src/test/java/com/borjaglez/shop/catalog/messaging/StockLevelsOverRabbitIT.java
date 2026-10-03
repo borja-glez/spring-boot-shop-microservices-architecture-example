@@ -27,7 +27,7 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
-    properties = "shop.remote-queries.reply-timeout=500ms")
+    properties = "cqrs.rabbitmq.queries.reply-timeout=500ms")
 @Import({
   PostgresTestConfiguration.class,
   KafkaTestConfiguration.class,

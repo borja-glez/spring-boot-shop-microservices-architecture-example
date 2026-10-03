@@ -48,7 +48,7 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
-    properties = {"shop.checkout.enabled=false", "spring.rabbitmq.template.reply-timeout=2s"})
+    properties = {"shop.checkout.enabled=false", "cqrs.rabbitmq.commands.reply-timeout=2s"})
 @Import({
   PostgresTestConfiguration.class,
   KafkaTestConfiguration.class,

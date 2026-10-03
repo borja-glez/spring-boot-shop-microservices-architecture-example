@@ -71,7 +71,7 @@ Controllers contain no logic: they translate HTTP into a command or a query and 
 | Module | Contents |
 |---|---|
 | [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-core`; no Spring or Jackson types, checked by `ContractsConventionsTest`. |
-| [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, idempotent consumers, outbox metrics, native-image hints. |
+| [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, consumer metrics, outbox metrics, native-image hints. |
 | [`platform/service-support`](../../platform/service-support) | RFC 9457 errors, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, OTLP export, chaos registry and endpoint, shared defaults. Auto-configured. |
 | [`platform/test-support`](../../platform/test-support) | Testcontainers configurations (PostgreSQL 17, Kafka, RabbitMQ) and the ArchUnit rules. |
 
@@ -96,7 +96,7 @@ A service that needs another service's data either keeps a copy fed by events, o
 | Free stock | catalog (product page), orders (cart quote) | Ask inventory over RabbitMQ (`GetStockLevels`) | Changes with every checkout; a copy would be behind exactly when stock is scarce. |
 | Notices of an order | orders (order page) | Ask notifications over RabbitMQ (`GetOrderNotices`) | Read once per page view; copying every notice into orders would duplicate a whole service. |
 
-A remote query has a short timeout of its own (`shop.remote-queries.reply-timeout`, 1 s) and never fails the page: without an answer, the product page shows the stock as unknown, the cart quote checks prices only, and the order page says the notices are not available. Only the query contracts, annotated with `@CqrsMessage`, are bound to the brokers' queues; every other query stays local. See [Libraries](libraries.md#rabbitmq-requestreply-for-queries).
+A remote query has a short timeout of its own (`cqrs.rabbitmq.queries.reply-timeout`, 1 s) and never fails the page: without an answer, the product page shows the stock as unknown, the cart quote checks prices only, and the order page says the notices are not available. Only the query contracts, annotated with `@CqrsMessage`, are bound to the brokers' queues; every other query stays local. See [Libraries](libraries.md#rabbitmq-requestreply-for-queries).
 
 Kafka carries events only (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.queries.enabled=false`). No handler publishes to a broker directly: events are written to the service's `event_store` table in the same transaction as the change and relayed afterwards. See [Event sourcing and outbox](event-sourcing-and-outbox.md) and [Checkout saga](checkout-saga.md).
 

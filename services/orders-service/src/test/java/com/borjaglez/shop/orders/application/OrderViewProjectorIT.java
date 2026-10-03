@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
+import com.borjaglez.cqrs.event.registry.EventHandlerRegistry;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
 import com.borjaglez.shop.contracts.orders.OrderLine;
@@ -42,6 +43,7 @@ class OrderViewProjectorIT {
   private static final Instant T0 = Instant.parse("2026-09-25T10:00:00Z");
 
   @Autowired OrderViewProjector projector;
+  @Autowired EventHandlerRegistry handlers;
   @Autowired OrderViewRepository views;
 
   private static OrderPlaced placed(UUID orderId) {
@@ -86,8 +88,9 @@ class OrderViewProjectorIT {
     UUID orderId = UUID.randomUUID();
     OrderPlaced event = at(placed(orderId), T0);
 
-    projector.on(event);
-    projector.on(event);
+    // Through the handler registry, as the Kafka consumer delivers it.
+    handlers.handle(event);
+    handlers.handle(event);
 
     assertThat(view(orderId).getLines()).hasSize(2);
   }

@@ -28,9 +28,6 @@ spring:
     port: ${RABBIT_PORT:5672}
     username: ${RABBIT_USER:shop}
     password: ${RABBIT_PASSWORD:shop-dev}
-    template:
-      # How long a checkout step waits for inventory or payments before retrying.
-      reply-timeout: ${CHECKOUT_REPLY_TIMEOUT:5s}
 
 server:
   port: ${SERVER_PORT:8082}
@@ -48,6 +45,12 @@ cqrs:
       enabled: false
   rabbitmq:
     prefix: shop
+    commands:
+      # How long a checkout step waits for inventory or payments before retrying.
+      reply-timeout: ${CHECKOUT_REPLY_TIMEOUT:5s}
+    queries:
+      # How long a cart quote or an order page waits for inventory or notifications.
+      reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}
     # Only the shared contracts and plain Java types may be deserialized (trusted-packages
     # allow-list). Spring
     # AMQP compares whole package names: subpackages must be listed one by one.
@@ -63,9 +66,6 @@ shop:
   chaos:
     # Demo fault injection (/api/orders/chaos); off unless SHOP_CHAOS_ENABLED=true.
     service: orders
-  remote-queries:
-    # How long a cart quote or an order page waits for inventory or notifications.
-    reply-timeout: ${REMOTE_QUERY_TIMEOUT:1s}
   checkout:
     # Each step is retried with growing waits; see CheckoutProperties.
     max-attempts: ${CHECKOUT_MAX_ATTEMPTS:8}

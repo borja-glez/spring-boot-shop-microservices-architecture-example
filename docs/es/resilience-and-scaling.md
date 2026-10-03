@@ -13,7 +13,7 @@ Mercado está construido para cumplir sus promesas cuando fallan partes de él: 
 | Inventory lento o caído, visto desde una página | `GetStockLevels` no recibe respuesta en 1 s | La ficha de producto muestra el stock como desconocido y sigue vendiendo el producto; el presupuesto del carrito comprueba solo los precios (`stockChecked: false`) y deja seguir con el pedido, porque la saga reserva el stock de todos modos. |
 | Notifications caído | `GetOrderNotices` no recibe respuesta en 1 s | La página del pedido indica que los avisos no están disponibles; todo lo demás viene de orders. |
 | Kafka caído (`relay.paused`) | El relay no puede publicar | Los eventos se quedan en `event_store` con `published_at` a null. La saga continúa, ya que usa RabbitMQ. Los modelos de lectura, los informes y los avisos se congelan y se ponen al día en orden cuando vuelve el broker. Alerta "Events are not reaching Kafka". |
-| Entrega duplicada (`relay.duplicate`) | Cada evento se publica dos veces | Los consumidores idempotentes guardan una marca por `(consumer, event id)`; notifications usa el id del evento como clave de los avisos. Los duplicados solo aparecen en `shop.consumer.events{outcome="duplicate"}`. |
+| Entrega duplicada (`relay.duplicate`) | Cada evento se publica dos veces | Los consumidores idempotentes guardan una marca por `(consumer, event id)` en `cqrs_processed_message`; notifications además usa el id del evento como clave de los avisos. Los duplicados solo aparecen en `shop.consumer.events{outcome="duplicate"}`. |
 | Tarjetas denegadas (`payments.decline-all`) | Se deniega cada pago nuevo | Una respuesta de negocio, no un fallo: el pedido se rechaza con `card-limit-exceeded` y se libera el stock. |
 | Eventos desordenados | Kafka solo ordena por tipo de evento | Las proyecciones guardan marcas de tiempo de vigencia y estados monótonos; consulta [Event sourcing y outbox](event-sourcing-and-outbox.md#orden). |
 | Un producto que inventory aún no conoce | `ReserveStock` de un producto cuyo `ProductPublished` no ha llegado | Se trata como un fallo técnico, de modo que la saga reintenta en lugar de rechazar el pedido por falta de stock. |
@@ -57,8 +57,8 @@ La página Chaos de la tienda (`/chaos`) muestra los fallos de cada servicio con
 
 | Timeout | Valor | Dónde |
 |---|---|---|
-| Respuesta de RabbitMQ, comandos de la saga | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `spring.rabbitmq.template.reply-timeout` en orders; una respuesta que no llega es un fallo reintentable del paso |
-| Respuesta de RabbitMQ, consultas a otros servicios | 1 s (`REMOTE_QUERY_TIMEOUT`) | `shop.remote-queries.reply-timeout` en catalog y orders, sobre un template propio; una respuesta que no llega deja vacía esa parte de la página |
+| Respuesta de RabbitMQ, comandos de la saga | 5 s (`CHECKOUT_REPLY_TIMEOUT`) | `cqrs.rabbitmq.commands.reply-timeout` en orders; una respuesta que no llega es un fallo reintentable del paso |
+| Respuesta de RabbitMQ, consultas a otros servicios | 1 s (`REMOTE_QUERY_TIMEOUT`) | `cqrs.rabbitmq.queries.reply-timeout` en catalog y orders, sobre un template propio; una respuesta que no llega deja vacía esa parte de la página |
 | Socket JDBC | 30 s | propiedad `socketTimeout` del data source, desde `ShopDefaultsEnvironmentPostProcessor` |
 | Obtención de conexión de Hikari | 5 s | `spring.datasource.hikari.connection-timeout` en todos los servicios |
 | Lease de la saga | 30 s | `shop.checkout.lease`; más largo que cualquier paso |

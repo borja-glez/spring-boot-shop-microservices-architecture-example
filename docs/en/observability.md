@@ -112,7 +112,7 @@ Spring Boot instruments only the Kafka factories it creates. [`KafkaClientMetric
 | `shop.outbox.published` | `shop_outbox_published_total` | counter | `event.type` | Events the relay published |
 | `shop.outbox.failures` | `shop_outbox_failures_total` | counter | `event.type` | Failed publication attempts |
 | `shop.outbox.delay` | `shop_outbox_delay_milliseconds_*` | timer | | From the business transaction to the broker's acknowledgement |
-| `shop.consumer.events` | `shop_consumer_events_total` | counter | `consumer`, `outcome` = `applied` / `duplicate` | Events handled by each idempotent consumer |
+| `shop.consumer.events` | `shop_consumer_events_total` | counter | `consumer`, `outcome` = `applied` / `duplicate` | Events handled by each idempotent consumer (`@Idempotent` name) |
 | `shop.consumer.lag` | `shop_consumer_lag_milliseconds_*` | timer | `consumer` | From the event's time to its projection: the eventual-consistency window of that read model |
 | `shop.checkout.steps` | `shop_checkout_steps_total` | counter | `step`, `result` = `succeeded` / `declined` / `retrying` / `gave-up` | Attempts of each saga step |
 | `shop.checkout.completed` | `shop_checkout_completed_total` | counter | `outcome` = `confirmed` / `rejected` / `cancelled`, `reason` | Finished sagas and their rejection reason (`none` otherwise) |
@@ -120,7 +120,7 @@ Spring Boot instruments only the Kafka factories it creates. [`KafkaClientMetric
 | `shop.checkout.sagas` | `shop_checkout_sagas` | gauge | `state` = `running` / `stuck` | Sagas that still have work to do |
 | `shop.notifications.sse.connections` | `shop_notifications_sse_connections` | gauge | | Open SSE connections of notifications |
 
-Sources: [`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java) and [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) (outbox), [`IdempotentConsumer`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/IdempotentConsumer.java) (consumers), [`CheckoutMetrics`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/checkout/CheckoutMetrics.java) (checkout), [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) (SSE). The gauges read the database when they are collected (the pending rows have their own partial index) and report `NaN` instead of failing the collection if the read fails. Counters and timers of the relay and the saga are recorded after their transaction commits, so rolled-back work is never counted.
+Sources: [`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java) and [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) (outbox), [`ConsumerMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/ConsumerMetrics.java) (consumers), [`CheckoutMetrics`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/checkout/CheckoutMetrics.java) (checkout), [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) (SSE). The gauges read the database when they are collected (the pending rows have their own partial index) and report `NaN` instead of failing the collection if the read fails. Counters and timers of the relay and the saga are recorded after their transaction commits, so rolled-back work is never counted.
 
 ## Dashboards
 

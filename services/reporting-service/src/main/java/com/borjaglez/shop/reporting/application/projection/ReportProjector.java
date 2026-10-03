@@ -5,15 +5,17 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.cqrs.event.annotation.EventHandler;
 import com.borjaglez.cqrs.event.annotation.HandleEvent;
+import com.borjaglez.cqrs.idempotency.Idempotent;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
 import com.borjaglez.shop.contracts.orders.OrderLine;
 import com.borjaglez.shop.contracts.orders.OrderPlaced;
 import com.borjaglez.shop.contracts.orders.OrderRejected;
-import com.borjaglez.shop.eskit.IdempotentConsumer;
 import com.borjaglez.shop.reporting.domain.ReportLine;
 import com.borjaglez.shop.reporting.domain.ReportLineRepository;
 import com.borjaglez.shop.reporting.domain.ReportOrder;
@@ -21,9 +23,9 @@ import com.borjaglez.shop.reporting.domain.ReportOrderRepository;
 import com.borjaglez.specrepository.core.Operators;
 
 /**
- * Builds the report tables from the order events. Each event is applied once (es-kit's {@link
- * IdempotentConsumer}) and in any order across types. Reading the whole topic again from offset 0
- * after clearing the tables gives the same numbers: that is how a rebuild works.
+ * Builds the report tables from the order events. Each event is applied once ({@link Idempotent})
+ * and in any order across types. Reading the whole topic again from offset 0 after clearing the
+ * tables gives the same numbers: that is how a rebuild works.
  */
 @EventHandler
 public class ReportProjector {
@@ -32,19 +34,17 @@ public class ReportProjector {
 
   private final ReportOrderRepository orders;
   private final ReportLineRepository lines;
-  private final IdempotentConsumer idempotent;
 
-  public ReportProjector(
-      ReportOrderRepository orders, ReportLineRepository lines, IdempotentConsumer idempotent) {
+  public ReportProjector(ReportOrderRepository orders, ReportLineRepository lines) {
     this.orders = orders;
     this.lines = lines;
-    this.idempotent = idempotent;
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderPlaced event) {
     apply(
-        event,
         event.getOrderId(),
         order -> {
           if (order.isPlaced()) {
@@ -71,21 +71,24 @@ public class ReportProjector {
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderConfirmed event) {
-    apply(event, event.getOrderId(), order -> save(order, o -> o.confirmed(at(event))));
+    apply(event.getOrderId(), order -> save(order, o -> o.confirmed(at(event))));
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderRejected event) {
-    apply(
-        event,
-        event.getOrderId(),
-        order -> save(order, o -> o.rejected(event.getReason(), at(event))));
+    apply(event.getOrderId(), order -> save(order, o -> o.rejected(event.getReason(), at(event))));
   }
 
   @HandleEvent
+  @Idempotent(name = CONSUMER)
+  @Transactional
   public void on(OrderCancelled event) {
-    apply(event, event.getOrderId(), order -> save(order, o -> o.cancelled(at(event))));
+    apply(event.getOrderId(), order -> save(order, o -> o.cancelled(at(event))));
   }
 
   private void save(ReportOrder order, Consumer<ReportOrder> change) {
@@ -93,17 +96,13 @@ public class ReportProjector {
     orders.save(order);
   }
 
-  private void apply(Event event, UUID orderId, Consumer<ReportOrder> change) {
-    idempotent.once(
-        CONSUMER,
-        event,
-        () ->
-            change.accept(
-                orders
-                    .query()
-                    .where("orderId", Operators.EQUALS, orderId)
-                    .findOne()
-                    .orElseGet(() -> ReportOrder.unknown(orderId))));
+  private void apply(UUID orderId, Consumer<ReportOrder> change) {
+    change.accept(
+        orders
+            .query()
+            .where("orderId", Operators.EQUALS, orderId)
+            .findOne()
+            .orElseGet(() -> ReportOrder.unknown(orderId)));
   }
 
   private static OffsetDateTime at(Event event) {

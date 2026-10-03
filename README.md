@@ -49,17 +49,19 @@ transports.
 
 - `CommandBus`, `QueryBus` and `EventBus` with annotation-driven handlers.
 - Middleware for validation, context propagation (correlation ids) and Micrometer observations.
+- Idempotent handlers (`@Idempotent`) with a JDBC store of processed messages.
 - **RabbitMQ** request/reply for commands and queries, and **Kafka** for events, as drop-in transports.
 - Actuator endpoint, GraalVM native hints, Boot 3 and Boot 4 starters.
 
 In Mercado: controllers only dispatch commands and queries, the checkout saga talks to inventory and
 payments over RabbitMQ, the product page, the cart and the order page ask inventory and notifications
-for live data over RabbitMQ, and integration events flow over Kafka.
+for live data over RabbitMQ, and integration events flow over Kafka to `@Idempotent` projectors.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.4.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.5.0")
 ```
 
 </td>
@@ -255,7 +257,7 @@ Details, metric names and how to explore them: [Observability](docs/en/observabi
 build-logic/                 Gradle convention plugins (Java, libraries, Boot 4 and Boot 3 services)
 platform/
   contracts/                 messages exchanged between services (@CqrsMessage)
-  es-kit/                    event store that doubles as outbox, relay, idempotent consumers, metrics
+  es-kit/                    event store that doubles as outbox, relay, consumer and outbox metrics
   service-support/           RFC 9457 errors, correlation, current user, QueryPlans, OTLP export, chaos
   test-support/              Testcontainers for PostgreSQL, Kafka and RabbitMQ, ArchUnit rules
 services/

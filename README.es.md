@@ -49,17 +49,20 @@ transportes intercambiables.
 
 - `CommandBus`, `QueryBus` y `EventBus` con handlers descubiertos por anotaciones.
 - Middleware de validación, propagación de contexto (correlation id) y observaciones de Micrometer.
+- Handlers idempotentes (`@Idempotent`) con un almacén JDBC de mensajes procesados.
 - **RabbitMQ** petición/respuesta para comandos y queries, y **Kafka** para eventos, sin cambiar el código.
 - Endpoint de Actuator, hints para imágenes nativas GraalVM, starters para Boot 3 y Boot 4.
 
 En Mercado: los controladores solo despachan comandos y queries, la saga de checkout habla con
 inventario y pagos por RabbitMQ, la ficha de producto, el carrito y la página del pedido preguntan
-datos en vivo a inventario y notificaciones por RabbitMQ, y los eventos de integración viajan por Kafka.
+datos en vivo a inventario y notificaciones por RabbitMQ, y los eventos de integración viajan por Kafka
+hasta proyectores `@Idempotent`.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.4.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.4.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.4.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.5.0")
 ```
 
 </td>
@@ -257,7 +260,7 @@ Detalles, nombres de métricas y cómo explorarlas: [Observabilidad](docs/es/obs
 build-logic/                 plugins de convenciones de Gradle (Java, librerías, servicios Boot 4 y Boot 3)
 platform/
   contracts/                 mensajes entre servicios (@CqrsMessage)
-  es-kit/                    event store que hace de outbox, relay, consumidores idempotentes, métricas
+  es-kit/                    event store que hace de outbox, relay, métricas de consumidores y del outbox
   service-support/           errores RFC 9457, correlación, usuario actual, QueryPlans, exportación OTLP, caos
   test-support/              Testcontainers de PostgreSQL, Kafka y RabbitMQ, reglas de ArchUnit
 services/

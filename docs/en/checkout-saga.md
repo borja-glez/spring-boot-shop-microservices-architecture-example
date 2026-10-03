@@ -93,7 +93,7 @@ public interface InventoryGateway {
 | `initial-backoff` / `max-backoff` | `1s` / `30s` | Retry waits |
 | `lease` | `30s` | How long a claimed saga belongs to the runner that claimed it |
 
-The RabbitMQ reply timeout is `spring.rabbitmq.template.reply-timeout`, `5s` by default (`CHECKOUT_REPLY_TIMEOUT`).
+The RabbitMQ reply timeout is `cqrs.rabbitmq.commands.reply-timeout`, `5s` by default (`CHECKOUT_REPLY_TIMEOUT`).
 
 ## Running the saga on several replicas
 

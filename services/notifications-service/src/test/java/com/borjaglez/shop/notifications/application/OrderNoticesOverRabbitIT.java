@@ -46,10 +46,16 @@ class OrderNoticesOverRabbitIT {
 
   /** Sends the query with the headers the cqrs publisher adds and returns the reply body. */
   private String askAsBoot4(UUID orderId, String customer) {
+    return askAsBoot4(orderId, customer, GetOrderNotices.class.getName());
+  }
+
+  /** Sends the query as a producer whose class for it is {@code senderClass}. */
+  private String askAsBoot4(UUID orderId, String customer, String senderClass) {
     MessageProperties headers = new MessageProperties();
     headers.setContentType(MessageProperties.CONTENT_TYPE_JSON);
-    headers.setHeader("__TypeId__", GetOrderNotices.class.getName());
+    headers.setHeader("__TypeId__", senderClass);
     headers.setHeader("cqrs.message.type", "query");
+    headers.setHeader("cqrs.message.name", naming.queryName(GetOrderNotices.class));
     String json =
         """
         {"queryId": "%s", "orderId": "%s", "customerId": "%s"}
@@ -91,6 +97,18 @@ class OrderNoticesOverRabbitIT {
         // An ISO-8601 instant, not a number: both Jackson generations read it the same way.
         .contains("\"sentAt\":\"2026-09-29T10:15:30.123456Z\"")
         .contains("\"read\":false");
+  }
+
+  @Test
+  void aQueryIsReadByItsLogicalNameWhateverClassTheSenderGaveIt() {
+    UUID orderId = UUID.randomUUID();
+    confirmedAt(orderId, "cliente-lucia", "2026-09-29T10:00:00Z");
+
+    // The sender renamed and moved its class; the @CqrsMessage coordinates stay the same.
+    String reply =
+        askAsBoot4(orderId, "cliente-lucia", "com.borjaglez.shop.orders.queries.OrderNoticesQuery");
+
+    assertThat(reply).contains("\"kind\":\"ORDER_CONFIRMED\"");
   }
 
   @Test

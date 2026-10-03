@@ -52,6 +52,9 @@ server:
 cqrs:
   naming:
     prefix: shop
+  jdbc:
+    # Flyway creates the table of the @Idempotent handlers (V2).
+    initialize-schema: never
   kafka:
     prefix: shop
     # Kafka brings the integration events this service turns into notices.

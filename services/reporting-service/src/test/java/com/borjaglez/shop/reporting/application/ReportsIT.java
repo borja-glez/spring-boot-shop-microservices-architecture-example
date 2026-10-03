@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.NestedExceptionUtils;
 
+import com.borjaglez.cqrs.event.registry.EventHandlerRegistry;
 import com.borjaglez.cqrs.query.QueryBus;
 import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
@@ -57,6 +58,7 @@ class ReportsIT {
       AllowedFieldsPolicy.of(Set.of("order.placedAt", "order.placedDay", "sku", "name"), Set.of());
 
   @Autowired ReportProjector projector;
+  @Autowired EventHandlerRegistry handlers;
   @Autowired QueryBus queries;
   @Autowired ReportOrderRepository orders;
 
@@ -176,11 +178,12 @@ class ReportsIT {
     OrderConfirmed confirmation = new OrderConfirmed(orderId, UUID.randomUUID());
     var placement = placed(orderId, "ana", "O4-A", 2, "7.00", day);
 
-    projector.on(confirmation);
-    projector.on(new OrderCancelled(orderId, "x", "ana"));
-    projector.on(placement);
-    projector.on(placement);
-    projector.on(confirmation);
+    // Through the handler registry, as the Kafka consumer delivers them.
+    handlers.handle(confirmation);
+    handlers.handle(new OrderCancelled(orderId, "x", "ana"));
+    handlers.handle(placement);
+    handlers.handle(placement);
+    handlers.handle(confirmation);
 
     ReportOrder order =
         orders.query().where("orderId", Operators.EQUALS, orderId).findOne().orElseThrow();

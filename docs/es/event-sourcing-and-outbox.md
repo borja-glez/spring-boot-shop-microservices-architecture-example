@@ -27,7 +27,7 @@ La crea la migración de es-kit [`V1000__event_store.sql`](../../platform/es-kit
 - `event_store_pending_idx`: `(global_position)` donde `published_at is null`, que mantiene baratas la consulta del relay y las métricas de backlog sea cual sea el tamaño del store.
 - `event_store_stream_idx` y `event_store_type_idx` para cargar streams y explorar por tipo.
 
-La misma migración crea `processed_message (consumer, message_id, processed_at)`, las marcas de idempotencia de los consumidores.
+La siguiente migración de es-kit, [`V1000_1__cqrs_processed_message.sql`](../../platform/es-kit/src/main/resources/db/eskit/V1000_1__cqrs_processed_message.sql), crea `cqrs_processed_message (handler_id, message_id, processed_at)`, las marcas de idempotencia de los consumidores. Flyway es el dueño del esquema, así que los servicios fijan `cqrs.jdbc.initialize-schema=never` (un valor por defecto de `service-support`).
 
 ## Dos formas de usar la misma tabla
 
@@ -109,7 +109,7 @@ Inventory hace lo mismo con `StockReserved`, `StockReleased` (stream `reservatio
 
 <p align="center"><img src="../assets/diagrams/cqrs-event-sourcing.svg" alt="Lado de escritura y lado de lectura de orders: agregado con event sourcing, event store, relay hacia Kafka, proyección y consultas" width="100%"></p>
 
-Un servicio activa el relay declarando un bean [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java); catalog, orders, inventory y payments declaran `KafkaOutboxDestination`. Reporting incluye es-kit solo por sus consumidores idempotentes y no declara ninguno.
+Un servicio activa el relay declarando un bean [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java); catalog, orders, inventory y payments declaran `KafkaOutboxDestination`. Reporting incluye es-kit solo por sus marcas de idempotencia y sus métricas de consumidores, y no declara ninguno.
 
 [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) se ejecuta en su propio hilo (`OutboxRelayScheduler`, un `SmartLifecycle` que arranca cuando el contexto está listo y se detiene antes de que desaparezca la base de datos), cada `shop.outbox.relay.interval` (500 ms por defecto):
 
@@ -135,31 +135,32 @@ El relay registra además dos fallos de demostración, `relay.paused` (deja de p
 | `shop.outbox.relay.batch-size` | `100` | Filas bloqueadas y publicadas por transacción |
 | `shop.event-store.event-packages` | `com.borjaglez.shop.contracts` | Dónde se buscan los eventos `@CqrsMessage` |
 
+spring-boot-cqrs incluye su propio outbox transaccional en `spring-boot-cqrs-jdbc` (`OutboxEventBus` más un relay sobre una tabla `cqrs_outbox`, `cqrs.outbox.enabled`), pensado para aplicaciones cuyos eventos no se guardan de todos modos. Mercado publica desde su event store: para orders y payments el event store ya es la fuente de verdad, y escribir cada evento en una segunda tabla no aportaría nada. Un servicio basado en estado sin event store usaría `OutboxEventBus`.
+
 ## Entrega at-least-once y consumidores idempotentes
 
-Si el relay publica una fila y el proceso muere antes de que se confirme la transacción, la fila sigue pendiente y se publicará de nuevo. Kafka también puede volver a entregar mensajes a un consumer group durante un rebalanceo. Por tanto, la entrega es at-least-once, y cada consumidor aplica cada evento como mucho una vez mediante [`IdempotentConsumer`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/IdempotentConsumer.java):
+Si el relay publica una fila y el proceso muere antes de que se confirme la transacción, la fila sigue pendiente y se publicará de nuevo. Kafka también puede volver a entregar mensajes a un consumer group durante un rebalanceo. Por tanto, la entrega es at-least-once, y cada consumidor aplica cada evento como mucho una vez: cada método `@HandleEvent` de un proyector lleva el `@Idempotent` de spring-boot-cqrs, con el nombre del consumidor como id del handler.
 
 ```java
-@Transactional
-public boolean once(String consumer, String messageId, Runnable effect) {
-  boolean seen = processed.query()
-      .where("consumer", Operators.EQUALS, consumer)
-      .where("messageId", Operators.EQUALS, messageId)
-      .count() > 0;
-  if (seen) {
-    meters.counter("shop.consumer.events", "consumer", consumer, "outcome", "duplicate").increment();
-    return false;
+@EventHandler
+public class OrderViewProjector {
+
+  static final String CONSUMER = "orders.order-view";
+
+  @HandleEvent
+  @Idempotent(name = CONSUMER)
+  public void on(OrderConfirmed event) {
+    apply(event.getOrderId(), view -> view.confirmed(event.getPaymentId(), at(event)));
   }
-  processed.save(new ProcessedMessage(consumer, messageId, OffsetDateTime.now(clock)));
-  effect.run();
-  meters.counter("shop.consumer.events", "consumer", consumer, "outcome", "applied").increment();
-  return true;
+  ...
 }
 ```
 
-La marca y el efecto se confirman en la misma transacción: si el efecto falla, no se guarda ninguno de los dos y la nueva entrega lo vuelve a intentar; si tiene éxito, las nuevas entregas se omiten. La clave primaria `(consumer, message_id)` también impide dos entregas concurrentes del mismo evento. La sobrecarga que recibe el `Event` registra además `shop.consumer.lag`, el tiempo entre el evento y su proyección.
+Las marcas viven en `cqrs_processed_message (handler_id, message_id)`, con el id del evento como clave, y las escribe el `JdbcIdempotencyStore` de `spring-boot-cqrs-jdbc`. La librería abre una transacción alrededor del handler (o se une a la actual si la hay) e inserta la marca en ella, así que la marca y el trabajo del handler en base de datos se confirman juntos: si el handler falla, no se guarda ninguno de los dos y la nueva entrega lo vuelve a ejecutar; si tiene éxito, las nuevas entregas se omiten. La clave primaria también impide dos entregas concurrentes del mismo evento: la segunda espera a la fila sin confirmar y después ve un duplicado. Las marcas con más antigüedad que `cqrs.idempotency.retention` (7 días por defecto) se borran periódicamente, así que la retención debe ser mayor que lo que un evento puede esperar antes de volver a entregarse.
 
-Nombres de consumidores: `orders.catalog-products`, `orders.order-view`, `inventory.catalog-products`, `reporting.orders`. `notifications-service` (Boot 3.5, sin es-kit) consigue la misma garantía usando el id del evento como clave de cada aviso.
+[`ConsumerMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/ConsumerMetrics.java), de es-kit, envuelve el almacén (es-kit declara el bean `IdempotentInvoker` con el almacén envuelto) y, como middleware del bus, conoce el evento que se está despachando. Cuenta `shop.consumer.events` por `outcome` (`applied` o `duplicate`) y mide `shop.consumer.lag`, el tiempo entre el evento y su proyección, ambos etiquetados con el nombre del consumidor.
+
+Nombres de consumidores: `orders.catalog-products`, `orders.order-view`, `inventory.catalog-products`, `reporting.orders`. `notifications-service` (Boot 3.5, sin es-kit) usa `@Idempotent` con el mismo almacén JDBC (`notifications.notices`), sin las métricas `shop.consumer`, y además usa el id del evento como clave de cada aviso.
 
 ## Orden
 

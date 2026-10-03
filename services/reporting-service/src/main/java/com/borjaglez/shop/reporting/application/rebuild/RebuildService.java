@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.borjaglez.shop.eskit.ProcessedMessageRepository;
+import com.borjaglez.cqrs.jdbc.JdbcIdempotencyStore;
 import com.borjaglez.shop.reporting.domain.ReportLineRepository;
 import com.borjaglez.shop.reporting.domain.ReportOrderRepository;
 import com.borjaglez.shop.support.error.ConflictException;
@@ -38,7 +38,7 @@ public class RebuildService {
   private final EventReplay replay;
   private final ReportOrderRepository orders;
   private final ReportLineRepository lines;
-  private final ProcessedMessageRepository processed;
+  private final JdbcIdempotencyStore processed;
   private final TransactionTemplate transactions;
   private final Clock clock;
   private final AtomicBoolean running = new AtomicBoolean();
@@ -49,7 +49,7 @@ public class RebuildService {
       EventReplay replay,
       ReportOrderRepository orders,
       ReportLineRepository lines,
-      ProcessedMessageRepository processed,
+      JdbcIdempotencyStore processed,
       TransactionTemplate transactions,
       Clock clock) {
     this.replay = replay;
@@ -82,8 +82,8 @@ public class RebuildService {
             tx -> {
               lines.deleteAllInBatch();
               orders.deleteAllInBatch();
-              // This database only holds reporting's markers.
-              processed.deleteAllInBatch();
+              // This database only holds reporting's markers, all written before the pause.
+              processed.deleteProcessedBefore(clock.instant());
             });
       } finally {
         replay.resume();

@@ -71,7 +71,7 @@ Los controladores no contienen lógica: traducen HTTP a un comando o a una consu
 | Módulo | Contenido |
 |---|---|
 | [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-core`; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
-| [`platform/es-kit`](../../platform/es-kit) | Event store que hace también de outbox transaccional, clase base de agregado con event sourcing, relay del outbox, destino Kafka, consumidores idempotentes, métricas del outbox, hints para imagen nativa. |
+| [`platform/es-kit`](../../platform/es-kit) | Event store que hace también de outbox transaccional, clase base de agregado con event sourcing, relay del outbox, destino Kafka, métricas de consumidores, métricas del outbox, hints para imagen nativa. |
 | [`platform/service-support`](../../platform/service-support) | Errores RFC 9457, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, exportación OTLP, registro y endpoint de caos, valores por defecto compartidos. Autoconfigurado. |
 | [`platform/test-support`](../../platform/test-support) | Configuraciones de Testcontainers (PostgreSQL 17, Kafka, RabbitMQ) y las reglas de ArchUnit. |
 
@@ -96,7 +96,7 @@ Un servicio que necesita datos de otro puede guardar una copia alimentada por ev
 | Stock libre | catalog (ficha de producto), orders (presupuesto del carrito) | Preguntar a inventory por RabbitMQ (`GetStockLevels`) | Cambia con cada checkout; una copia iría retrasada justo cuando el stock escasea. |
 | Avisos de un pedido | orders (página del pedido) | Preguntar a notifications por RabbitMQ (`GetOrderNotices`) | Se lee una vez por visita; copiar cada aviso en orders duplicaría un servicio entero. |
 
-Una consulta remota tiene su propio timeout corto (`shop.remote-queries.reply-timeout`, 1 s) y nunca hace fallar la página: sin respuesta, la ficha muestra el stock como desconocido, el presupuesto del carrito comprueba solo los precios y la página del pedido indica que los avisos no están disponibles. Solo los contratos de consulta, anotados con `@CqrsMessage`, se enlazan a las colas del broker; el resto de consultas siguen siendo locales. Consulta [Librerías](libraries.md#peticiónrespuesta-sobre-rabbitmq-para-consultas).
+Una consulta remota tiene su propio timeout corto (`cqrs.rabbitmq.queries.reply-timeout`, 1 s) y nunca hace fallar la página: sin respuesta, la ficha muestra el stock como desconocido, el presupuesto del carrito comprueba solo los precios y la página del pedido indica que los avisos no están disponibles. Solo los contratos de consulta, anotados con `@CqrsMessage`, se enlazan a las colas del broker; el resto de consultas siguen siendo locales. Consulta [Librerías](libraries.md#peticiónrespuesta-sobre-rabbitmq-para-consultas).
 
 Kafka transporta solo eventos (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.queries.enabled=false`). Ningún handler publica directamente en un broker: los eventos se escriben en la tabla `event_store` del servicio en la misma transacción que el cambio y se retransmiten después. Consulta [Event sourcing y outbox](event-sourcing-and-outbox.md) y [Saga de checkout](checkout-saga.md).
 

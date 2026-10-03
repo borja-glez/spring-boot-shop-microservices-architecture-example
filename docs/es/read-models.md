@@ -27,7 +27,7 @@ Ambas proyecciones toleran la entrega desordenada entre tipos de evento. `catalo
 
 ## `reporting-service`
 
-`reporting-service` proyecta los eventos de pedidos en sus dos tablas propias con [`ReportProjector`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/projection/ReportProjector.java), de forma idempotente (el `IdempotentConsumer` de es-kit, consumidor `reporting.orders`) y con un estado que solo avanza:
+`reporting-service` proyecta los eventos de pedidos en sus dos tablas propias con [`ReportProjector`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/application/projection/ReportProjector.java), de forma idempotente (`@Idempotent(name = "reporting.orders")`) y con un estado que solo avanza:
 
 - `report_order`: una fila por pedido con cliente, estado, total, moneda, número de líneas, motivo de rechazo, `placed_at` y `placed_day`. El día se guarda como columna porque los informes agrupan por él y el DSL de consultas agrupa por columnas, no por expresiones.
 - `report_line`: una fila por línea de pedido con SKU, nombre, cantidad e ingresos, enlazada a su pedido.
@@ -54,7 +54,7 @@ Todos los informes son consultas agrupadas de specification-repository ([`Report
 
 1. **Pausar.** Detener el contenedor, para que ningún evento se aplique sobre tablas a medio vaciar.
 2. **Rebobinar.** Con el `AdminClient` de Kafka, mover el consumer group al offset más antiguo de cada partición del topic. El broker se niega mientras el grupo siga teniendo miembros, que salen un momento después de la parada, así que la llamada se reintenta.
-3. **Vaciar.** En una transacción, borrar `report_line`, `report_order` y las marcas de `processed_message`. Sin borrar las marcas, los eventos reproducidos se omitirían como duplicados.
+3. **Vaciar.** En una transacción, borrar `report_line`, `report_order` y las marcas de idempotencia (`JdbcIdempotencyStore.deleteProcessedBefore(now)` sobre `cqrs_processed_message`). Sin borrar las marcas, los eventos reproducidos se omitirían como duplicados.
 4. **Reanudar.** Arrancar de nuevo el contenedor, pase lo que pase en los pasos 2 y 3.
 
 El orden es deliberado. Si el rebobinado falla, las tablas quedan intactas y el consumo continúa donde estaba. Si el vaciado falla después del rebobinado, las marcas siguen ahí y los eventos reproducidos se omiten como duplicados, así que tampoco se cuenta nada dos veces. Los eventos publicados durante la reconstrucción esperan en Kafka y se leen después. [`RebuildIT`](../../services/reporting-service/src/test/java/com/borjaglez/shop/reporting/application/RebuildIT.java) comprueba contra un Kafka real que una reconstrucción da las mismas cifras y que un pedido publicado justo después del rebobinado no se pierde. La página Reports tiene un botón que la lanza.
@@ -71,11 +71,11 @@ El orden es deliberado. Si el rebobinado falla, las tablas quedan intactas y el 
 | `OrderCancelled` | `ORDER_CANCELLED` |
 | `PaymentRefunded` | `PAYMENT_REFUNDED`, con el importe |
 
-- **Un aviso por evento.** La clave primaria de `notification` es el id del evento: un evento entregado de nuevo no añade nada.
+- **Un aviso por evento.** [`NotificationProjector`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/NotificationProjector.java) es `@Idempotent` (`notifications.notices`, con el almacén JDBC de `spring-boot-cqrs-jdbc`) y la clave primaria de `notification` es el id del evento: un evento entregado de nuevo no añade nada.
 - **Avisos que llegan antes que su pedido.** Kafka ordena los eventos por tipo, así que un `OrderConfirmed` puede procesarse antes que su `OrderPlaced`. El aviso se guarda sin cliente y se asigna cuando llega `OrderPlaced` ([`NotificationProjector`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/NotificationProjector.java)). Cuando ambos se procesan en el mismo instante en particiones distintas, ninguna de las dos transacciones ve el insert de la otra; [`PendingNotificationsSweeper`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/application/PendingNotificationsSweeper.java) cierra ese hueco cada `shop.notifications.sweep-interval` (10 s), mirando solo los avisos del último día, de 500 en 500.
 - **En directo por SSE.** `GET /api/notifications/stream?user=<id>` mantiene abierta una conexión de server-sent events. [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) envía cada aviso tras el commit de su transacción, desde un hilo virtual para que un navegador lento nunca bloquee al consumidor de Kafka, envía un comentario de heartbeat cada 20 segundos para que los proxies no cierren las conexiones inactivas y termina cada conexión a los 30 minutos (el navegador se reconecta). `shop.notifications.sse.connections` informa de las conexiones abiertas.
 - **Lado REST.** `GET /api/notifications` (opcionalmente `unread=true`, paginado, con un tamaño máximo de 100), `GET /api/notifications/unread-count` y `POST /api/notifications/{id}/read`, todos a través de sus propios buses de comandos y consultas.
-- **Autocontenido.** No usa `service-support`, `es-kit` ni `test-support`, que están compilados contra Boot 4. Tiene su propio handler RFC 9457 con la misma propiedad `code`, idempotencia por clave primaria, configuración de observabilidad y configuración de Testcontainers 1.x.
+- **Autocontenido.** No usa `service-support`, `es-kit` ni `test-support`, que están compilados contra Boot 4. Tiene su propio handler RFC 9457 con la misma propiedad `code`, su propia migración de Flyway para `cqrs_processed_message`, configuración de observabilidad y configuración de Testcontainers 1.x.
 
 ## Ventana de consistencia
 
