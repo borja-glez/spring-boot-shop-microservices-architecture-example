@@ -16,6 +16,8 @@ dependencies {
     implementation(boot3)
     annotationProcessor(boot3)
     testImplementation(boot3)
+    // The same specification-repository BOM as the Boot 4 services: one release, two starters.
+    implementation(platform(libs.findLibrary("specrepo-bom").get()))
     annotationProcessor(libs.findLibrary("spring-boot-configuration-processor").get())
 
     implementation(libs.findLibrary("spring-boot-starter-actuator").get())

@@ -16,6 +16,8 @@ if (nativeBuild) {
 dependencies {
     implementation(platform(libs.findLibrary("spring-boot-dependencies").get()))
     implementation(platform(libs.findLibrary("spring-cloud-dependencies").get()))
+    // One version for every specification-repository module (core, jpa, http, starters).
+    implementation(platform(libs.findLibrary("specrepo-bom").get()))
     annotationProcessor(platform(libs.findLibrary("spring-boot-dependencies").get()))
     annotationProcessor(libs.findLibrary("spring-boot-configuration-processor").get())
 
