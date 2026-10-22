@@ -3,10 +3,6 @@ package com.borjaglez.shop.architecture;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-import java.util.Set;
-
-import com.tngtech.archunit.base.DescribedPredicate;
-import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
@@ -14,13 +10,6 @@ import com.tngtech.archunit.lang.ArchRule;
 public final class LayoutRules {
 
   private static final String EVENT_HANDLER = "com.borjaglez.cqrs.event.annotation.EventHandler";
-  private static final Set<String> TEST_ANNOTATIONS =
-      Set.of(
-          "org.junit.jupiter.api.Test",
-          "org.junit.jupiter.api.RepeatedTest",
-          "org.junit.jupiter.api.TestFactory",
-          "org.junit.jupiter.api.TestTemplate",
-          "org.junit.jupiter.params.ParameterizedTest");
 
   private LayoutRules() {}
 
@@ -60,6 +49,10 @@ public final class LayoutRules {
       classes()
           .that()
           .areAnnotatedWith("jakarta.persistence.Entity")
+          .or()
+          .areAnnotatedWith("jakarta.persistence.Embeddable")
+          .or()
+          .areAnnotatedWith("jakarta.persistence.MappedSuperclass")
           .should(
               Layers.satisfy(
                   "live in infrastructure.out.persistence",
@@ -85,30 +78,22 @@ public final class LayoutRules {
           .that(Layers.reside("application.port.out"))
           .should(
               Layers.satisfy(
-                  "be an interface or a record",
-                  javaClass -> javaClass.isInterface() || javaClass.isRecord()))
-          .because("an outbound port is a contract, with records for the values it exchanges")
+                  "be an interface, a record or an enum",
+                  javaClass ->
+                      javaClass.isInterface() || javaClass.isRecord() || javaClass.isEnum()))
+          .because(
+              "an outbound port is a contract, with records and enums for the values it exchanges")
           .allowEmptyShould(true);
 
   /**
-   * Unit tests run without a Spring context. Meant for the {@code ArchitectureTest} of the {@code
-   * test} suite, imported with {@code ImportOption.OnlyIncludeTests}; the rule only looks at
-   * classes that declare tests, so it passes vacuously when applied to production classes.
+   * Every class of the {@code test} suite runs without a Spring context. Apply it to the classes
+   * imported with {@code ImportOption.OnlyIncludeTests} through {@link
+   * ShopArchitecture#unitTests()}; it is not part of {@link ShopArchitecture#all()}.
    */
-  @ArchTest
   public static final ArchRule UNIT_TESTS_DO_NOT_USE_SPRING =
       noClasses()
-          .that(
-              DescribedPredicate.describe(
-                  "declare tests",
-                  (JavaClass javaClass) ->
-                      javaClass.getMethods().stream()
-                          .anyMatch(
-                              method ->
-                                  TEST_ANNOTATIONS.stream().anyMatch(method::isAnnotatedWith))))
           .should()
           .dependOnClassesThat()
           .resideInAPackage("org.springframework..")
-          .because("unit tests are fast because they start no Spring context")
-          .allowEmptyShould(true);
+          .because("unit tests are fast because they start no Spring context");
 }

@@ -22,5 +22,7 @@ dependencies {
     testImplementation(libs.spring.webmvc)
     testImplementation(libs.spring.boot.test)
     testImplementation(libs.jakarta.persistence.api)
+    testImplementation(libs.jakarta.inject.api)
+    testImplementation(libs.jakarta.annotation.api)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

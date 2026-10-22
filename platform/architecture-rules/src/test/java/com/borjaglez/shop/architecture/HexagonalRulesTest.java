@@ -4,8 +4,11 @@ import static com.borjaglez.shop.architecture.Fixtures.BAD;
 import static com.borjaglez.shop.architecture.Fixtures.GOOD;
 import static com.borjaglez.shop.architecture.Fixtures.assertAccepts;
 import static com.borjaglez.shop.architecture.Fixtures.assertRejects;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 
 class HexagonalRulesTest {
 
@@ -86,7 +89,14 @@ class HexagonalRulesTest {
 
   @Test
   void noFieldInjectionRejectsTheBadFixture() {
-    assertRejects(HexagonalRules.NO_FIELD_INJECTION, BAD, "FieldInjectedService");
+    assertRejects(
+        HexagonalRules.NO_FIELD_INJECTION,
+        BAD,
+        "FieldInjectedService",
+        "InjectedField",
+        "ValueField",
+        "ResourceField",
+        "PersistenceContextField");
   }
 
   @Test
@@ -97,5 +107,13 @@ class HexagonalRulesTest {
   @Test
   void servicesAreIsolatedRejectsTheBadFixture() {
     assertRejects(HexagonalRules.SERVICES_ARE_ISOLATED, BAD, "CrossServiceCaller");
+  }
+
+  @Test
+  void servicesAreIsolatedFailsOnAnEmptyImport() {
+    assertThatThrownBy(
+            () ->
+                HexagonalRules.SERVICES_ARE_ISOLATED.check(new ClassFileImporter().importClasses()))
+        .isInstanceOf(AssertionError.class);
   }
 }

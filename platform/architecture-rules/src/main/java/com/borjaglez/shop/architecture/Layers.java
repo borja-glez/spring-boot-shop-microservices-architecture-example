@@ -46,7 +46,9 @@ final class Layers {
 
   static Optional<Location> locate(JavaClass javaClass) {
     Matcher matcher = SHOP.matcher(javaClass.getPackageName());
-    if (!matcher.matches() || PLATFORM.contains(matcher.group(1))) {
+    if (!matcher.matches()
+        || PLATFORM.contains(matcher.group(1))
+        || javaClass.getSimpleName().equals("package-info")) {
       return Optional.empty();
     }
     return Optional.of(
@@ -116,7 +118,12 @@ final class Layers {
   /** Every dependency of the class must go to a target the predicate allows. */
   static ArchCondition<JavaClass> onlyDependOn(
       String description, BiPredicate<JavaClass, JavaClass> allowed) {
-    return new ArchCondition<>("only depend on " + description) {
+    return dependencies("only depend on " + description, allowed);
+  }
+
+  private static ArchCondition<JavaClass> dependencies(
+      String description, BiPredicate<JavaClass, JavaClass> allowed) {
+    return new ArchCondition<>(description) {
       @Override
       public void check(JavaClass origin, ConditionEvents events) {
         List<Dependency> forbidden =
@@ -136,7 +143,7 @@ final class Layers {
   /** No dependency of the class may go to a target the predicate forbids. */
   static ArchCondition<JavaClass> notDependOn(
       String description, BiPredicate<JavaClass, JavaClass> forbidden) {
-    return onlyDependOn("anything but " + description, forbidden.negate());
+    return dependencies("not depend on " + description, forbidden.negate());
   }
 
   /** The class itself must satisfy the predicate. */
@@ -149,7 +156,8 @@ final class Layers {
             new SimpleConditionEvent(
                 javaClass,
                 satisfied,
-                javaClass.getName() + (satisfied ? " does " : " does not ") + description));
+                javaClass.getName()
+                    + (satisfied ? " complies" : " violates the rule: it should " + description)));
       }
     };
   }

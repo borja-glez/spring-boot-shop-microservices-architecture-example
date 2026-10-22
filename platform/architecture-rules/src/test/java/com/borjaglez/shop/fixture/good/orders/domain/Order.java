@@ -2,6 +2,8 @@ package com.borjaglez.shop.fixture.good.orders.domain;
 
 import java.time.Instant;
 
+import com.borjaglez.shop.fixture.good.orders.domain.event.OrderEvent;
+import com.borjaglez.shop.fixture.good.orders.domain.event.OrderPlaced;
 import com.borjaglez.shop.kernel.domain.AggregateRoot;
 
 public class Order extends AggregateRoot<OrderEvent> {

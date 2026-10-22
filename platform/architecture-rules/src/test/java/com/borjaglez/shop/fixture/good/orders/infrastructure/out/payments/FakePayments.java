@@ -7,6 +7,6 @@ public class FakePayments implements PaymentPort {
 
   @Override
   public PaymentResult charge(String orderId) {
-    return new PaymentResult(true);
+    return new PaymentResult(PaymentResult.Outcome.ACCEPTED);
   }
 }

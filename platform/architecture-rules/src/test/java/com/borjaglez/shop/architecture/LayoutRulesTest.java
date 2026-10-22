@@ -6,9 +6,11 @@ import static com.borjaglez.shop.architecture.Fixtures.GOOD;
 import static com.borjaglez.shop.architecture.Fixtures.GOOD_UNIT_TESTS;
 import static com.borjaglez.shop.architecture.Fixtures.assertAccepts;
 import static com.borjaglez.shop.architecture.Fixtures.assertRejects;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 
 class LayoutRulesTest {
 
@@ -43,7 +45,12 @@ class LayoutRulesTest {
 
   @Test
   void entitiesLiveInPersistenceAdaptersRejectsTheBadFixture() {
-    assertRejects(LayoutRules.ENTITIES_LIVE_IN_PERSISTENCE_ADAPTERS, BAD, "AnnotatedEntity");
+    assertRejects(
+        LayoutRules.ENTITIES_LIVE_IN_PERSISTENCE_ADAPTERS,
+        BAD,
+        "AnnotatedEntity",
+        "AnnotatedEmbeddable",
+        "AnnotatedMappedSuperclass");
   }
 
   @Test
@@ -73,12 +80,19 @@ class LayoutRulesTest {
 
   @Test
   void unitTestsDoNotUseSpringRejectsTheBadFixture() {
-    assertRejects(LayoutRules.UNIT_TESTS_DO_NOT_USE_SPRING, BAD_UNIT_TESTS, "SpringBackedTest");
+    assertRejects(
+        LayoutRules.UNIT_TESTS_DO_NOT_USE_SPRING,
+        BAD_UNIT_TESTS,
+        "SpringBackedTest",
+        "SpringHelper");
   }
 
   @Test
-  void unitTestsDoNotUseSpringIgnoresProductionClasses() {
-    assertThatCode(() -> LayoutRules.UNIT_TESTS_DO_NOT_USE_SPRING.check(BAD))
-        .doesNotThrowAnyException();
+  void unitTestsDoNotUseSpringFailsOnAnEmptyImport() {
+    assertThatThrownBy(
+            () ->
+                LayoutRules.UNIT_TESTS_DO_NOT_USE_SPRING.check(
+                    new ClassFileImporter().importClasses()))
+        .isInstanceOf(AssertionError.class);
   }
 }

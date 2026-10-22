@@ -1,4 +1,4 @@
-package com.borjaglez.shop.fixture.good.orders.domain;
+package com.borjaglez.shop.fixture.good.orders.domain.event;
 
 import com.borjaglez.shop.kernel.domain.DomainEvent;
 

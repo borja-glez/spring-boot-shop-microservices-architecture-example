@@ -135,6 +135,12 @@ public final class HexagonalRules {
           .beAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
           .orShould()
           .beAnnotatedWith("jakarta.inject.Inject")
+          .orShould()
+          .beAnnotatedWith("org.springframework.beans.factory.annotation.Value")
+          .orShould()
+          .beAnnotatedWith("jakarta.annotation.Resource")
+          .orShould()
+          .beAnnotatedWith("jakarta.persistence.PersistenceContext")
           .because("dependencies are injected through constructors so they can be final")
           .allowEmptyShould(true);
 
@@ -153,8 +159,7 @@ public final class HexagonalRules {
                                       .service()
                                       .equals(Layers.locate(origin).orElseThrow().service()))
                           .orElse(false)))
-          .because("services talk through contracts and messages, never through each other's code")
-          .allowEmptyShould(true);
+          .because("services talk through contracts and messages, never through each other's code");
 
   private static boolean crosses(JavaClass origin, JavaClass target, String from, String to) {
     return Layers.inLayer(origin, from) && Layers.inLayer(target, to);

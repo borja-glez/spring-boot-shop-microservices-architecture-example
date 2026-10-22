@@ -66,8 +66,8 @@ class LayersTest {
     assertThat(
             Layers.adapterOf(
                 classOf(
-                    com.borjaglez.shop.fixture.good.orders.infrastructure.in.rest.dto.OrderView
-                        .class)))
+                    com.borjaglez.shop.fixture.good.orders.infrastructure.in.rest.v1.model
+                        .OrderModel.class)))
         .contains("orders/in.rest");
     assertThat(
             Layers.adapterOf(
