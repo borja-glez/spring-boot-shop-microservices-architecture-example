@@ -6,7 +6,9 @@ import java.util.Set;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 import org.slf4j.MDC;
@@ -16,6 +18,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.cqrs.command.CommandHandlerExecutionException;
@@ -111,6 +115,22 @@ class SampleController {
   @PostMapping("/things")
   Map<String, Object> create(@Valid @RequestBody CreateThing body) {
     return Map.of("name", body.name());
+  }
+
+  /**
+   * A constrained parameter next to the body, as in the interfaces generated from the contracts:
+   * Spring MVC validates the whole method, body included.
+   */
+  @PostMapping("/owned-things")
+  Map<String, Object> createOwned(
+      @RequestHeader("X-Owner") @Pattern(regexp = "[a-z-]+") String owner,
+      @Valid @RequestBody CreateThing body) {
+    return Map.of("owner", owner, "name", body.name());
+  }
+
+  @GetMapping("/sized")
+  Map<String, Integer> sized(@RequestParam @Min(1) int size) {
+    return Map.of("size", size);
   }
 
   @GetMapping("/whoami")

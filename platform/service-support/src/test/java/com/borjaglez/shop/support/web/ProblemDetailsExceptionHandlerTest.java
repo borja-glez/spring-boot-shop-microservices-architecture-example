@@ -141,6 +141,43 @@ class ProblemDetailsExceptionHandlerTest {
   }
 
   @Test
+  void invalidBodyNextToAConstrainedParameterListsItsFieldPaths() throws Exception {
+    mvc.perform(
+            post("/owned-things")
+                .header("X-Owner", "ana")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\",\"price\":-3}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors.length()").value(2))
+        .andExpect(jsonPath("$.errors[?(@.field == 'name')].message").exists())
+        .andExpect(jsonPath("$.errors[?(@.field == 'price')].message").exists());
+  }
+
+  @Test
+  void invalidParameterAndBodyListEachInput() throws Exception {
+    mvc.perform(
+            post("/owned-things")
+                .header("X-Owner", "Not Valid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\",\"price\":1}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors.length()").value(2))
+        .andExpect(jsonPath("$.errors[?(@.field == 'owner')].message").exists())
+        .andExpect(jsonPath("$.errors[?(@.field == 'name')].message").exists());
+  }
+
+  @Test
+  void invalidParameterKeepsItsName() throws Exception {
+    mvc.perform(get("/sized").param("size", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors.length()").value(1))
+        .andExpect(jsonPath("$.errors[0].field").value("size"));
+  }
+
+  @Test
   void frameworkErrorsAlsoCarryCodeAndCorrelationId() throws Exception {
     mvc.perform(post("/not-found"))
         .andExpect(status().isMethodNotAllowed())

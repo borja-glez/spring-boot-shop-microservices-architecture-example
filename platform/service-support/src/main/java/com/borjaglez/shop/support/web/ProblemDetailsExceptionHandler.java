@@ -90,6 +90,9 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
       HttpHeaders headers,
       HttpStatusCode status,
       WebRequest request) {
+    // A constrained parameter makes Spring MVC validate the whole method, the @Valid body
+    // included: the body's errors are field errors and keep their property path, as they do when
+    // only the body is validated (MethodArgumentNotValidException).
     List<FieldViolation> errors =
         ex.getParameterValidationResults().stream()
             .flatMap(
@@ -97,9 +100,12 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
                     result.getResolvableErrors().stream()
                         .map(
                             error ->
-                                new FieldViolation(
-                                    String.valueOf(result.getMethodParameter().getParameterName()),
-                                    error.getDefaultMessage())))
+                                error instanceof FieldError fieldError
+                                    ? toViolation(fieldError)
+                                    : new FieldViolation(
+                                        String.valueOf(
+                                            result.getMethodParameter().getParameterName()),
+                                        error.getDefaultMessage())))
             .toList();
     ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "The request is not valid.");
     decorate(body, "validation-failed", errors, request);
