@@ -1,6 +1,6 @@
 // Opt-in 100% coverage gate (line and branch). The execution data of all three suites is merged.
 plugins {
-    java
+    id("shop.java-base-conventions")
     jacoco
 }
 
@@ -15,12 +15,12 @@ val suites = listOf("test", "integrationTest", "componentTest")
 // Code generated from the OpenAPI contracts (rest/<version>/api and rest/<version>/model) is not measured.
 val generatedCode = listOf("**/rest/*/api/**", "**/rest/*/model/**")
 
-// An empty suite writes no execution file, so only the existing ones are merged.
+// JaCoCo skips execution files that do not exist, so an empty suite needs no special case.
 val suiteExecutionData = files(
     suites.map { name ->
         tasks.named<Test>(name).map { it.extensions.getByType<JacocoTaskExtension>().destinationFile!! }
     }
-).filter { it.exists() }
+)
 
 val mainOutput = the<SourceSetContainer>()["main"]
 val measuredClasses = files(mainOutput.output.classesDirs).asFileTree.matching { exclude(generatedCode) }

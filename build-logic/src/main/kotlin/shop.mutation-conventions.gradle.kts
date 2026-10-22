@@ -12,10 +12,12 @@ val libs = the<VersionCatalogsExtension>().named("libs")
 interface ShopMutationExtension {
     val targetPackages: ListProperty<String>
     val threshold: Property<Int>
+    val threads: Property<Int>
 }
 
 val shopMutation = extensions.create<ShopMutationExtension>("shopMutation")
 shopMutation.threshold.convention(90)
+shopMutation.threads.convention(2)
 
 configure<PitestPluginExtension> {
     pitestVersion.set(libs.findVersion("pitest").get().requiredVersion)
@@ -25,7 +27,7 @@ configure<PitestPluginExtension> {
     testSourceSets.set(listOf(the<SourceSetContainer>()["test"]))
     outputFormats.set(listOf("HTML", "XML"))
     timestampedReports.set(false)
-    threads.set(Runtime.getRuntime().availableProcessors())
+    threads.set(shopMutation.threads)
 }
 
 tasks.named("check") {
