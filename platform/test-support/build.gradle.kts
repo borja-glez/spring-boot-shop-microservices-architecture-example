@@ -12,6 +12,7 @@ dependencies {
     api(libs.testcontainers.kafka)
     api(libs.testcontainers.rabbitmq)
     api(libs.testcontainers.junit.jupiter)
+    api(project(":platform:architecture-rules"))
     api(libs.archunit.junit5)
     api(libs.awaitility)
     implementation(libs.openapi.request.validator.mockmvc)

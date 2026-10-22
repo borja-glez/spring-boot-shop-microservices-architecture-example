@@ -66,6 +66,7 @@ spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-te
 spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
 spring-boot-autoconfigure-processor = { module = "org.springframework.boot:spring-boot-autoconfigure-processor" }
 spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-boot-test = { module = "org.springframework.boot:spring-boot-test" }
 spring-webmvc = { module = "org.springframework:spring-webmvc" }
 spring-boot-data-commons = { module = "org.springframework.boot:spring-boot-data-commons" }
 spring-data-commons = { module = "org.springframework.data:spring-data-commons" }
@@ -82,6 +83,7 @@ opentelemetry-logback-appender = { module = "io.opentelemetry.instrumentation:op
 opentelemetry-logback-appender-boot3 = { module = "io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0", version.ref = "otel-logback-boot3" }
 jakarta-validation-api = { module = "jakarta.validation:jakarta.validation-api" }
 jakarta-servlet-api = { module = "jakarta.servlet:jakarta.servlet-api" }
+jakarta-persistence-api = { module = "jakarta.persistence:jakarta.persistence-api" }
 slf4j-api = { module = "org.slf4j:slf4j-api" }
 
 # Boot 3 has no starters for these; the Boot 3 BOM manages their versions.
@@ -102,6 +104,8 @@ testcontainers1-kafka = { module = "org.testcontainers:kafka" }
 testcontainers1-rabbitmq = { module = "org.testcontainers:rabbitmq" }
 testcontainers1-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+archunit-junit5-api = { module = "com.tngtech.archunit:archunit-junit5-api", version.ref = "archunit" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

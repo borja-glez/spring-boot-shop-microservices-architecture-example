@@ -29,6 +29,7 @@ if (localLibs) {
 }
 
 include(
+    ":platform:architecture-rules",
     ":platform:contracts",
     ":platform:domain-kernel",
     ":platform:es-kit",
