@@ -14,6 +14,10 @@ lombok-plugin = "9.2.0"
 otel-logback = "2.21.0-alpha"
 otel-logback-boot3 = "2.15.0-alpha"
 spotless = "8.4.0"
+pitest-plugin = "1.19.0"
+pitest = "1.30.1"
+pitest-junit5 = "1.2.3"
+jacoco = "0.8.14"
 
 [libraries]
 # Platforms
@@ -108,3 +112,4 @@ hibernate-gradle-plugin = { module = "org.hibernate.orm:hibernate-gradle-plugin"
 graalvm-native-gradle-plugin = { module = "org.graalvm.buildtools:native-gradle-plugin", version.ref = "graalvm-native" }
 lombok-gradle-plugin = { module = "io.freefair.gradle:lombok-plugin", version.ref = "lombok-plugin" }
 spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
+pitest-gradle-plugin = { module = "info.solidsoft.gradle.pitest:gradle-pitest-plugin", version.ref = "pitest-plugin" }
