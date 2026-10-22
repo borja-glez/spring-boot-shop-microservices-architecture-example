@@ -1,8 +1,9 @@
 plugins {
     id("shop.library-conventions")
+    id("shop.openapi-conventions")
 }
 
-description = "Test fixtures shared by the services: Testcontainers and architecture rules"
+description = "Test fixtures shared by the services: Testcontainers, architecture rules and contract checks"
 
 dependencies {
     api(libs.spring.boot.starter.test)
@@ -13,4 +14,20 @@ dependencies {
     api(libs.testcontainers.junit.jupiter)
     api(libs.archunit.junit5)
     api(libs.awaitility)
+    implementation(libs.openapi.request.validator.mockmvc)
+
+    // OpenApiContractTest checks the shop's own problem rendering against common.v1.yaml.
+    testImplementation(project(":platform:service-support"))
+    testImplementation(libs.spring.boot.starter.validation)
+}
+
+// Contract of the controllers of OpenApiContractTest: its interfaces and DTOs are test code.
+shopOpenApi {
+    basePackage.set("com.borjaglez.shop.testsupport.contract")
+    specs {
+        register("v1") {
+            file.set(layout.projectDirectory.file("src/test/resources/openapi/widgets-api.v1.yaml"))
+            sourceSet.set("test")
+        }
+    }
 }

@@ -18,6 +18,10 @@ pitest-plugin = "1.19.0"
 pitest = "1.30.1"
 pitest-junit5 = "1.2.3"
 jacoco = "0.8.14"
+# Spring server interfaces and DTOs from the OpenAPI contracts (useSpringBoot4 / useJackson3 / useJspecify).
+openapi-generator = "7.26.0"
+# Request and response validation against the OpenAPI contracts in MockMvc tests (Spring Framework 7).
+openapi-request-validator = "3.0.0"
 
 [libraries]
 # Platforms
@@ -105,6 +109,7 @@ assertj-core = { module = "org.assertj:assertj-core" }
 awaitility = { module = "org.awaitility:awaitility" }
 # Jackson 3 (managed by the Boot 4 BOM), for the system tests' JSON.
 jackson-databind = { module = "tools.jackson.core:jackson-databind" }
+openapi-request-validator-mockmvc = { module = "com.atlassian.oai:openapi-request-validator-mockmvc", version.ref = "openapi-request-validator" }
 
 # Build logic
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
@@ -113,3 +118,5 @@ graalvm-native-gradle-plugin = { module = "org.graalvm.buildtools:native-gradle-
 lombok-gradle-plugin = { module = "io.freefair.gradle:lombok-plugin", version.ref = "lombok-plugin" }
 spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 pitest-gradle-plugin = { module = "info.solidsoft.gradle.pitest:gradle-pitest-plugin", version.ref = "pitest-plugin" }
+# Published on the Gradle Plugin Portal only.
+openapi-generator-gradle-plugin = { module = "org.openapitools:openapi-generator-gradle-plugin", version.ref = "openapi-generator" }

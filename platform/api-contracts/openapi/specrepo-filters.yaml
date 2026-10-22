@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Specification Repository HTTP filters
+  version: 1.0.0
+  description: |
+    Reusable OpenAPI fragment that describes the query parameters read by the
+    specification-repository HTTP module (`filter`, `orFilter` and `sort`) and the filter
+    operators. Reference its components from your own contract, for example
+    `$ref: 'specrepo-filters.yaml#/components/parameters/SpecrepoFilter'`.
+
+    The fragment sticks to the subset of OpenAPI shared by 3.0 and 3.1. `info.version` is the
+    version of this fragment, not the version of the library.
+
+    Vendored from specification-repository-http
+    (`META-INF/specrepo/openapi/specrepo-filters.yaml`) without its 400 invalid-filter problem
+    (`SpecrepoInvalidFilterProblem` and the `SpecrepoInvalidFilter` response): Mercado answers an
+    invalid filter with its own problem, the `BadRequest` response of `common.v1.yaml`
+    (code `invalid-filter`).
+
+    The parameter names (`filter`, `orFilter`, `sort`) and the separators (`|` between the values
+    of `in`, `notin` and `between`, `;` between the conditions of an `orFilter` group) are the
+    defaults of `HttpFilterParserConfiguration`. They can be changed with the
+    `specrepository.http` properties `filter-param`, `or-filter-param`, `sort-param`,
+    `multi-value-separator` and `or-group-separator`; if you change them, change the parameter
+    names, descriptions and patterns in your contract too.
+
+    Extensions `x-specrepo-filterable-fields` and `x-specrepo-sortable-fields`: an operation may
+    declare, each as a list of field names (dot notation allowed, for example `profile.city`), the
+    fields a client may filter on, in `filter` and `orFilter`, and the fields a client may sort
+    on. They mirror the two lists of the server's allow-list: the first and the second argument
+    of `AllowedFieldsPolicy.of`, or `filterableFields` and `sortableFields` of
+    `@FilterableQuery`. They are documentation for contract tooling; the library does not read
+    them, and the server enforces its own allow-list.
+paths: {}
+components:
+  parameters:
+    SpecrepoFilter:
+      name: filter
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Conditions combined with AND. Repeat the parameter for several conditions:
+        `filter=name:contains:john&filter=age:gte:18`.
+
+        Syntax: `field:operator[:value]`. The field is a property path in dot notation; each
+        segment starts with a letter, followed by letters, digits or `_`. Operator names are
+        case-insensitive: `SpecrepoFilterOperator` lists the built-in ones, and an application may
+        register custom operators (for example `jsonb_eq`) or restrict them with
+        `specrepository.http.allowed-operators`. The operators that test null or emptiness take no
+        value. `in` and `notin` take a list `a|b|c`; `between` takes a range `from|to`. There is
+        no escape character: a value of `in`, `notin` or `between` cannot contain the `|`
+        separator.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*:[A-Za-z][A-Za-z0-9_]*(:.*)?$'
+      example:
+        - 'name:contains:john'
+        - 'age:gte:18'
+    SpecrepoOrFilter:
+      name: orFilter
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Groups of alternative conditions. Inside a group the conditions are separated by `;`, and
+        the conditions of a group are combined with OR. Each group is ANDed with the `filter`
+        conditions and with the other groups. Repeat the parameter for several groups:
+        `filter=name:contains:john&orFilter=status:eq:ACTIVE;status:eq:PENDING&orFilter=age:lt:18;age:gt:65`
+        means
+        `name contains john AND (status = ACTIVE OR status = PENDING) AND (age < 18 OR age > 65)`.
+
+        Each condition has the syntax and the value rules of `filter`. The `;` separator has no
+        escape character either: a value inside `orFilter` cannot contain it.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*:[A-Za-z][A-Za-z0-9_]*(:[^;]*)?(;[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*:[A-Za-z][A-Za-z0-9_]*(:[^;]*)?)*$'
+      example:
+        - 'status:eq:ACTIVE;status:eq:PENDING'
+    SpecrepoSort:
+      name: sort
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Sort order, `field[,asc|desc]`; the direction defaults to ascending. The field follows the
+        rules of `filter`. Repeat the parameter to sort by several fields:
+        `sort=name,asc&sort=createdAt,desc`.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*(,(asc|desc))?$'
+      example:
+        - 'name,asc'
+        - 'createdAt,desc'
+  schemas:
+    SpecrepoFilterOperator:
+      type: string
+      description: |
+        Built-in operator of a filter condition. The parser also accepts these names in upper or
+        mixed case.
+
+        - `eq`: equal to the value.
+        - `neq`: not equal to the value.
+        - `isnull`: the field is null (no value).
+        - `isnotnull`: the field is not null (no value).
+        - `isempty`: the collection is empty (no value).
+        - `isnotempty`: the collection is not empty (no value).
+        - `contains`: the text contains the value.
+        - `notcontains`: the text does not contain the value.
+        - `startswith`: the text starts with the value.
+        - `endswith`: the text ends with the value.
+        - `gt`: greater than the value.
+        - `gte`: greater than or equal to the value.
+        - `lt`: less than the value.
+        - `lte`: less than or equal to the value.
+        - `between`: between the two values `from|to`, both included.
+        - `in`: equal to any of the values `a|b|c`.
+        - `notin`: equal to none of the values `a|b|c`.
+      enum:
+        - eq
+        - neq
+        - isnull
+        - isnotnull
+        - isempty
+        - isnotempty
+        - contains
+        - notcontains
+        - startswith
+        - endswith
+        - gt
+        - gte
+        - lt
+        - lte
+        - between
+        - in
+        - notin

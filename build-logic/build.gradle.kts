@@ -9,4 +9,5 @@ dependencies {
     implementation(libs.lombok.gradle.plugin)
     implementation(libs.spotless.gradle.plugin)
     implementation(libs.pitest.gradle.plugin)
+    implementation(libs.openapi.generator.gradle.plugin)
 }
