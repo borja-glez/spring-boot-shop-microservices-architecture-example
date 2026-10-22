@@ -40,4 +40,12 @@ class ClientFilterTest {
     assertThat(none.orFilters()).isEmpty();
     assertThat(none.sorts()).isEmpty();
   }
+
+  @Test
+  void rejectsNullElements() {
+    List<String> withNull = java.util.Arrays.asList("a", null);
+
+    assertThatThrownBy(() -> new ClientFilter(withNull, null, null))
+        .isInstanceOf(NullPointerException.class);
+  }
 }
