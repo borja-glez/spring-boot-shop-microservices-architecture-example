@@ -103,13 +103,14 @@ public final class OpenApiContract {
       if (message.getLevel() != ValidationReport.Level.ERROR) {
         continue;
       }
-      description
-          .append(indent)
-          .append("- ")
-          .append(message.getKey())
-          .append(": ")
-          .append(message.getMessage())
-          .append(System.lineSeparator());
+      description.append(indent).append("- ").append(message.getKey());
+      message
+          .getContext()
+          .flatMap(ValidationReport.MessageContext::getPointers)
+          .map(ValidationReport.MessageContext.Pointers::getInstance)
+          .filter(pointer -> !pointer.isEmpty())
+          .ifPresent(pointer -> description.append(" at ").append(pointer));
+      description.append(": ").append(message.getMessage()).append(System.lineSeparator());
       for (String info : message.getAdditionalInfo()) {
         description.append(indent).append("    ").append(info).append(System.lineSeparator());
       }

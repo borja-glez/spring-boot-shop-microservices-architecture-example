@@ -11,6 +11,12 @@ info:
     The filter parameters (`filter`, `orFilter`, `sort`) are in `specrepo-filters.yaml`, next to
     this file.
 
+    Every operation accepts an optional `X-Correlation-Id` request header (1 to 64 characters from
+    `[A-Za-z0-9._-]`), carried by the commands, events and logs the request causes. It is not
+    declared as an operation parameter because no value is rejected: a missing or invalid one is
+    replaced by a new UUID. Every response returns the id used in its `X-Correlation-Id` header
+    (`#/components/headers/CorrelationId`) and, in a problem, in `correlationId`.
+
     `info.version` is the version of these components; a change that breaks a contract that
     references them goes to a new file, `common.v2.yaml`.
 paths: {}
@@ -37,15 +43,6 @@ components:
         minimum: 1
         maximum: 100
         default: 20
-    CorrelationId:
-      name: X-Correlation-Id
-      in: header
-      required: false
-      description: |
-        Correlation id of the request, carried by the commands, events and logs it causes. A
-        missing or invalid value is replaced by a new UUID; the response returns the id used.
-      schema:
-        $ref: '#/components/schemas/CorrelationId'
     ShopUser:
       name: X-Shop-User
       in: header

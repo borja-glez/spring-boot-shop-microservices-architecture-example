@@ -74,7 +74,6 @@ paths:
           schema:
             type: string
             pattern: '^[a-z0-9-]{1,36}$'
-        - $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/parameters/CorrelationId'
       responses:
         '200':
           description: The widget.
@@ -152,7 +151,8 @@ components:
           description: Color, if it has one.
         owner:
           type: string
-          description: User that created the widget.
+          nullable: true
+          description: User that created the widget, if it was created through the API.
     WidgetPage:
       description: A page of widgets.
       allOf:

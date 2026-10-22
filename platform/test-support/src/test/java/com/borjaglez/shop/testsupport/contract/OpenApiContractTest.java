@@ -2,9 +2,12 @@ package com.borjaglez.shop.testsupport.contract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
@@ -14,6 +17,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -32,11 +36,13 @@ import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.support.web.CorrelationIdFilter;
 import com.borjaglez.shop.support.web.ProblemDetailsExceptionHandler;
 import com.borjaglez.shop.support.web.problem.DomainProblemMapper;
+import com.borjaglez.shop.support.web.problem.SpecificationProblemMapper;
 import com.borjaglez.shop.testsupport.contract.rest.v1.api.WidgetsApi;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.NewWidget;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.Widget;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetPage;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetStatus;
+import com.borjaglez.specrepository.core.DisallowedFieldException;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -52,7 +58,8 @@ class OpenApiContractTest {
   private final MockMvc shop =
       standaloneSetup(new WidgetsController())
           .setControllerAdvice(
-              new ProblemDetailsExceptionHandler(List.of(new DomainProblemMapper())))
+              new ProblemDetailsExceptionHandler(
+                  List.of(new DomainProblemMapper(), new SpecificationProblemMapper())))
           .addFilters(new CorrelationIdFilter(List.of()))
           .build();
 
@@ -95,6 +102,23 @@ class OpenApiContractTest {
   }
 
   @Test
+  void acceptsAnInvalidFilterProblemRenderedByTheShop() throws Exception {
+    shop.perform(get("/api/v1/widgets").param("filter", "price:gt:10"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-filter"))
+        .andExpect(jsonPath("$.field").value("price"))
+        .andExpect(CONTRACT.matches());
+  }
+
+  @Test
+  void toleratesAnInvalidCorrelationId() throws Exception {
+    shop.perform(get("/api/v1/widgets/w-1").header("X-Correlation-Id", "not a valid id!"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Correlation-Id", matchesPattern("[0-9a-f-]{36}")))
+        .andExpect(CONTRACT.matches());
+  }
+
+  @Test
   void checksOnlyTheResponseOfARequestThatBreaksTheSpecOnPurpose() throws Exception {
     var invalidBody =
         post("/api/v1/widgets")
@@ -108,6 +132,7 @@ class OpenApiContractTest {
     shop.perform(invalidBody)
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("name", "price")))
         .andExpect(CONTRACT.matchesResponse());
     assertThatThrownBy(() -> shop.perform(invalidBody).andExpect(CONTRACT.matches()))
         .isInstanceOf(AssertionError.class)
@@ -129,8 +154,8 @@ class OpenApiContractTest {
     assertThatThrownBy(
             () -> offContract.perform(get("/api/v1/widgets/w-1")).andExpect(CONTRACT.matches()))
         .isInstanceOf(AssertionError.class)
-        .hasMessageContaining("validation.response.body.schema.required")
-        .hasMessageContaining("name");
+        .hasMessageContaining("validation.response.body.schema.type")
+        .hasMessageContaining("/name");
   }
 
   @Test
@@ -197,9 +222,18 @@ class OpenApiContractTest {
   @RestController
   static class WidgetsController implements WidgetsApi {
 
+    private static final Set<String> FILTERABLE = Set.of("name", "status");
+
     @Override
     public ResponseEntity<WidgetPage> listWidgets(
         Integer page, Integer size, List<String> filter, List<String> orFilter, List<String> sort) {
+      // The allow-list the persistence adapter enforces, declared as x-specrepo-filterable-fields.
+      for (String condition : filter == null ? List.<String>of() : filter) {
+        String field = condition.substring(0, condition.indexOf(':'));
+        if (!FILTERABLE.contains(field)) {
+          throw new DisallowedFieldException(field, "filter");
+        }
+      }
       return ResponseEntity.ok(new WidgetPage(page, size, 1L, 1, List.of(lamp())));
     }
 
@@ -219,7 +253,7 @@ class OpenApiContractTest {
     }
 
     @Override
-    public ResponseEntity<Widget> getWidget(String id, String correlationId) {
+    public ResponseEntity<Widget> getWidget(String id) {
       if (!id.equals("w-1")) {
         throw new NotFoundException("widget-not-found", "Widget " + id + " does not exist.");
       }

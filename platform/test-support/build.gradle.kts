@@ -19,6 +19,8 @@ dependencies {
     // OpenApiContractTest checks the shop's own problem rendering against common.v1.yaml.
     testImplementation(project(":platform:service-support"))
     testImplementation(libs.spring.boot.starter.validation)
+    testImplementation(libs.specrepo.core)
+    testImplementation(libs.specrepo.http)
 }
 
 // Contract of the controllers of OpenApiContractTest: its interfaces and DTOs are test code.
