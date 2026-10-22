@@ -5,6 +5,7 @@ build/
 *.iml
 .vscode/
 out/
+!**/src/**/out/
 bin/
 node_modules/
 dist/
