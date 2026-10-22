@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.cqrs.command.CommandHandlerExecutionException;
 import com.borjaglez.cqrs.context.MessageContext;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.ConflictException;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.ConflictException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.InvalidFilterException;
 import com.borjaglez.specrepository.core.InvalidFilterValueException;

@@ -27,7 +27,7 @@ import com.borjaglez.shop.catalog.domain.CategoryRepository;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.support.query.QueryPlans;
 import com.borjaglez.specrepository.core.GroupedRow;
 import com.borjaglez.specrepository.core.Operators;

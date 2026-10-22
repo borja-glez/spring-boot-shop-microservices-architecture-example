@@ -1,4 +1,4 @@
-package com.borjaglez.shop.support.error;
+package com.borjaglez.shop.kernel.error;
 
 import java.util.Objects;
 import java.util.regex.Pattern;

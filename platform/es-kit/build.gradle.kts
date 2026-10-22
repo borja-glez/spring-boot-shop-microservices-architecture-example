@@ -6,6 +6,7 @@ description = "Event sourcing kit: event store that doubles as outbox, relay and
 
 dependencies {
     api(project(":platform:service-support"))
+    api(project(":platform:domain-kernel"))
     api(libs.cqrs.core)
     // JdbcIdempotencyStore for the @Idempotent handlers; its table is created by db/eskit.
     api(libs.cqrs.jdbc)

@@ -30,7 +30,7 @@ import com.borjaglez.shop.inventory.domain.ReservationRepository;
 import com.borjaglez.shop.inventory.domain.ReservedLine;
 import com.borjaglez.shop.inventory.domain.StockItem;
 import com.borjaglez.shop.inventory.domain.StockItemRepository;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.specrepository.core.Operators;
 
 /**

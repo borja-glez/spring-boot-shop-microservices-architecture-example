@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 
 /**
  * Demo-only endpoint to inject faults, at {@code /api/<shop.chaos.service>/chaos}. It answers only

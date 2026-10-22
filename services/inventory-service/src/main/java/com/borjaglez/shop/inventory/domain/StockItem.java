@@ -9,7 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
 import lombok.AccessLevel;
 import lombok.Getter;

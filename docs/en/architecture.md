@@ -117,7 +117,7 @@ Every Boot 4 service answers errors as RFC 9457 problem details (`application/pr
 ```
 
 - `code` is a stable kebab-case identifier clients can rely on; `type` is derived from it. `correlationId` lets a user quote the request when reporting a problem. Validation failures add an `errors` array of `{field, message}`.
-- Domain code throws [`DomainException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/error/DomainException.java) subtypes, which carry the code and have no dependency on HTTP: `NotFoundException` (404), `ConflictException` (409) and `BusinessRuleViolationException` (422).
+- Domain code throws [`DomainException`](../../platform/domain-kernel/src/main/java/com/borjaglez/shop/kernel/error/DomainException.java) subtypes, which carry the code and have no dependency on HTTP: `NotFoundException` (404), `ConflictException` (409) and `BusinessRuleViolationException` (422).
 - The handler walks the cause chain (outermost first, up to ten levels) and asks a chain of [`ProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/ProblemMapper.java) beans, so wrappers added by the command bus or by Spring Data never hide the real reason:
 
 | Order | Mapper | Maps |

@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.borjaglez.cqrs.jdbc.JdbcIdempotencyStore;
+import com.borjaglez.shop.kernel.error.ConflictException;
 import com.borjaglez.shop.reporting.domain.ReportLineRepository;
 import com.borjaglez.shop.reporting.domain.ReportOrderRepository;
-import com.borjaglez.shop.support.error.ConflictException;
 
 /**
  * Throws the projections away and builds them again from the first event in Kafka.

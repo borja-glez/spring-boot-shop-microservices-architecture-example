@@ -1,4 +1,4 @@
-package com.borjaglez.shop.support.error;
+package com.borjaglez.shop.kernel.error;
 
 /** The requested resource does not exist. */
 public class NotFoundException extends DomainException {

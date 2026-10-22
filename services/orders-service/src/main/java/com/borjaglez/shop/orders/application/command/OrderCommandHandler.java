@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.borjaglez.cqrs.command.annotation.CommandHandler;
 import com.borjaglez.cqrs.command.annotation.HandleCommand;
 import com.borjaglez.shop.eskit.AggregateStore;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.orders.application.command.PlaceOrderCommand.Item;
 import com.borjaglez.shop.orders.domain.CatalogProduct;
 import com.borjaglez.shop.orders.domain.CatalogProductRepository;
@@ -20,8 +22,6 @@ import com.borjaglez.shop.orders.domain.CheckoutSaga;
 import com.borjaglez.shop.orders.domain.CheckoutSagaRepository;
 import com.borjaglez.shop.orders.domain.Order;
 import com.borjaglez.shop.orders.domain.PricedLine;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.shop.support.tracing.TraceCarrier;
 import com.borjaglez.specrepository.core.Operators;
 

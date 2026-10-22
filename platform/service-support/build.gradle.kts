@@ -5,6 +5,7 @@ plugins {
 description = "Cross-cutting web support shared by every service: problem details, correlation ids, current user"
 
 dependencies {
+    api(project(":platform:domain-kernel"))
     api(libs.spring.boot.starter.webmvc)
 
     // Optional integrations, activated only when the service has them on its classpath.

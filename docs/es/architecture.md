@@ -117,7 +117,7 @@ Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 
 ```
 
 - `code` es un identificador estable en kebab-case en el que los clientes pueden confiar; `type` se deriva de él. `correlationId` permite al usuario citar la petición al informar de un problema. Los fallos de validación añaden un array `errors` de `{field, message}`.
-- El código de dominio lanza subtipos de [`DomainException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/error/DomainException.java), que llevan el código y no dependen de HTTP: `NotFoundException` (404), `ConflictException` (409) y `BusinessRuleViolationException` (422).
+- El código de dominio lanza subtipos de [`DomainException`](../../platform/domain-kernel/src/main/java/com/borjaglez/shop/kernel/error/DomainException.java), que llevan el código y no dependen de HTTP: `NotFoundException` (404), `ConflictException` (409) y `BusinessRuleViolationException` (422).
 - El handler recorre la cadena de causas (de la más externa a la más interna, hasta diez niveles) y consulta una cadena de beans [`ProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/ProblemMapper.java), de modo que los envoltorios añadidos por el bus de comandos o por Spring Data nunca ocultan el motivo real:
 
 | Orden | Mapper | Traduce |

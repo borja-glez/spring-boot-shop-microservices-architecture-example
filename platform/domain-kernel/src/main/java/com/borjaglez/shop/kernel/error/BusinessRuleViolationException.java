@@ -1,4 +1,4 @@
-package com.borjaglez.shop.support.error;
+package com.borjaglez.shop.kernel.error;
 
 /** The request is well formed but breaks a business rule (an invariant of an aggregate). */
 public class BusinessRuleViolationException extends DomainException {

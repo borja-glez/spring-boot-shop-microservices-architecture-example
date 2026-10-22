@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import com.borjaglez.shop.contracts.catalog.ProductDiscontinued;
 import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
 class ProductTest {
 

@@ -30,6 +30,7 @@ if (localLibs) {
 
 include(
     ":platform:contracts",
+    ":platform:domain-kernel",
     ":platform:es-kit",
     ":platform:service-support",
     ":platform:test-support",

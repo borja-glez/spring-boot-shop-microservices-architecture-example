@@ -3,7 +3,7 @@ package com.borjaglez.shop.support.chaos;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
 /**
  * One fault the demo can inject: a switch (0 off, 1 on) or a delay in milliseconds. Every fault

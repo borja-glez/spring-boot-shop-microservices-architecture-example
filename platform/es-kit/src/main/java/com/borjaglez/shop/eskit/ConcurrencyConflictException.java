@@ -1,6 +1,6 @@
 package com.borjaglez.shop.eskit;
 
-import com.borjaglez.shop.support.error.ConflictException;
+import com.borjaglez.shop.kernel.error.ConflictException;
 
 /** Another writer appended to the stream since it was read. The caller may reload and retry. */
 public class ConcurrencyConflictException extends ConflictException {
