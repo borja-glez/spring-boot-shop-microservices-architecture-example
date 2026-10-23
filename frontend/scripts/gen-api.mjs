@@ -26,10 +26,7 @@ function specs(directory) {
 const serviceDirectories = readdirSync(join(repository, 'services'), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => join(repository, 'services', entry.name, 'src/main/openapi'));
-const found = [
-  ...serviceDirectories,
-  join(repository, 'platform/service-support/src/main/openapi'),
-]
+const found = [...serviceDirectories, join(repository, 'platform/service-support/src/main/openapi')]
   .flatMap(specs)
   .sort();
 

@@ -39,7 +39,7 @@ fi
 # Extract the contracts (and what they reference) of the base ref, keeping the repository layout,
 # so that the relative $refs resolve on both sides of a diff.
 base_files="$(git ls-tree -r --name-only "$BASE_REF" \
-  | grep -E '^(platform/api-contracts/|(platform|services)/[^/]+/src/main/(openapi|asyncapi)/)' || true)"
+  | grep -E '^(platform/api-contracts/|(platform|services)/[^/]+/src/main/(openapi|asyncapi)/|platform/contracts/src/main/resources/schemas/)' || true)"
 if [ -n "$base_files" ]; then
   # Word splitting is intended: the contract paths contain no spaces.
   # shellcheck disable=SC2086
@@ -89,13 +89,26 @@ for spec in "${asyncapi_libraries[@]}" "${asyncapi_services[@]}"; do
     fail "asyncapi validate $spec"
   fi
 done
+# The payload schemas are external files, so both sides are bundled (external $refs inlined) before
+# the diff; scripts/classify-asyncapi-diff.mjs then decides which changes are breaking.
+asyncapi_cli() {
+  npx --yes "@asyncapi/cli@$ASYNCAPI_CLI_VERSION" "$@"
+}
 for spec in "${asyncapi_services[@]}"; do
   if ! exists_on_base "$spec"; then
     echo "SKIP  asyncapi diff     $spec (not on $BASE_REF)"
-  elif npx --yes "@asyncapi/cli@$ASYNCAPI_CLI_VERSION" diff "$BASE_MOUNT/$spec" "$spec" --type breaking; then
+    continue
+  fi
+  mkdir -p "$BASE_DIR/bundled/$spec"
+  dir="$BASE_MOUNT/bundled/$spec"
+  if asyncapi_cli bundle "$BASE_MOUNT/$spec" --output "$dir/base.yaml" >/dev/null 2>&1 \
+    && asyncapi_cli bundle "$spec" --output "$dir/current.yaml" >/dev/null 2>&1 \
+    && asyncapi_cli diff "$dir/base.yaml" "$dir/current.yaml" --type all --format json --no-error \
+      --save-output "$dir/diff.json" >/dev/null 2>&1 \
+    && node scripts/classify-asyncapi-diff.mjs "$dir/diff.json"; then
     echo "OK    asyncapi diff     $spec"
   else
-    fail "asyncapi diff     $spec (breaking change; a breaking change needs a new file)"
+    fail "asyncapi diff     $spec (breaking change or bundling error; a breaking change needs a new file)"
   fi
 done
 
