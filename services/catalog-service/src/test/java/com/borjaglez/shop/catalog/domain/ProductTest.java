@@ -322,6 +322,7 @@ class ProductTest {
 
     Product product = Product.reconstitute(state);
 
+    assertThat(product.state()).isEqualTo(state);
     assertThat(product.getId()).isEqualTo(state.id());
     assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
     assertThat(product.getVersion()).isEqualTo(7L);
@@ -366,5 +367,66 @@ class ProductTest {
     assertThat(state.status()).isEqualTo(ProductStatus.ACTIVE);
     assertThat(state.sku()).isEqualTo(new Sku("CAF-001"));
     assertThat(state.publishedAt()).isEqualTo(LATER);
+  }
+
+  @Test
+  void stateSetsAreUnmodifiableCopies() {
+    Product product = draft();
+    ProductState state = product.state();
+
+    assertThatThrownBy(() -> state.tags().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(() -> state.categories().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThat(product.getTags()).hasSize(2);
+    assertThat(product.getCategories()).hasSize(1);
+  }
+
+  @Test
+  void reconstituteCopiesTheSetsItIsGiven() {
+    Set<Tag> tags = new LinkedHashSet<>(Set.of(new Tag("te")));
+    Product product =
+        Product.reconstitute(
+            new ProductState(
+                ProductId.newId(),
+                new Sku("TEA-1"),
+                new Slug("te-verde-tea-1"),
+                "Té verde",
+                "",
+                Money.of("4.50", "EUR"),
+                ProductStatus.DRAFT,
+                seller,
+                Set.of(),
+                tags,
+                NOW,
+                null,
+                NOW,
+                null));
+
+    tags.clear();
+
+    assertThat(product.getTags()).containsExactly(new Tag("te"));
+  }
+
+  @Test
+  void draftRequiresSellerSkuAndPrice() {
+    Money price = Money.of("1", "EUR");
+    Sku sku = new Sku("SKU-1");
+    assertThatThrownBy(
+            () -> Product.draft(new ProductDraft(null, sku, "Café", "", price, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(
+            () ->
+                Product.draft(new ProductDraft(seller, null, "Café", "", price, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(
+            () -> Product.draft(new ProductDraft(seller, sku, "Café", "", null, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void changePriceRequiresAPrice() {
+    assertThatThrownBy(() -> draft().changePrice(null, clock))
+        .isInstanceOf(NullPointerException.class);
   }
 }

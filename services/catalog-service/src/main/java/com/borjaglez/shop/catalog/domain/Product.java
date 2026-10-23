@@ -228,5 +228,11 @@ public final class Product extends AggregateRoot<ProductEvent> {
       Instant createdAt,
       Instant publishedAt,
       Instant updatedAt,
-      Long version) {}
+      Long version) {
+
+    public ProductState {
+      categories = Collections.unmodifiableSet(new LinkedHashSet<>(categories));
+      tags = Collections.unmodifiableSet(new LinkedHashSet<>(tags));
+    }
+  }
 }
