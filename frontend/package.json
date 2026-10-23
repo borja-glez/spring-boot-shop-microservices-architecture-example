@@ -12,7 +12,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,html,scss}\"",
     "gen:api": "node scripts/gen-api.mjs",
     "check:generated": "node scripts/check-generated-api.mjs",
-    "check": "npm run gen:api && npm run check:generated && npm run format:check && npm run lint && npm test && ng build"
+    "check:nginx": "node --test scripts/nginx-config.test.mjs",
+    "check": "npm run gen:api && npm run check:generated && npm run check:nginx && npm run format:check && npm run lint && npm test && ng build"
   },
   "private": true,
   "packageManager": "npm@11.13.0",
