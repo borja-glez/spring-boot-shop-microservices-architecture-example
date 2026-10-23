@@ -18,8 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -32,22 +30,9 @@ import com.borjaglez.shop.eskit.EsKitTestApplication.RecordingTraceCarrier;
 import com.borjaglez.shop.eskit.fixtures.CounterIncremented;
 import com.borjaglez.shop.eskit.fixtures.TallyEvent;
 import com.borjaglez.shop.support.tracing.TraceCarrier;
-import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
-import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.specrepository.core.Operators;
 
-@SpringBootTest(
-    properties = {
-      "cqrs.outbox.enabled=true",
-      "cqrs.outbox.relay.event-bus=chaosEventBus",
-      // The tests drive the relay.
-      "cqrs.outbox.relay.interval=1h"
-    })
-@Import({
-  PostgresTestConfiguration.class,
-  KafkaTestConfiguration.class,
-  DomainEventsTestConfiguration.class
-})
+@DomainEventsIntegrationTest
 class DomainEventStoreIT {
 
   @Autowired DomainEventStore store;

@@ -6,28 +6,13 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.borjaglez.shop.eskit.fixtures.Tally;
 import com.borjaglez.shop.eskit.fixtures.TallyEvent;
-import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
-import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 
-@SpringBootTest(
-    properties = {
-      "cqrs.outbox.enabled=true",
-      "cqrs.outbox.relay.event-bus=chaosEventBus",
-      // The tests drive the relay.
-      "cqrs.outbox.relay.interval=1h"
-    })
-@Import({
-  PostgresTestConfiguration.class,
-  KafkaTestConfiguration.class,
-  DomainEventsTestConfiguration.class
-})
+@DomainEventsIntegrationTest
 class EventSourcedRepositoryIT {
 
   @Autowired DomainEventStore store;
