@@ -28,17 +28,15 @@ public class ChaosEventBus implements EventBus {
 
   public ChaosEventBus(EventBus delegate, Chaos chaos) {
     this.delegate = delegate;
-    this.paused =
-        chaos.toggle(
-            "relay.paused", "Stops publishing events to Kafka, as if the broker were down");
-    this.duplicate =
-        chaos.toggle("relay.duplicate", "Publishes every event twice (at-least-once delivery)");
+    this.paused = RelayFaults.paused(chaos);
+    this.duplicate = RelayFaults.duplicate(chaos);
   }
 
   @Override
   public void publish(Event event) {
     if (paused.active()) {
-      throw new ChaosException("Chaos: the relay is paused, as if the broker were down");
+      // The relay retries on every run while paused: no stack trace, one log line per run.
+      throw new ChaosException("Chaos: the relay is paused, as if the broker were down", false);
     }
     delegate.publish(event);
     if (duplicate.active()) {

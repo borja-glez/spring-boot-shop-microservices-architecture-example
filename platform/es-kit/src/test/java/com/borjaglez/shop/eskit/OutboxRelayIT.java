@@ -115,13 +115,13 @@ class OutboxRelayIT {
     String stream = UUID.randomUUID().toString();
     CounterIncremented a = new CounterIncremented(stream, 1);
     CounterIncremented b = new CounterIncremented(stream, 2);
-    chaos.set("relay.paused", 1);
+    chaos.set(RelayFaults.PAUSED, 1);
     store.append("counter", stream, 0, List.of(a, b));
 
     assertThat(relay.relayPending()).isZero();
     assertThat(destination.published).isEmpty();
 
-    chaos.set("relay.paused", 0);
+    chaos.set(RelayFaults.PAUSED, 0);
     assertThat(relay.relayPending()).isEqualTo(2);
     assertThat(destination.published)
         .extracting(e -> e.getEventId())
@@ -132,7 +132,7 @@ class OutboxRelayIT {
   void theDuplicateFaultPublishesEveryEventTwice() {
     String stream = UUID.randomUUID().toString();
     CounterIncremented a = new CounterIncremented(stream, 1);
-    chaos.set("relay.duplicate", 1);
+    chaos.set(RelayFaults.DUPLICATE, 1);
     store.append("counter", stream, 0, List.of(a));
 
     assertThat(relay.relayPending()).isEqualTo(1);
