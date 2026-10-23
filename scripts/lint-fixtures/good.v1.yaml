@@ -1,0 +1,274 @@
+# Positive fixture: the path shapes of the Mercado v1 APIs, which every rule of
+# platform/api-contracts/lint-rules.yaml must accept. scripts/check-contracts.sh requires it to lint
+# clean, so a rule that rejects a valid contract is noticed; bad.v1.yaml, next to it, must trip
+# every rule. Neither is served by the gateway nor read by the frontend type generation.
+openapi: 3.0.3
+info:
+  title: Lint fixture
+  version: 1.0.0
+  description: Follows every lint rule.
+tags:
+  - name: orders
+    description: Orders of a customer.
+  - name: stock
+    description: Stock of the products.
+  - name: reports
+    description: Sales reports.
+paths:
+  # A collection.
+  /api/v1/orders:
+    get:
+      tags:
+        - orders
+      operationId: listOrders
+      summary: Lists the orders of the customer.
+      parameters:
+        - $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+        - $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/Page'
+        - $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/Size'
+      responses:
+        '200':
+          description: A page of orders.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+        '400':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+  # An element of a collection.
+  /api/v1/orders/{id}:
+    get:
+      tags:
+        - orders
+      operationId: getOrder
+      summary: Returns an order.
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+  # An action on an element.
+  /api/v1/orders/{id}/cancel:
+    post:
+      tags:
+        - orders
+      operationId: cancelOrder
+      summary: Cancels an order.
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '204':
+          description: The order is cancelled.
+        '404':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Conflict'
+  # An action on a collection.
+  /api/v1/orders/quote:
+    post:
+      tags:
+        - orders
+      operationId: quoteOrder
+      summary: Prices a cart without placing the order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Cart'
+      responses:
+        '200':
+          description: The quote.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '422':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/UnprocessableContent'
+  # A sub-resource named after its parameter, under a singular segment.
+  /api/v1/inventory/stock/{productId}:
+    put:
+      tags:
+        - stock
+      operationId: setStock
+      summary: Sets the stock of a product.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          description: Id of the product.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockChange'
+      responses:
+        '204':
+          description: The stock is set.
+        '400':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+  # A single view.
+  /api/v1/reporting/summary:
+    get:
+      tags:
+        - reports
+      operationId: getSummary
+      summary: Returns the sales summary.
+      responses:
+        '200':
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '500':
+          $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/InternalServerError'
+  # A multi-word segment in kebab-case.
+  /api/v1/reporting/sales-by-day:
+    get:
+      tags:
+        - reports
+      operationId: getSalesByDay
+      summary: Returns the sales of every day.
+      responses:
+        '200':
+          description: One entry per day.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailySales'
+components:
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      description: Id of the order.
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Order:
+      type: object
+      description: An order.
+      additionalProperties: false
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the order.
+        status:
+          type: string
+          description: Status of the order.
+          enum:
+            - PENDING
+            - CONFIRMED
+            - CANCELLED
+    OrderPage:
+      description: A page of orders.
+      allOf:
+        - $ref: '../../platform/api-contracts/openapi/common.v1.yaml#/components/schemas/PageMetadata'
+        - type: object
+          description: The orders of the page.
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              description: The orders.
+              items:
+                $ref: '#/components/schemas/Order'
+    Cart:
+      type: object
+      description: Products and quantities to price.
+      required:
+        - lines
+      properties:
+        lines:
+          type: array
+          description: One line per product.
+          minItems: 1
+          items:
+            type: object
+            description: A product and its quantity.
+            required:
+              - productId
+              - quantity
+            properties:
+              productId:
+                type: string
+                format: uuid
+                description: Id of the product.
+              quantity:
+                type: integer
+                format: int32
+                minimum: 1
+                description: Number of units.
+    Quote:
+      type: object
+      description: The price of a cart.
+      required:
+        - total
+      properties:
+        total:
+          type: string
+          description: Total amount, as a decimal string.
+    StockChange:
+      type: object
+      description: The new stock of a product.
+      required:
+        - quantity
+      properties:
+        quantity:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Units on hand.
+    Summary:
+      type: object
+      description: Totals of the confirmed orders.
+      required:
+        - orders
+      properties:
+        orders:
+          type: integer
+          format: int64
+          description: Number of confirmed orders.
+        attributes:
+          type: object
+          description: Extra figures by name.
+          additionalProperties:
+            type: string
+            description: Value of the figure.
+    DailySales:
+      type: object
+      description: Sales of one day.
+      required:
+        - day
+        - orders
+      properties:
+        day:
+          type: string
+          format: date
+          description: The day.
+        orders:
+          type: integer
+          format: int64
+          description: Number of orders confirmed that day.

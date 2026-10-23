@@ -1,13 +1,14 @@
 # Negative fixture: violates every rule of platform/api-contracts/lint-rules.yaml.
-# scripts/check-contracts.sh lints it and requires each rule id in the output; it is neither
-# served by the gateway nor read by the frontend type generation.
+# scripts/check-contracts.sh lints it and requires each rule id in the output; good.v1.yaml, next
+# to it, is the positive counterpart. Neither is served by the gateway nor read by the frontend
+# type generation.
 openapi: 3.0.3
 info:
   title: Lint fixture
   version: 1.0.0
   description: Violates every lint rule.
 paths:
-  # path-kebab-case and path-plural-collections: underscores, capitals, a singular collection.
+  # path-kebab-case: underscores and capitals.
   /api/v1/Order_item/{id}:
     get:
       # operation-id-camel-case and operation-tags: snake case, no tags.

@@ -2,7 +2,9 @@
 # scripts/check-contracts.sh runs `redocly lint --config platform/api-contracts/lint-rules.yaml`
 # over the service contracts and over the component libraries in platform/api-contracts/openapi.
 rules:
-  # Path segments are kebab-case; a path parameter is a camelCase name in braces.
+  # Path segments are kebab-case; a path parameter is a camelCase name in braces. Whether a segment
+  # names a collection (`/products/{id}`), an action (`/{id}/cancel`) or a single view
+  # (`/summary`) is a design decision a pattern cannot check; reviews look after it.
   rule/path-kebab-case:
     message: 'Path {{problems}}'
     severity: error
@@ -10,20 +12,6 @@ rules:
       type: Paths
     assertions:
       pattern: '^(/([a-z0-9]+(-[a-z0-9]+)*|\{[a-z][A-Za-z0-9]*\}))+$'
-
-  # Literal path segments name collections, so they are plural. A regex cannot tell which words
-  # are plural, so a segment passes when it ends in "s" or is in the allowlist below. Add a segment
-  # to the allowlist only when it is not a collection:
-  #   api      prefix of every path
-  #   v[0-9]+  major version segment, such as v1 and v2
-  #   chaos    uncountable noun: the chaos endpoint of a service is a single resource
-  rule/path-plural-collections:
-    message: 'Path segments must be plural collections or be in the allowlist of lint-rules.yaml: {{problems}}'
-    severity: error
-    subject:
-      type: Paths
-    assertions:
-      pattern: '^(/(\{[^/}]+\}|[a-z0-9-]*s|api|v[0-9]+|chaos))+$'
 
   rule/operation-id-camel-case:
     message: 'operationId must be camelCase: {{problems}}'

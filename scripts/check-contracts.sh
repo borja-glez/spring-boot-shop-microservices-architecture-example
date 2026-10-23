@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the API and message contracts:
-#   0. self-tests of the gates: the classifier unit tests and the negative lint fixture, which must
-#      trip every rule of platform/api-contracts/lint-rules.yaml;
+#   0. self-tests of the gates: the classifier unit tests, the negative lint fixture, which must
+#      trip every rule of platform/api-contracts/lint-rules.yaml, and the positive one, which must
+#      lint clean;
 #   1. lints every OpenAPI contract with Redocly and platform/api-contracts/lint-rules.yaml;
 #   2. runs oasdiff against the same contract on the base ref and fails on a breaking change;
 #   3. validates every AsyncAPI contract and diffs it against the base ref the same way.
@@ -23,6 +24,7 @@ ROOT="$(pwd -W 2>/dev/null || pwd)"
 BASE_REF="${CONTRACTS_BASE_REF:-origin/main}"
 LINT_RULES=platform/api-contracts/lint-rules.yaml
 LINT_FIXTURE=scripts/lint-fixtures/bad.v1.yaml
+LINT_GOOD_FIXTURE=scripts/lint-fixtures/good.v1.yaml
 
 # Stop Git Bash from rewriting the container paths of `docker run -v` into Windows paths.
 export MSYS_NO_PATHCONV=1
@@ -106,6 +108,17 @@ else
     echo "$output"
     fail "self-test         lint fixture does not trip:$missing"
   fi
+fi
+
+# The positive fixture holds the path shapes of the v1 APIs (collections, actions such as
+# /{id}/cancel, single views such as /summary, multi-word segments); a rule that rejects one of
+# them fails here.
+run redocly lint --config "$LINT_RULES" "$LINT_GOOD_FIXTURE"
+if [ "$status" -eq 0 ]; then
+  echo "OK    self-test         lint fixture $LINT_GOOD_FIXTURE lints clean"
+else
+  echo "$output"
+  fail "self-test         lint fixture $LINT_GOOD_FIXTURE does not lint clean"
 fi
 
 # 1. OpenAPI lint.
