@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.borjaglez.shop.support.autoconfigure.ShopChaosAutoConfiguration;
 import com.borjaglez.shop.support.autoconfigure.ShopWebAutoConfiguration;
 import com.borjaglez.shop.support.chaos.Chaos;
+import com.borjaglez.shop.testsupport.contract.OpenApiContract;
 
 @WebMvcTest(controllers = SampleController.class)
 @ImportAutoConfiguration({ShopWebAutoConfiguration.class, ShopChaosAutoConfiguration.class})
@@ -29,6 +32,9 @@ import com.borjaglez.shop.support.chaos.Chaos;
     })
 class ChaosControllerTest {
 
+  private static final OpenApiContract CONTRACT =
+      OpenApiContract.of(Path.of("src/main/openapi/chaos-api.v1.yaml"));
+
   @Autowired MockMvc mvc;
   @Autowired Chaos chaos;
 
@@ -39,8 +45,9 @@ class ChaosControllerTest {
 
   @Test
   void listsTheFaultsOfTheService() throws Exception {
-    mvc.perform(get("/api/payments/chaos"))
+    mvc.perform(get("/api/v1/payments/chaos"))
         .andExpect(status().isOk())
+        .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$[0].key").value("AuthorizePayment.delay-ms"))
         .andExpect(jsonPath("$[0].kind").value("DELAY"))
         .andExpect(jsonPath("$[1].key").value("AuthorizePayment.fail"))
@@ -50,29 +57,53 @@ class ChaosControllerTest {
   @Test
   void turnsAFaultOnAndEverythingOff() throws Exception {
     mvc.perform(
-            put("/api/payments/chaos/AuthorizePayment.fail")
+            put("/api/v1/payments/chaos/AuthorizePayment.fail")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isOk())
+        .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.value").value(1));
 
-    mvc.perform(delete("/api/payments/chaos")).andExpect(status().isNoContent());
-    mvc.perform(get("/api/payments/chaos")).andExpect(jsonPath("$[1].value").value(0));
+    mvc.perform(delete("/api/v1/payments/chaos"))
+        .andExpect(status().isNoContent())
+        .andExpect(CONTRACT.matches());
+    mvc.perform(get("/api/v1/payments/chaos"))
+        .andExpect(CONTRACT.matches())
+        .andExpect(jsonPath("$[1].value").value(0));
   }
 
   @Test
   void rejectsUnknownFaultsAndBadValues() throws Exception {
     mvc.perform(
-            put("/api/payments/chaos/nope")
+            put("/api/v1/payments/chaos/nope")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-fault-not-found"));
     mvc.perform(
-            put("/api/payments/chaos/AuthorizePayment.fail")
+            put("/api/v1/payments/chaos/AuthorizePayment.fail")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":7}"))
         .andExpect(status().isUnprocessableContent())
+        .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-value-out-of-range"));
+  }
+
+  @Test
+  void aServiceOtherThanTheConfiguredOneIsNotFound() throws Exception {
+    mvc.perform(get("/api/v1/orders/chaos"))
+        .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches())
+        .andExpect(jsonPath("$.code").value("chaos-disabled"));
+    mvc.perform(
+            put("/api/v1/orders/chaos/AuthorizePayment.fail")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"value\":1}"))
+        .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches());
+    mvc.perform(delete("/api/v1/orders/chaos"))
+        .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches());
   }
 }

@@ -19,6 +19,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -29,6 +30,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import com.borjaglez.shop.support.web.problem.MappedProblem;
 import com.borjaglez.shop.support.web.problem.MappedProblem.FieldViolation;
 import com.borjaglez.shop.support.web.problem.ProblemMapper;
+import com.borjaglez.shop.support.web.problem.UserHeaderProblemMapper;
 
 /**
  * Renders every error as an RFC 9457 {@link ProblemDetail}.
@@ -85,11 +87,28 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
   }
 
   @Override
+  protected @Nullable ResponseEntity<Object> handleServletRequestBindingException(
+      ServletRequestBindingException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    Optional<MappedProblem> userHeader = userHeaderProblem(ex);
+    if (userHeader.isPresent()) {
+      return render(ex, userHeader.get(), headers, request);
+    }
+    return super.handleServletRequestBindingException(ex, headers, status, request);
+  }
+
+  @Override
   protected @Nullable ResponseEntity<Object> handleHandlerMethodValidationException(
       HandlerMethodValidationException ex,
       HttpHeaders headers,
       HttpStatusCode status,
       WebRequest request) {
+    Optional<MappedProblem> userHeader = userHeaderProblem(ex);
+    if (userHeader.isPresent()) {
+      return render(ex, userHeader.get(), headers, request);
+    }
     // A constrained parameter makes Spring MVC validate the whole method, the @Valid body
     // included: the body's errors are field errors and keep their property path, as they do when
     // only the body is validated (MethodArgumentNotValidException).
@@ -119,6 +138,21 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
       decorate(problem, codeFor(statusCode), List.of(), request);
     }
     return super.createResponseEntity(body, headers, statusCode, request);
+  }
+
+  /** The problems with the user header, which the contracts declare as a header parameter. */
+  private Optional<MappedProblem> userHeaderProblem(Exception exception) {
+    return mappers.stream()
+        .filter(UserHeaderProblemMapper.class::isInstance)
+        .findFirst()
+        .flatMap(mapper -> mapper.map(exception));
+  }
+
+  private ResponseEntity<Object> render(
+      Exception exception, MappedProblem problem, HttpHeaders headers, WebRequest request) {
+    ProblemDetail body = ProblemDetail.forStatusAndDetail(problem.status(), problem.detail());
+    decorate(body, problem.code(), problem.errors(), request);
+    return handleExceptionInternal(exception, body, headers, problem.status(), request);
   }
 
   private Optional<MappedProblem> resolve(Throwable exception) {

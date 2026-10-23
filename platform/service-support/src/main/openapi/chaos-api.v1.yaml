@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: Mercado chaos API
+  version: 1.0.0
+  description: |
+    Fault injection for the demo, served by every service that sets `shop.chaos.service` to its
+    name. A service answers it only when it started with `SHOP_CHAOS_ENABLED=true`; otherwise
+    every operation is answered with 404 `chaos-disabled`, as is a `{service}` other than the
+    service's own.
+tags:
+  - name: chaos
+    description: Faults the demo can turn on.
+paths:
+  /api/v1/{service}/chaos:
+    get:
+      tags:
+        - chaos
+      operationId: listFaults
+      summary: Lists the faults of a service.
+      description: Lists the faults the service registered, with their current value.
+      parameters:
+        - $ref: '#/components/parameters/Service'
+      responses:
+        '200':
+          description: The faults of the service.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fault'
+        '404':
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+    delete:
+      tags:
+        - chaos
+      operationId: resetFaults
+      summary: Turns every fault of a service off.
+      description: Sets every fault of the service back to 0.
+      parameters:
+        - $ref: '#/components/parameters/Service'
+      responses:
+        '204':
+          description: Every fault is off.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+        '404':
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+  /api/v1/{service}/chaos/{key}:
+    put:
+      tags:
+        - chaos
+      operationId: setFault
+      summary: Sets the value of a fault.
+      description: |
+        Sets a fault: 0 or 1 for a toggle, a delay in milliseconds (up to 60000) for a delay.
+      parameters:
+        - $ref: '#/components/parameters/Service'
+        - name: key
+          in: path
+          required: true
+          description: Key of the fault, such as `AuthorizePayment.fail`.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaultChange'
+      responses:
+        '200':
+          description: The fault with its new value.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fault'
+        '400':
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '404':
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '422':
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/UnprocessableContent'
+components:
+  parameters:
+    Service:
+      name: service
+      in: path
+      required: true
+      description: Name of the service, the one in its `shop.chaos.service`.
+      schema:
+        type: string
+  schemas:
+    FaultKind:
+      type: string
+      description: A toggle is 0 (off) or 1 (on); a delay is a number of milliseconds.
+      enum:
+        - TOGGLE
+        - DELAY
+    Fault:
+      type: object
+      description: A fault of a service.
+      required:
+        - key
+        - description
+        - kind
+        - value
+      properties:
+        key:
+          type: string
+          description: Key of the fault.
+          example: AuthorizePayment.fail
+        description:
+          type: string
+          description: What the fault does.
+        kind:
+          $ref: '#/components/schemas/FaultKind'
+        value:
+          type: integer
+          format: int64
+          description: Current value, 0 when the fault is off.
+    FaultChange:
+      type: object
+      description: The new value of a fault.
+      required:
+        - value
+      properties:
+        value:
+          type: integer
+          format: int64
+          description: New value, within the range of the kind of the fault.

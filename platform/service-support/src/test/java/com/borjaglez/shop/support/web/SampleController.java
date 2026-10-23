@@ -16,6 +16,7 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -112,6 +113,11 @@ class SampleController {
     throw new ConstraintViolationException("invalid", Set.of());
   }
 
+  @GetMapping("/things/{id}")
+  Map<String, String> thing(@PathVariable String id) {
+    return Map.of("id", id);
+  }
+
   @PostMapping("/things")
   Map<String, Object> create(@Valid @RequestBody CreateThing body) {
     return Map.of("name", body.name());
@@ -136,6 +142,20 @@ class SampleController {
   @GetMapping("/whoami")
   Map<String, String> whoami(@CurrentUser String user) {
     return Map.of("user", user);
+  }
+
+  /** The user header declared as the generated interfaces declare it. */
+  @GetMapping("/declared-user")
+  Map<String, String> declaredUser(
+      @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user) {
+    return Map.of("user", user);
+  }
+
+  @GetMapping("/declared-user-sized")
+  Map<String, Integer> declaredUserSized(
+      @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user,
+      @RequestParam @Min(1) int size) {
+    return Map.of("size", size);
   }
 
   @GetMapping("/whoami-optional")

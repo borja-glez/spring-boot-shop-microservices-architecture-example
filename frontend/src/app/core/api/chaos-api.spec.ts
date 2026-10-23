@@ -24,7 +24,7 @@ describe('ChaosApi', () => {
     api.faults('payments').subscribe((faults) => (result = faults));
 
     http
-      .expectOne('/api/payments/chaos')
+      .expectOne('/api/v1/payments/chaos')
       .flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
 
     expect(result).toBeNull();
@@ -34,7 +34,7 @@ describe('ChaosApi', () => {
     let failed = false;
     api.faults('orders').subscribe({ error: () => (failed = true) });
 
-    http.expectOne('/api/orders/chaos').flush({}, { status: 503, statusText: 'Unavailable' });
+    http.expectOne('/api/v1/orders/chaos').flush({}, { status: 503, statusText: 'Unavailable' });
 
     expect(failed).toBe(true);
   });
@@ -42,7 +42,7 @@ describe('ChaosApi', () => {
   it('sets a fault by key', () => {
     api.set('payments', 'AuthorizePayment.fail', 1).subscribe();
 
-    const request = http.expectOne('/api/payments/chaos/AuthorizePayment.fail');
+    const request = http.expectOne('/api/v1/payments/chaos/AuthorizePayment.fail');
     expect(request.request.method).toBe('PUT');
     expect(request.request.body).toEqual({ value: 1 });
     request.flush({ key: 'AuthorizePayment.fail', description: '', kind: 'TOGGLE', value: 1 });
@@ -51,6 +51,6 @@ describe('ChaosApi', () => {
   it('turns every fault of a service off', () => {
     api.reset('inventory').subscribe();
 
-    expect(http.expectOne('/api/inventory/chaos').request.method).toBe('DELETE');
+    expect(http.expectOne('/api/v1/inventory/chaos').request.method).toBe('DELETE');
   });
 });

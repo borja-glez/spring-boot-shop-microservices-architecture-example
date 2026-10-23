@@ -14,6 +14,10 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 
   public static final String HEADER = "X-Shop-User";
 
+  public static final String MISSING_MESSAGE = "This operation needs the " + HEADER + " header.";
+  public static final String INVALID_MESSAGE =
+      HEADER + " must be 1-64 characters from [A-Za-z0-9._@-].";
+
   private static final Pattern VALID_USER = Pattern.compile("[A-Za-z0-9._@-]{1,64}");
 
   @Override
@@ -45,14 +49,14 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
   /** The request needs a user and the header is absent. */
   public static class MissingUserException extends RuntimeException {
     MissingUserException() {
-      super("This operation needs the " + HEADER + " header.");
+      super(MISSING_MESSAGE);
     }
   }
 
   /** The header does not contain a valid user id. */
   public static class InvalidUserException extends RuntimeException {
     InvalidUserException() {
-      super(HEADER + " must be 1-64 characters from [A-Za-z0-9._@-].");
+      super(INVALID_MESSAGE);
     }
   }
 }

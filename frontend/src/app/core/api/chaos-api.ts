@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, of, throwError } from 'rxjs';
 
-/** Services that expose `/api/<service>/chaos` when `SHOP_CHAOS_ENABLED=true`. */
+/** Services that expose `/api/v1/<service>/chaos` when `SHOP_CHAOS_ENABLED=true`. */
 export const CHAOS_SERVICES = ['payments', 'inventory', 'orders', 'catalog'] as const;
 export type ChaosService = (typeof CHAOS_SERVICES)[number];
 
@@ -83,7 +83,7 @@ export class ChaosApi {
 
   faults(service: ChaosService): Observable<ChaosFault[] | null> {
     return this.http
-      .get<ChaosFault[]>(`/api/${service}/chaos`)
+      .get<ChaosFault[]>(`/api/v1/${service}/chaos`)
       .pipe(
         catchError((error: unknown) =>
           error instanceof HttpErrorResponse && error.status === 404
@@ -94,13 +94,15 @@ export class ChaosApi {
   }
 
   set(service: ChaosService, key: string, value: number): Observable<ChaosFault> {
-    return this.http.put<ChaosFault>(`/api/${service}/chaos/${encodeURIComponent(key)}`, { value });
+    return this.http.put<ChaosFault>(`/api/v1/${service}/chaos/${encodeURIComponent(key)}`, {
+      value,
+    });
   }
 
   /** Turns every fault of a service off; a service without chaos has nothing to turn off. */
   reset(service: ChaosService): Observable<void> {
     return this.http
-      .delete<void>(`/api/${service}/chaos`)
+      .delete<void>(`/api/v1/${service}/chaos`)
       .pipe(
         catchError((error: unknown) =>
           error instanceof HttpErrorResponse && error.status === 404

@@ -38,7 +38,9 @@ public class ShopChaosAutoConfiguration {
   @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
   ChaosController chaosController(Chaos chaos, Environment environment) {
     return new ChaosController(
-        chaos, environment.getProperty("shop.chaos.enabled", Boolean.class, false));
+        chaos,
+        environment.getRequiredProperty("shop.chaos.service"),
+        environment.getProperty("shop.chaos.enabled", Boolean.class, false));
   }
 
   @Configuration(proxyBeanMethods = false)
