@@ -234,7 +234,17 @@ export interface operations {
                 };
                 content?: never;
             };
-            404: components["responses"]["NotFound"];
+            /** @description The service has no fault injection (`chaos-disabled`). */
+            404: {
+                headers: {
+                    "X-Correlation-Id": components["headers"]["CorrelationId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     setFault: {
