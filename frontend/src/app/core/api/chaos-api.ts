@@ -2,17 +2,14 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, of, throwError } from 'rxjs';
 
+import type { components } from './generated/chaos-api.v1';
+
 /** Services that expose `/api/v1/<service>/chaos` when `SHOP_CHAOS_ENABLED=true`. */
 export const CHAOS_SERVICES = ['payments', 'inventory', 'orders', 'catalog'] as const;
 export type ChaosService = (typeof CHAOS_SERVICES)[number];
 
 /** A fault of a service (the `Fault` schema of service-support `chaos-api.v1.yaml`). */
-export interface ChaosFault {
-  key: string;
-  description: string;
-  kind: 'TOGGLE' | 'DELAY';
-  value: number;
-}
+export type ChaosFault = components['schemas']['Fault'];
 
 /** What the demo explains for each fault it knows. */
 export interface FaultGuide {

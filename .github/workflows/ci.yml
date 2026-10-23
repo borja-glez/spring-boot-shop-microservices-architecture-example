@@ -36,6 +36,19 @@ jobs:
       - run: npm ci
       - run: npm run check
 
+  contracts:
+    name: Contracts (OpenAPI lint, AsyncAPI validation, breaking changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff against origin/main needs its history.
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: bash scripts/check-contracts.sh
+
   manifests:
     name: Kubernetes manifests
     runs-on: ubuntu-latest
