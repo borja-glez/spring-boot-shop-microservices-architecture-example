@@ -1001,7 +1001,7 @@
       "id": 18,
       "type": "timeseries",
       "title": "Pending events",
-      "description": "Rows of event_store with published_at = null.",
+      "description": "Stored events the relay has not published yet: rows of event_store with published_at = null for services on the event store relay, rows of cqrs_outbox for services on the cqrs outbox (the catalog). The second series counts cqrs outbox rows the relay set aside after giving up on them.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1019,8 +1019,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service_name) (shop_outbox_pending{service_name=~\"$service\"})",
+          "expr": "sum by (service_name) (shop_outbox_pending{service_name=~\"$service\"}) or sum by (service_name) (cqrs_outbox_pending{service_name=~\"$service\"})",
           "legendFormat": "{{service_name}}",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (cqrs_outbox_set_aside{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}} (set aside)",
           "range": true
         }
       ],
@@ -1062,7 +1072,7 @@
       "id": 19,
       "type": "timeseries",
       "title": "Oldest pending event age",
-      "description": "Grows while Kafka (or the relay) is down; drops to 0 once the backlog is published.",
+      "description": "Grows while Kafka (or the relay) is down; drops to 0 once the backlog is published. Covers the event store relay and the cqrs outbox (exported in milliseconds, converted here).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1080,7 +1090,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (service_name) (shop_outbox_oldest_age_seconds{service_name=~\"$service\"})",
+          "expr": "max by (service_name) (shop_outbox_oldest_age_seconds{service_name=~\"$service\"}) or max by (service_name) (cqrs_outbox_oldest_pending_age_milliseconds{service_name=~\"$service\"}) / 1000",
           "legendFormat": "{{service_name}}",
           "range": true
         }
@@ -1123,7 +1133,7 @@
       "id": 20,
       "type": "timeseries",
       "title": "Store-to-Kafka delay (p95)",
-      "description": "Time from the business transaction to the broker's ack.",
+      "description": "Time from the business transaction to the broker's ack. Only the event store relay records it; the cqrs outbox has no equivalent, so services on it (the catalog) do not appear here.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1184,7 +1194,7 @@
       "id": 21,
       "type": "timeseries",
       "title": "Published events / s",
-      "description": "",
+      "description": "Event store relay series are per event type; the cqrs outbox does not label by event type, so its series is per service.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1204,6 +1214,16 @@
           },
           "expr": "sum by (event_type) (rate(shop_outbox_published_total{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{event_type}}",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (rate(cqrs_outbox_published_total{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} (cqrs outbox)",
           "range": true
         }
       ],
@@ -1245,7 +1265,7 @@
       "id": 22,
       "type": "timeseries",
       "title": "Publish failures / s",
-      "description": "",
+      "description": "Failed publications of the event store relay and of the cqrs outbox.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1263,7 +1283,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service_name) (rate(shop_outbox_failures_total{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum by (service_name) (rate(shop_outbox_failures_total{service_name=~\"$service\"}[$__rate_interval])) or sum by (service_name) (rate(cqrs_outbox_publish_failures_total{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{service_name}}",
           "range": true
         }

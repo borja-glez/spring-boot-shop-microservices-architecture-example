@@ -358,7 +358,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(shop_outbox_pending) or vector(0)",
+          "expr": "(sum(shop_outbox_pending) or vector(0)) + (sum(cqrs_outbox_pending) or vector(0))",
           "legendFormat": "__auto",
           "range": false,
           "instant": true
