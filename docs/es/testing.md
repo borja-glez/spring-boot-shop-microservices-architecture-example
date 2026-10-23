@@ -20,7 +20,7 @@ Ejemplos: [`OrderTest`](../../services/orders-service/src/test/java/com/borjagle
 
 ## Tests de arquitectura
 
-Cada servicio tiene un `ArchitectureTest`. Los servicios por capas (todos menos el catálogo) aplican las reglas compartidas de [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
+Los servicios catalog, inventory, orders, payments y reporting tienen cada uno un `ArchitectureTest`. Los servicios por capas (todos menos el catálogo) aplican las reglas compartidas de [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
 
 ```java
 class ArchitectureTest {

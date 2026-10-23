@@ -20,7 +20,7 @@ Examples: [`OrderTest`](../../services/orders-service/src/test/java/com/borjagle
 
 ## Architecture tests
 
-Each service has an `ArchitectureTest`. The layered services (all but the catalog) apply the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
+The catalog, inventory, orders, payments and reporting services each have an `ArchitectureTest`. The layered ones (all but the catalog) apply the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
 
 ```java
 class ArchitectureTest {

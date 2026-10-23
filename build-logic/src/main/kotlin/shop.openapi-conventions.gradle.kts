@@ -16,8 +16,8 @@ import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 // the document's source set (`main` unless `sourceSet` names another one). Each DTO is named after its
 // schema with the suffix `Dto` (ProductCard -> ProductCardDto), so it never clashes with the views and
 // messages of the core; the JSON and the TypeScript types of the frontend keep the schema names. The
-// generated code is not committed, formatted or measured by the coverage gate. It compiles against Spring MVC and Bean
-// Validation (the webmvc or web starter and the validation starter). Boot 3 modules
+// generated code is not committed, formatted or measured by the coverage gate. It compiles against Spring
+// MVC and Bean Validation (the webmvc or web starter and the validation starter). Boot 3 modules
 // (shop.boot3-service-conventions) get Boot 3 / Jackson 2 code.
 //
 // The task regenerates when the document, a file in its folder or a file in

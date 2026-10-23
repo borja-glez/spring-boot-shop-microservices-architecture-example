@@ -52,7 +52,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <text x="406" y="324" font-size="10" class="mono" fill="#8b949e">published_at</text>
 <path d="M244,332 H476" stroke="#30363d" opacity=".6"/>
 <text x="250" y="348" font-size="10.5" class="mono" fill="#e6edf3">40</text>
-<text x="294" y="348" font-size="10.5" class="mono" fill="#e6edf3">ProductCreated</text>
+<text x="294" y="348" font-size="10.5" class="mono" fill="#e6edf3">OrderCancelled</text>
 <text x="406" y="348" font-size="10.5" class="mono" fill="#3fb950">10:02:07</text>
 <path d="M244,356 H476" stroke="#30363d" opacity=".6"/>
 <text x="250" y="372" font-size="10.5" class="mono" fill="#e6edf3">41</text>

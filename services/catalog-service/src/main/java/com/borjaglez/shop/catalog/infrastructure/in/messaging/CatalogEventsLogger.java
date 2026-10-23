@@ -12,7 +12,7 @@ import com.borjaglez.shop.contracts.catalog.ProductPublished;
 /**
  * [Hexagonal · adaptador driving] Reads the catalog's own product events back from Kafka (the
  * {@code receiveCatalogEvents} operation of {@code catalog.yaml}) and makes them visible in the
- * logs. It consumes them as inventory and reporting do from their own processes.
+ * logs. It consumes them as inventory and orders do from their own processes.
  */
 @EventHandler
 public class CatalogEventsLogger {
