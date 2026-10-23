@@ -18,6 +18,8 @@ dependencies {
     api(libs.cqrs.asyncapi.test)
     api(libs.awaitility)
     implementation(libs.openapi.request.validator.mockmvc)
+    // TestClasspathConvertersAutoConfiguration, active only in web applications.
+    compileOnly(libs.spring.boot.starter.webmvc)
 
     // OpenApiContractTest checks the shop's own problem rendering against common.v1.yaml.
     testImplementation(project(":platform:service-support"))

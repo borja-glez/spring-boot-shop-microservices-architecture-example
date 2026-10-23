@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -30,5 +31,14 @@ class WebMvcSliceTest {
   @Test
   void currentUserResolverIsActiveInTheSlice() throws Exception {
     mvc.perform(get("/whoami")).andExpect(status().isUnauthorized());
+  }
+
+  /** The YAML module of the contract test libraries does not make the slice answer YAML. */
+  @Test
+  void theSliceNegotiatesLikeTheServiceAndRefusesYaml() throws Exception {
+    mvc.perform(get("/things/42").accept("application/yaml")).andExpect(status().isNotAcceptable());
+    mvc.perform(get("/things/42").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value("42"));
   }
 }
