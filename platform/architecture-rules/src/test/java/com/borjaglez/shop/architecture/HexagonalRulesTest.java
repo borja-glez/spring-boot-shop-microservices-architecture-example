@@ -100,6 +100,20 @@ class HexagonalRulesTest {
   }
 
   @Test
+  void beansDeclareTheirAdapterTypeAcceptsTheGoodFixture() {
+    assertAccepts(HexagonalRules.BEANS_DECLARE_THEIR_ADAPTER_TYPE, GOOD);
+  }
+
+  @Test
+  void beansDeclareTheirAdapterTypeRejectsTheBadFixture() {
+    assertRejects(
+        HexagonalRules.BEANS_DECLARE_THEIR_ADAPTER_TYPE,
+        BAD,
+        "PortTypedConfiguration.productRepository()",
+        "PortTypedConfiguration.stockPort()");
+  }
+
+  @Test
   void servicesAreIsolatedAcceptsTheGoodFixture() {
     assertAccepts(HexagonalRules.SERVICES_ARE_ISOLATED, GOOD);
   }
