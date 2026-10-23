@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mercado API contracts</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui.css" />
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; }
@@ -25,24 +26,41 @@
     <div id="viewer"></div>
 
     <script src="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui-bundle.js"></script>
+    <!-- The version comes from gradle/libs.versions.toml (asyncapi-web-component); the integrity
+         hashes are those of its files. -->
     <script
-      src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@3.1.8/lib/asyncapi-web-component.js"
+      src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@@asyncapiWebComponentVersion@/lib/asyncapi-web-component.js"
       integrity="sha384-1lhhmwYf1Eif0PQgDyo9eNFJLiRmcSgsv4mkpEtxLPzd+gEPIjxuoEdCQq9PsSm5"
       crossorigin="anonymous"
       defer
     ></script>
     <script>
-      const ASYNCAPI_CSS = 'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@3.1.8/styles/default.min.css';
+      const ASYNCAPI_CSS = 'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@@asyncapiWebComponentVersion@/styles/default.min.css';
       const ASYNCAPI_CSS_INTEGRITY = 'sha384-oo9RoQcacP++XdMX6CjTucTvASEORHX3chFik0/V2kHcsHiVboGyWZztGeq/0bum';
+      // Used when the stylesheet cannot be loaded, so the component does not fetch its default one.
+      const NO_STYLESHEET = 'data:text/css,';
       const viewer = document.getElementById('viewer');
       const message = document.getElementById('message');
       const nav = document.getElementById('contracts');
+      // Each selection gets a number, so a document still loading is dropped once another is chosen.
+      let selection = 0;
+      // Blob URL of the stylesheet handed to the AsyncAPI component on screen.
+      let stylesheetUrl = null;
+
+      function releaseStylesheet() {
+        if (stylesheetUrl) {
+          URL.revokeObjectURL(stylesheetUrl);
+          stylesheetUrl = null;
+        }
+      }
 
       function show(entry, button) {
+        const current = ++selection;
         nav.querySelectorAll('button').forEach((b) => b.removeAttribute('aria-current'));
         button.setAttribute('aria-current', 'true');
         message.textContent = '';
         viewer.replaceChildren();
+        releaseStylesheet();
         const url = new URL('/api/docs/contracts/' + entry.path, location.href).href;
         if (entry.kind === 'openapi') {
           const target = document.createElement('div');
@@ -50,16 +68,45 @@
           viewer.append(target);
           SwaggerUIBundle({ url, dom_id: '#swagger-ui' });
         } else {
-          const component = document.createElement('asyncapi-component');
-          component.setAttribute('schemaUrl', url);
-          // The component loads this stylesheet itself, so it is fetched here with an integrity
-          // check and handed over as a blob URL.
-          fetch(ASYNCAPI_CSS, { integrity: ASYNCAPI_CSS_INTEGRITY, mode: 'cors' })
-            .then((response) => response.blob())
-            .then((blob) => component.setAttribute('cssImportPath', URL.createObjectURL(blob)))
-            .catch(() => {});
-          viewer.append(component);
+          showAsyncApi(url, current);
         }
+      }
+
+      // The component loads its stylesheet itself, from cssImportPath. The stylesheet is fetched
+      // here with an integrity check and handed over as a blob URL, set before the component is
+      // attached so that it never renders against its default stylesheet path.
+      function showAsyncApi(url, current) {
+        fetch(ASYNCAPI_CSS, { integrity: ASYNCAPI_CSS_INTEGRITY, mode: 'cors' })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error('HTTP ' + response.status);
+            }
+            return response.blob();
+          })
+          .then((blob) => URL.createObjectURL(blob))
+          .catch(() => {
+            if (current === selection) {
+              message.textContent =
+                'The AsyncAPI stylesheet could not be loaded or failed its integrity check; ' +
+                'the contract is shown without it.';
+            }
+            return NO_STYLESHEET;
+          })
+          .then((cssUrl) => {
+            if (current !== selection) {
+              if (cssUrl !== NO_STYLESHEET) {
+                URL.revokeObjectURL(cssUrl);
+              }
+              return;
+            }
+            if (cssUrl !== NO_STYLESHEET) {
+              stylesheetUrl = cssUrl;
+            }
+            const component = document.createElement('asyncapi-component');
+            component.setAttribute('cssImportPath', cssUrl);
+            component.setAttribute('schemaUrl', url);
+            viewer.append(component);
+          });
       }
 
       fetch('/api/docs/contracts/index.json')

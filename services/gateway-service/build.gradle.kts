@@ -25,6 +25,7 @@ tasks.withType<org.springframework.boot.gradle.tasks.aot.ProcessAot>().configure
 // One file tree per source root keeps the other directories of the repository out of the inputs.
 val contractsStaging = layout.buildDirectory.dir("generated/contracts")
 val swaggerUiVersion = libs.versions.swagger.ui.get()
+val asyncApiWebComponentVersion = libs.versions.asyncapi.web.component.get()
 
 val collectContracts by tasks.registering(Sync::class) {
     val repositoryRoot = rootProject.layout.projectDirectory
@@ -51,17 +52,20 @@ val collectContracts by tasks.registering(Sync::class) {
     val contractsRoot = contractsStaging.map { it.dir("api/docs/contracts") }
     doLast {
         val root = contractsRoot.get().asFile
-        // Only documents with operations (a non-empty paths or channels map) are listed; component libraries are still
-        // served so that the $refs of the listed documents resolve.
+        // Only documents with operations (a non-empty top-level paths or channels mapping) are
+        // listed; component libraries are still served so that the $refs of the listed documents
+        // resolve. SnakeYAML is on the build classpath through the OpenAPI generator plugin.
+        val yaml = org.yaml.snakeyaml.Yaml(org.yaml.snakeyaml.constructor.SafeConstructor(org.yaml.snakeyaml.LoaderOptions()))
+        fun hasEntries(document: Map<*, *>, key: String) = (document[key] as? Map<*, *>).orEmpty().isNotEmpty()
         val entries =
             root.walkTopDown()
                 .filter { it.isFile && (it.extension == "yaml" || it.extension == "yml") }
                 .mapNotNull { file ->
-                    val lines = file.readLines()
+                    val document = file.reader().use { yaml.load<Any?>(it) } as? Map<*, *> ?: emptyMap<Any, Any>()
                     val kind =
                         when {
-                            lines.any { it.startsWith("openapi:") } && lines.any { it.trimEnd() == "paths:" } -> "openapi"
-                            lines.any { it.startsWith("asyncapi:") } && lines.any { it.trimEnd() == "channels:" } -> "asyncapi"
+                            "openapi" in document && hasEntries(document, "paths") -> "openapi"
+                            "asyncapi" in document && hasEntries(document, "channels") -> "asyncapi"
                             else -> null
                         }
                     kind?.let { mapOf("kind" to it, "path" to file.relativeTo(root).invariantSeparatorsPath) }
@@ -74,10 +78,11 @@ val collectContracts by tasks.registering(Sync::class) {
 
 tasks.processResources {
     from(files(contractsStaging).builtBy(collectContracts)) { into("static") }
-    // The page takes the Swagger UI version from the version catalog.
-    val pageVersion = swaggerUiVersion
-    inputs.property("swaggerUiVersion", pageVersion)
+    // The page takes the Swagger UI and AsyncAPI versions from the version catalog.
+    val pageVersions =
+        mapOf("swaggerUiVersion" to swaggerUiVersion, "asyncapiWebComponentVersion" to asyncApiWebComponentVersion)
+    inputs.properties(pageVersions)
     filesMatching("static/api/docs/index.html") {
-        filter<org.apache.tools.ant.filters.ReplaceTokens>("tokens" to mapOf("swaggerUiVersion" to pageVersion))
+        filter<org.apache.tools.ant.filters.ReplaceTokens>("tokens" to pageVersions)
     }
 }

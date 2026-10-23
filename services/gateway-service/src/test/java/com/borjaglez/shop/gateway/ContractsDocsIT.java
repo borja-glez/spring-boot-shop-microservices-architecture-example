@@ -2,7 +2,10 @@ package com.borjaglez.shop.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -100,10 +103,33 @@ class ContractsDocsIT {
     while (reference.find()) {
       found++;
       assertThat(reference.group(1))
-          .matches("/api/docs/.*|https://cdn.jsdelivr.net/npm/@asyncapi/[a-z-]+@[0-9.]+/.*");
+          .matches("/api/docs/.*|https://cdn.jsdelivr.net/npm/@asyncapi/[a-z-]+@[0-9.]+/.*|data:,");
     }
-    assertThat(found).isGreaterThanOrEqualTo(3);
-    assertThat(page).doesNotContain("@swaggerUiVersion@");
+    assertThat(found).isGreaterThanOrEqualTo(4);
+    assertThat(page).doesNotContainPattern("@[A-Za-z]+Version@");
+  }
+
+  @Test
+  void pageNeedsNoFavicon() {
+    String page = http.get().uri("/api/docs/").retrieve().body(String.class);
+
+    assertThat(page).contains("<link rel=\"icon\" href=\"data:,\" />");
+  }
+
+  /** The version of the AsyncAPI files comes from the version catalog, like the Swagger UI one. */
+  @Test
+  void asyncApiFilesTakeTheirVersionFromTheBuild() throws IOException {
+    String source = Files.readString(Path.of("src/main/resources/static/api/docs/index.html"));
+    String page = http.get().uri("/api/docs/").retrieve().body(String.class);
+
+    assertThat(source)
+        .contains("@asyncapi/web-component@@asyncapiWebComponentVersion@/")
+        .contains("@asyncapi/react-component@@asyncapiWebComponentVersion@/");
+    Matcher component = Pattern.compile("@asyncapi/web-component@([0-9.]+)/").matcher(page);
+    Matcher styles = Pattern.compile("@asyncapi/react-component@([0-9.]+)/").matcher(page);
+    assertThat(component.find()).isTrue();
+    assertThat(styles.find()).isTrue();
+    assertThat(styles.group(1)).isEqualTo(component.group(1));
   }
 
   @Test
