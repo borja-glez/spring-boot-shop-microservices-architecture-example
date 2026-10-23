@@ -65,7 +65,7 @@ class CatalogApiIT {
 
   @Test
   void searchesByTextIgnoringCase() {
-    var response = get("/api/catalog/products?filter=name:contains:cafetera");
+    var response = get("/api/v1/catalog/products?filter=name:contains:cafetera");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(content(response))
@@ -75,7 +75,7 @@ class CatalogApiIT {
 
   @Test
   void searchesIgnoringAccents() {
-    var response = get("/api/catalog/products?filter=name:contains:café&size=100");
+    var response = get("/api/v1/catalog/products?filter=name:contains:café&size=100");
 
     assertThat(content(response))
         .extracting(p -> p.get("sku"))
@@ -85,7 +85,7 @@ class CatalogApiIT {
   @Test
   @SuppressWarnings("unchecked")
   void facetsCountTheTextSearchIgnoringCase() {
-    var response = get("/api/catalog/products/facets?filter=name:contains:CAFETERA");
+    var response = get("/api/v1/catalog/products/facets?filter=name:contains:CAFETERA");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat((List<Map<String, Object>>) response.getBody().get("categories"))
@@ -96,7 +96,7 @@ class CatalogApiIT {
 
   @Test
   void filtersByTag() {
-    var response = get("/api/catalog/products?filter=tags:in:artesania|audio&size=100");
+    var response = get("/api/v1/catalog/products?filter=tags:in:artesania|audio&size=100");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(content(response)).extracting(p -> p.get("sku")).contains("HOG-004", "ELE-001");
@@ -104,7 +104,7 @@ class CatalogApiIT {
 
   @Test
   void productsWithoutTagsCanBeFound() {
-    var response = get("/api/catalog/products?filter=tags:isempty&size=100");
+    var response = get("/api/v1/catalog/products?filter=tags:isempty&size=100");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(content(response)).extracting(p -> p.get("sku")).contains("DES-006", "EMB-003");
@@ -112,7 +112,7 @@ class CatalogApiIT {
 
   @Test
   void valueOfTheWrongTypeIsABadRequest() {
-    var response = get("/api/catalog/products?filter=price.amount:gte:abc");
+    var response = get("/api/v1/catalog/products?filter=price.amount:gte:abc");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -120,7 +120,7 @@ class CatalogApiIT {
 
   @Test
   void unknownOperatorIsABadRequest() {
-    var response = get("/api/catalog/products?filter=name:like:cafe");
+    var response = get("/api/v1/catalog/products?filter=name:like:cafe");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -128,14 +128,14 @@ class CatalogApiIT {
 
   @Test
   void unknownEnumValueIsABadRequest() {
-    var response = get("/api/catalog/products?filter=status:eq:SOLD_OUT");
+    var response = get("/api/v1/catalog/products?filter=status:eq:SOLD_OUT");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
   @Test
   void unknownFieldIsABadRequest() {
-    var response = get("/api/catalog/products?filter=nonexistent:eq:x");
+    var response = get("/api/v1/catalog/products?filter=nonexistent:eq:x");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
@@ -144,7 +144,7 @@ class CatalogApiIT {
   void filtersByPriceRangeAndSorts() {
     var response =
         get(
-            "/api/catalog/products?filter=price.amount:between:5|20&sort=price.amount,asc&size=100");
+            "/api/v1/catalog/products?filter=price.amount:between:5|20&sort=price.amount,asc&size=100");
 
     List<Map<String, Object>> products = content(response);
     assertThat(products).hasSize(33);
@@ -157,7 +157,7 @@ class CatalogApiIT {
   void combinesAlternativesWithOrFilter() {
     var response =
         get(
-            "/api/catalog/products?orFilter=categories.slug:eq:vinos;seller.id:eq:seller-diego&size=100");
+            "/api/v1/catalog/products?orFilter=categories.slug:eq:vinos;seller.id:eq:seller-diego&size=100");
 
     assertThat(content(response))
         .extracting(p -> p.get("sku"))
@@ -167,14 +167,14 @@ class CatalogApiIT {
 
   @Test
   void pageSizeIsCapped() {
-    var response = get("/api/catalog/products?size=10000");
+    var response = get("/api/v1/catalog/products?size=10000");
 
     assertThat(response.getBody()).containsEntry("size", 100);
   }
 
   @Test
   void privateFieldsCannotBeFiltered() {
-    var response = get("/api/catalog/products?filter=seller.email:startswith:ana");
+    var response = get("/api/v1/catalog/products?filter=seller.email:startswith:ana");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -182,7 +182,7 @@ class CatalogApiIT {
 
   @Test
   void privateFieldsCannotBeSortedEvenThroughPageable() {
-    var response = get("/api/catalog/products?sort=seller.email,asc");
+    var response = get("/api/v1/catalog/products?sort=seller.email,asc");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -190,7 +190,7 @@ class CatalogApiIT {
 
   @Test
   void malformedFilterIsABadRequest() {
-    var response = get("/api/catalog/products?filter=name:contains");
+    var response = get("/api/v1/catalog/products?filter=name:contains");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -199,7 +199,7 @@ class CatalogApiIT {
   @Test
   void searchesATermWithAnApostropheIgnoringCaseAndAccents() {
     // Case-insensitive terms are bound as query parameters, quotes included.
-    var response = get("/api/catalog/products?filter=name:contains:D'OLIVA DE L'EMPORDA");
+    var response = get("/api/v1/catalog/products?filter=name:contains:D'OLIVA DE L'EMPORDA");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(content(response)).extracting(p -> p.get("sku")).containsExactly("ACE-004");
@@ -210,7 +210,7 @@ class CatalogApiIT {
     String sellers =
         IntStream.rangeClosed(1, 51).mapToObj(i -> "seller-" + i).collect(Collectors.joining("|"));
 
-    var response = get("/api/catalog/products?filter=seller.id:in:" + sellers);
+    var response = get("/api/v1/catalog/products?filter=seller.id:in:" + sellers);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getHeaders().getContentType())
@@ -224,7 +224,7 @@ class CatalogApiIT {
 
   @Test
   void aSearchTermAboveTheCatalogLimitIsABadRequest() {
-    var response = get("/api/catalog/products?filter=name:contains:" + "a".repeat(101));
+    var response = get("/api/v1/catalog/products?filter=name:contains:" + "a".repeat(101));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("code", "invalid-filter");
@@ -233,7 +233,7 @@ class CatalogApiIT {
 
   @Test
   void aDisallowedFieldNamesItInTheProblem() {
-    var response = get("/api/catalog/products?filter=seller.email:startswith:ana");
+    var response = get("/api/v1/catalog/products?filter=seller.email:startswith:ana");
 
     assertThat(response.getBody())
         .containsEntry("code", "invalid-filter")
@@ -242,7 +242,7 @@ class CatalogApiIT {
 
   @Test
   void aDisallowedPageableSortNamesItInTheProblem() {
-    var response = get("/api/catalog/products?sort=id,asc");
+    var response = get("/api/v1/catalog/products?sort=id,asc");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("field", "id");
@@ -250,17 +250,17 @@ class CatalogApiIT {
 
   @Test
   void productPageAndMissingProduct() {
-    assertThat(get("/api/catalog/products/cafe-de-colombia-en-grano-1-kg-caf-001").getBody())
+    assertThat(get("/api/v1/catalog/products/cafe-de-colombia-en-grano-1-kg-caf-001").getBody())
         .containsEntry("sku", "CAF-001");
 
-    var missing = get("/api/catalog/products/no-existe");
+    var missing = get("/api/v1/catalog/products/no-existe");
     assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(missing.getBody()).containsEntry("code", "product-not-found");
   }
 
   @Test
   void facetsCannotBeSorted() {
-    var response = get("/api/catalog/products/facets?sort=name,asc");
+    var response = get("/api/v1/catalog/products/facets?sort=name,asc");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody())
@@ -271,7 +271,7 @@ class CatalogApiIT {
   @Test
   void facetsRejectThePrivateFieldsTheSearchRejects() {
     var response =
-        get("/api/catalog/products/facets?filter=seller.email:eq:ana@tostadores.example");
+        get("/api/v1/catalog/products/facets?filter=seller.email:eq:ana@tostadores.example");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody())
@@ -281,13 +281,13 @@ class CatalogApiIT {
 
   /** The product page of a seeded product after telling the inventory its stock. */
   private Map<String, Object> pageWithStock(String slug, Integer units) {
-    UUID id = UUID.fromString((String) get("/api/catalog/products/" + slug).getBody().get("id"));
+    UUID id = UUID.fromString((String) get("/api/v1/catalog/products/" + slug).getBody().get("id"));
     if (units == null) {
       inventory.silentAbout(id);
     } else {
       inventory.stock(id, units);
     }
-    return get("/api/catalog/products/" + slug).getBody();
+    return get("/api/v1/catalog/products/" + slug).getBody();
   }
 
   @Test
@@ -314,7 +314,7 @@ class CatalogApiIT {
 
   @Test
   void productsNoLongerOnSaleHaveNoStock() {
-    assertThat(get("/api/catalog/products/rooibos-con-vainilla-caf-008").getBody())
+    assertThat(get("/api/v1/catalog/products/rooibos-con-vainilla-caf-008").getBody())
         .containsEntry("status", "DISCONTINUED")
         .containsEntry("availability", null);
   }
@@ -328,14 +328,14 @@ class CatalogApiIT {
 
   @Test
   void searchCardsCarryUtcTimestamps() {
-    assertThat(content(get("/api/catalog/products?filter=sku:eq:CAF-001")))
+    assertThat(content(get("/api/v1/catalog/products?filter=sku:eq:CAF-001")))
         .singleElement()
         .satisfies(card -> assertThat((String) card.get("publishedAt")).matches(ISO_UTC));
   }
 
   @Test
   void facetsFollowTheFilters() {
-    var response = get("/api/catalog/products/facets?filter=categories.slug:eq:vinos");
+    var response = get("/api/v1/catalog/products/facets?filter=categories.slug:eq:vinos");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).containsKeys("categories", "sellers", "tags", "price");
@@ -345,7 +345,7 @@ class CatalogApiIT {
   void categoriesAreListed() {
     var response =
         http.get()
-            .uri("/api/catalog/categories")
+            .uri("/api/v1/catalog/categories")
             .retrieve()
             .toEntity(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
 
@@ -356,7 +356,7 @@ class CatalogApiIT {
   void writesNeedAUser() {
     var response =
         http.post()
-            .uri("/api/catalog/products")
+            .uri("/api/v1/catalog/products")
             .contentType(MediaType.APPLICATION_JSON)
             .body("{\"sku\":\"X-1\",\"name\":\"X\",\"price\":1,\"currency\":\"EUR\"}")
             .retrieve()
@@ -369,7 +369,7 @@ class CatalogApiIT {
   void createAndPublishAProduct() {
     var created =
         http.post()
-            .uri("/api/catalog/products")
+            .uri("/api/v1/catalog/products")
             .header("X-Shop-User", "seller-elena")
             .contentType(MediaType.APPLICATION_JSON)
             .body(
@@ -384,20 +384,20 @@ class CatalogApiIT {
 
     var published =
         http.post()
-            .uri("/api/catalog/products/{id}/publish", id)
+            .uri("/api/v1/catalog/products/{id}/publish", id)
             .header("X-Shop-User", "seller-elena")
             .retrieve()
             .toBodilessEntity();
     assertThat(published.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-    assertThat(content(get("/api/catalog/products?filter=sku:eq:LIB-900"))).hasSize(1);
+    assertThat(content(get("/api/v1/catalog/products?filter=sku:eq:LIB-900"))).hasSize(1);
   }
 
   @Test
   void everyResponseCarriesACorrelationId() {
     var response =
         http.get()
-            .uri("/api/catalog/categories")
+            .uri("/api/v1/catalog/categories")
             .header("X-Correlation-Id", "it-42")
             .retrieve()
             .toBodilessEntity();

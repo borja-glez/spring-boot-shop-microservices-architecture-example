@@ -13,6 +13,10 @@ import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
  * description ignore case and accents ({@link #CASE_INSENSITIVE_FIELDS}), so a shopper who types
  * "cafe" finds "Café de Colombia". The search may be sorted by {@link #SORTABLE_FIELDS}; the facets
  * are not sorted.
+ *
+ * <p>The contract of the API, {@code catalog-api.v1.yaml}, lists the same fields in the {@code
+ * x-specrepo-filterable-fields} and {@code x-specrepo-sortable-fields} of the search and the facets
+ * and in the patterns of their filter parameters.
  */
 public final class ProductFilters {
 

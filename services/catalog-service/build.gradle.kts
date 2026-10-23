@@ -1,6 +1,7 @@
 plugins {
     id("shop.boot-service-conventions")
     id("shop.hibernate-enhancement-conventions")
+    id("shop.openapi-conventions")
 }
 
 description = "Product catalog: publishing, pricing and public search"
@@ -27,4 +28,13 @@ dependencies {
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.data.jpa.test)
     testImplementation(libs.spring.boot.starter.restclient)
+}
+
+shopOpenApi {
+    basePackage.set("com.borjaglez.shop.catalog.infrastructure.in")
+    specs {
+        register("v1") {
+            file.set(layout.projectDirectory.file("src/main/openapi/catalog-api.v1.yaml"))
+        }
+    }
 }
