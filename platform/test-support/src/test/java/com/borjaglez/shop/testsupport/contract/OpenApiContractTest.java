@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -177,6 +178,47 @@ class OpenApiContractTest {
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("invalid-user"))
+        .andExpect(CONTRACT.matchesResponse());
+  }
+
+  @Test
+  void aJsonOnlyClientGetsTheUserHeaderProblemsAsJson() throws Exception {
+    var missingUser =
+        post("/api/v1/widgets")
+            .accept(MediaType.APPLICATION_JSON)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(
+                """
+                {"name": "Desk", "price": 120.50}
+                """);
+    shop.perform(missingUser)
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("missing-user"))
+        .andExpect(CONTRACT.matchesResponse());
+
+    shop.perform(missingUser.header("X-Shop-User", "not a valid user!"))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("invalid-user"))
+        .andExpect(CONTRACT.matchesResponse());
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAnInvalidBodyAsJson() throws Exception {
+    shop.perform(
+            post("/api/v1/widgets")
+                .header("X-Shop-User", "seller-ana")
+                .accept(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name": "", "price": -1}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("name", "price")))
         .andExpect(CONTRACT.matchesResponse());
   }
 

@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -138,6 +139,21 @@ class GatewayRoutingIT {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(response.getBody()).containsEntry("code", "not-found");
     assertThat(catalog.received()).isEmpty();
+  }
+
+  @Test
+  void unknownPathsAreJsonProblemsForAJsonOnlyClient() {
+    var response =
+        http.get()
+            .uri("/api/nothing-here")
+            .accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .toEntity(String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON))
+        .isTrue();
+    assertThat(response.getBody()).contains("\"code\":\"not-found\"").contains("\"correlationId\"");
   }
 
   @Test

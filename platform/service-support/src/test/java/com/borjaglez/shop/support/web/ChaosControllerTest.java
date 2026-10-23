@@ -104,6 +104,20 @@ class ChaosControllerTest {
   }
 
   @Test
+  void aJsonOnlyClientGetsAnInvalidFaultChangeAsJson() throws Exception {
+    mvc.perform(
+            put("/api/v1/chaos/payments/AuthorizePayment.fail")
+                .accept(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[0].field").value("value"))
+        .andExpect(CONTRACT.matchesResponse());
+  }
+
+  @Test
   void aServiceOtherThanTheConfiguredOneIsNotFound() throws Exception {
     mvc.perform(get("/api/v1/chaos/orders"))
         .andExpect(status().isNotFound())

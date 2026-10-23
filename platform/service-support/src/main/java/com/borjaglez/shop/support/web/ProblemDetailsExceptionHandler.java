@@ -143,10 +143,14 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
     if (body instanceof ProblemDetail problem && !hasCode(problem)) {
       decorate(problem, codeFor(statusCode), List.of(), request);
     }
-    if (acceptsJsonButNotProblems(request)) {
-      headers.setContentType(MediaType.APPLICATION_JSON);
+    if (!acceptsJsonButNotProblems(request)) {
+      return super.createResponseEntity(body, headers, statusCode, request);
     }
-    return super.createResponseEntity(body, headers, statusCode, request);
+    // Spring hands most framework errors over with read-only headers: change a copy.
+    HttpHeaders json = new HttpHeaders();
+    json.putAll(headers);
+    json.setContentType(MediaType.APPLICATION_JSON);
+    return super.createResponseEntity(body, json, statusCode, request);
   }
 
   /**

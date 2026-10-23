@@ -195,15 +195,84 @@ class ProblemDetailsExceptionHandlerTest {
   }
 
   @Test
-  void aClientThatAcceptsOnlyJsonGetsTheProblemAsJson() throws Exception {
+  void aJsonOnlyClientGetsADomainProblemAsJson() throws Exception {
     mvc.perform(get("/not-found").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isNotFound())
-        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.code").value("product-not-found"));
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("product-not-found"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
+
+  // Framework problems: Spring hands most of them over with read-only headers.
+
+  @Test
+  void aJsonOnlyClientGetsAnUnknownPathAsJson() throws Exception {
+    mvc.perform(get("/nothing-here").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("not-found"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAMissingParameterAsJson() throws Exception {
+    mvc.perform(get("/sized").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("bad-request"));
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAnInvalidBodyAsJsonWithItsFields() throws Exception {
+    mvc.perform(
+            post("/things")
+                .accept(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\",\"price\":1}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[0].field").value("name"));
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAMissingUserAsJson() throws Exception {
+    mvc.perform(get("/declared-user").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("missing-user"));
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAnInvalidUserAsJson() throws Exception {
+    mvc.perform(
+            get("/declared-user")
+                .header("X-Shop-User", "not a valid user!")
+                .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("invalid-user"));
+  }
+
+  @Test
+  void aJsonOnlyClientGetsAMethodNotAllowedAsJsonWithItsAllowHeader() throws Exception {
     mvc.perform(post("/not-found").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isMethodNotAllowed())
-        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(header().string(HttpHeaders.ALLOW, containsString("GET")))
         .andExpect(jsonPath("$.code").value("method-not-allowed"));
+  }
+
+  @Test
+  void aFrameworkProblemStaysProblemJsonForOtherClients() throws Exception {
+    mvc.perform(get("/sized").accept(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.code").value("bad-request"));
+    mvc.perform(get("/sized"))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.code").value("bad-request"));
   }
 
   @Test
