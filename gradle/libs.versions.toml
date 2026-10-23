@@ -25,7 +25,8 @@ openapi-request-validator = "3.0.0"
 # Swagger UI served by the gateway from the webjar (the contracts page references this version).
 swagger-ui = "5.33.1"
 # AsyncAPI web component and its stylesheet (@asyncapi/react-component), loaded by the contracts page
-# from jsDelivr. The page pins their integrity hashes: update them with the version.
+# from jsDelivr. The page pins their integrity hashes: update them with the version
+# (services/gateway-service ContractsPageIntegrityTest checks the pair).
 asyncapi-web-component = "3.1.8"
 
 [libraries]

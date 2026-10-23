@@ -27,8 +27,9 @@
 
     <script src="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui-bundle.js"></script>
     <!-- The version comes from gradle/libs.versions.toml (asyncapi-web-component); the integrity
-         hashes are those of its files. -->
+         hashes are those of its files (ContractsPageIntegrityTest pins the pair). -->
     <script
+      id="asyncapi-viewer"
       src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@@asyncapiWebComponentVersion@/lib/asyncapi-web-component.js"
       integrity="sha384-1lhhmwYf1Eif0PQgDyo9eNFJLiRmcSgsv4mkpEtxLPzd+gEPIjxuoEdCQq9PsSm5"
       crossorigin="anonymous"
@@ -46,6 +47,15 @@
       let selection = 0;
       // Blob URL of the stylesheet handed to the AsyncAPI component on screen.
       let stylesheetUrl = null;
+      // Set when the AsyncAPI web component cannot be loaded or fails its integrity check.
+      let viewerFailure = null;
+
+      document.getElementById('asyncapi-viewer').addEventListener('error', () => {
+        viewerFailure =
+          'The AsyncAPI viewer could not be loaded or failed its integrity check; ' +
+          'AsyncAPI contracts cannot be shown.';
+        message.textContent = viewerFailure;
+      });
 
       function releaseStylesheet() {
         if (stylesheetUrl) {
@@ -76,6 +86,10 @@
       // here with an integrity check and handed over as a blob URL, set before the component is
       // attached so that it never renders against its default stylesheet path.
       function showAsyncApi(url, current) {
+        if (viewerFailure) {
+          message.textContent = viewerFailure;
+          return;
+        }
         fetch(ASYNCAPI_CSS, { integrity: ASYNCAPI_CSS_INTEGRITY, mode: 'cors' })
           .then((response) => {
             if (!response.ok) {
