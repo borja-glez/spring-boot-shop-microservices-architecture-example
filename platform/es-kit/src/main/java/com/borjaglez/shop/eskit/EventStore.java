@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -13,7 +12,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.borjaglez.cqrs.context.MessageContext;
 import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.cqrs.serialization.MessageSerializer;
 import com.borjaglez.shop.support.tracing.TraceCarrier;
@@ -122,18 +120,8 @@ public class EventStore {
         version,
         types.nameOf(event.getClass()),
         new String(serializer.serialize(event), StandardCharsets.UTF_8),
-        new String(serializer.serialize(currentMetadata()), StandardCharsets.UTF_8),
+        new String(serializer.serialize(EventMetadata.current(traces)), StandardCharsets.UTF_8),
         OffsetDateTime.now(clock));
-  }
-
-  /**
-   * The message context of the request plus the current trace, so the relay can publish the event
-   * as part of the trace that recorded it.
-   */
-  private Map<String, String> currentMetadata() {
-    Map<String, String> metadata = new HashMap<>(MessageContext.current().asMap());
-    metadata.putAll(traces.capture());
-    return metadata;
   }
 
   private RecordedEvent toRecorded(StoredEvent row) {

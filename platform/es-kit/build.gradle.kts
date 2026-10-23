@@ -29,4 +29,7 @@ dependencies {
     testImplementation(libs.spring.boot.starter.flyway)
     testRuntimeOnly(libs.postgresql)
     testRuntimeOnly(libs.flyway.database.postgresql)
+
+    // The relay of the cqrs outbox publishes to a real Kafka (KafkaTestConfiguration).
+    integrationTestImplementation(libs.spring.boot.starter.kafka)
 }
