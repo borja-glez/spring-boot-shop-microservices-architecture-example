@@ -1,0 +1,16 @@
+{
+  "changes": [
+    {
+      "action": "add",
+      "path": "/operations/op/channel/messages/m/payload/properties/name/description",
+      "after": "The name.",
+      "type": "unclassified"
+    },
+    {
+      "action": "add",
+      "path": "/channels/ch/messages/m/payload/properties/name/description",
+      "after": "The name.",
+      "type": "unclassified"
+    }
+  ]
+}

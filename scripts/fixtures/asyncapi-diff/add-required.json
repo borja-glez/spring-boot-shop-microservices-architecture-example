@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "action": "add",
+      "path": "/operations/op/channel/messages/m/payload/required/2",
+      "isArrayIndex": true,
+      "after": "status",
+      "type": "unclassified"
+    },
+    {
+      "action": "add",
+      "path": "/channels/ch/messages/m/payload/required/2",
+      "isArrayIndex": true,
+      "after": "status",
+      "type": "unclassified"
+    }
+  ]
+}

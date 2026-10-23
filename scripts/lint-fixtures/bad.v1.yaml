@@ -1,0 +1,43 @@
+# Negative fixture: violates every rule of platform/api-contracts/lint-rules.yaml.
+# scripts/check-contracts.sh lints it and requires each rule id in the output; it is neither
+# served by the gateway nor read by the frontend type generation.
+openapi: 3.0.3
+info:
+  title: Lint fixture
+  version: 1.0.0
+  description: Violates every lint rule.
+paths:
+  # path-kebab-case and path-plural-collections: underscores, capitals, a singular collection.
+  /api/v1/Order_item/{id}:
+    get:
+      # operation-id-camel-case and operation-tags: snake case, no tags.
+      operationId: Get_order_item
+      responses:
+        '200':
+          description: Fine.
+        # error-response-has-content: a 4xx reached through $ref to a response without content.
+        '404':
+          $ref: '#/components/responses/NoContent'
+        # error-response-problem-json: a 5xx reached through $ref to a response with another media type.
+        '500':
+          $ref: '#/components/responses/JsonOnly'
+components:
+  responses:
+    NoContent:
+      description: A not-found response without a body.
+    JsonOnly:
+      description: A server error that is not a problem.
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Not a problem.
+  schemas:
+    # schema-description: no description.
+    NoDescription:
+      type: object
+    # no-additional-properties-true.
+    Open:
+      type: object
+      description: Accepts anything.
+      additionalProperties: true
