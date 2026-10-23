@@ -52,6 +52,20 @@ shop:
       - id: reporting-v1
         path: /api/v1/reporting/**
         uri: ${REPORTING_URI:http://localhost:8086}
+      # Fault injection (service-support chaos-api.v1.yaml), one route per service that sets
+      # shop.chaos.service.
+      - id: chaos-catalog
+        path: /api/v1/chaos/catalog/**
+        uri: ${CATALOG_URI:http://localhost:8081}
+      - id: chaos-orders
+        path: /api/v1/chaos/orders/**
+        uri: ${ORDERS_URI:http://localhost:8082}
+      - id: chaos-inventory
+        path: /api/v1/chaos/inventory/**
+        uri: ${INVENTORY_URI:http://localhost:8083}
+      - id: chaos-payments
+        path: /api/v1/chaos/payments/**
+        uri: ${PAYMENTS_URI:http://localhost:8084}
 
 info:
   service:
