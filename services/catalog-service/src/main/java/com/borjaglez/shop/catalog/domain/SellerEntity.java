@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "seller")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Seller {
+public class SellerEntity {
 
   @Id
   @Column(length = 64)
@@ -33,7 +33,7 @@ public class Seller {
   @Column(nullable = false, length = 80)
   private String city;
 
-  public Seller(String id, String displayName, String email, String city) {
+  public SellerEntity(String id, String displayName, String email, String city) {
     this.id = id;
     this.displayName = displayName;
     this.email = email;

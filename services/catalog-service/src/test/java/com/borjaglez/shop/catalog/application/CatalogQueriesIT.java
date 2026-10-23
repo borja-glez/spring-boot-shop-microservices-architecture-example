@@ -30,7 +30,7 @@ import com.borjaglez.shop.catalog.application.query.ProductViews.ProductCard;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductDetail;
 import com.borjaglez.shop.catalog.application.query.ProductViews.StockStatus;
 import com.borjaglez.shop.catalog.application.query.SearchProductsQuery;
-import com.borjaglez.shop.catalog.domain.Product;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
@@ -55,12 +55,12 @@ class CatalogQueriesIT {
   @Autowired QueryBus queries;
   @Autowired FakeStockLevels inventory;
 
-  private static QueryPlan<Product> all() {
-    return SpecificationQueryBuilder.forEntity(Product.class).build();
+  private static QueryPlan<ProductEntity> all() {
+    return SpecificationQueryBuilder.forEntity(ProductEntity.class).build();
   }
 
-  private static QueryPlan<Product> inCoffee() {
-    return SpecificationQueryBuilder.forEntity(Product.class)
+  private static QueryPlan<ProductEntity> inCoffee() {
+    return SpecificationQueryBuilder.forEntity(ProductEntity.class)
         .where("categories.slug", Operators.EQUALS, "cafe-e-infusiones")
         .build();
   }
@@ -81,8 +81,8 @@ class CatalogQueriesIT {
   void searchWithoutASortListsTheNewestFirstWithAStableTieBreaker() {
     // The whitelist of the public search: id is not a sortable field, but the default sort the
     // handler adds on the derived query is server input and may use it.
-    QueryPlan<Product> clientPlan =
-        SpecificationQueryBuilder.forEntity(Product.class)
+    QueryPlan<ProductEntity> clientPlan =
+        SpecificationQueryBuilder.forEntity(ProductEntity.class)
             .allowedFields(
                 AllowedFieldsPolicy.of(
                     Set.of("categories.slug"),
@@ -104,8 +104,8 @@ class CatalogQueriesIT {
 
   @Test
   void aClientSortOutsideTheWhitelistIsStillRejected() {
-    QueryPlan<Product> clientPlan =
-        SpecificationQueryBuilder.forEntity(Product.class)
+    QueryPlan<ProductEntity> clientPlan =
+        SpecificationQueryBuilder.forEntity(ProductEntity.class)
             .allowedFields(AllowedFieldsPolicy.of(Set.of(), Set.of("name")))
             .build();
 
@@ -119,8 +119,8 @@ class CatalogQueriesIT {
         .isInstanceOf(DisallowedFieldException.class);
   }
 
-  private static QueryPlan<Product> taggedEcoOrTea() {
-    return SpecificationQueryBuilder.forEntity(Product.class)
+  private static QueryPlan<ProductEntity> taggedEcoOrTea() {
+    return SpecificationQueryBuilder.forEntity(ProductEntity.class)
         .where("tags", Operators.IN, List.of("ecologico", "te"))
         .build();
   }
@@ -148,8 +148,8 @@ class CatalogQueriesIT {
 
   @Test
   void facetsOfAFieldIgnoreTheFilterOnThatSameField() {
-    QueryPlan<Product> fromAna =
-        SpecificationQueryBuilder.forEntity(Product.class)
+    QueryPlan<ProductEntity> fromAna =
+        SpecificationQueryBuilder.forEntity(ProductEntity.class)
             .where("seller.id", Operators.IN, List.of("seller-ana"))
             .build();
 
@@ -167,8 +167,8 @@ class CatalogQueriesIT {
 
   @Test
   void clientFiltersCannotRevealDrafts() {
-    QueryPlan<Product> drafts =
-        SpecificationQueryBuilder.forEntity(Product.class)
+    QueryPlan<ProductEntity> drafts =
+        SpecificationQueryBuilder.forEntity(ProductEntity.class)
             .where("status", Operators.EQUALS, ProductStatus.DRAFT)
             .build();
 

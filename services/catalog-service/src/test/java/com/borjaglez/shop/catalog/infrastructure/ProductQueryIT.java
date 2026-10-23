@@ -11,8 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 import com.borjaglez.shop.catalog.FakeStockLevels;
-import com.borjaglez.shop.catalog.domain.Product;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
+import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
@@ -33,11 +33,11 @@ import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
 })
 class ProductQueryIT {
 
-  @Autowired ProductRepository products;
+  @Autowired ProductJpaRepository products;
 
   @Test
   void aLeftJoinAndALeftFetchOfTheSamePathStillFetch() {
-    List<Product> found =
+    List<ProductEntity> found =
         products
             .query()
             .leftJoin("seller")
@@ -52,8 +52,8 @@ class ProductQueryIT {
 
   @Test
   void countMatchesTheRowsOfAFilterOnACollection() {
-    QueryPlan<Product> plan =
-        SpecificationQueryBuilder.forEntity(Product.class)
+    QueryPlan<ProductEntity> plan =
+        SpecificationQueryBuilder.forEntity(ProductEntity.class)
             .where(
                 "categories.slug",
                 Operators.IN,
@@ -62,9 +62,9 @@ class ProductQueryIT {
             .build();
 
     long count = products.count(plan);
-    List<Product> rows = products.findAll(plan);
+    List<ProductEntity> rows = products.findAll(plan);
 
-    assertThat(count).isEqualTo(rows.stream().map(Product::getId).distinct().count());
+    assertThat(count).isEqualTo(rows.stream().map(ProductEntity::getId).distinct().count());
     assertThat(rows).doesNotHaveDuplicates();
   }
 
@@ -75,10 +75,11 @@ class ProductQueryIT {
 
   @Test
   void equalsNullMeansIsNull() {
-    List<Product> isNull = products.query().where("publishedAt", Operators.IS_NULL, null).findAll();
+    List<ProductEntity> isNull =
+        products.query().where("publishedAt", Operators.IS_NULL, null).findAll();
 
     assertThat(products.query().where("publishedAt", Operators.EQUALS, null).findAll())
-        .extracting(Product::getId)
-        .containsExactlyInAnyOrderElementsOf(isNull.stream().map(Product::getId).toList());
+        .extracting(ProductEntity::getId)
+        .containsExactlyInAnyOrderElementsOf(isNull.stream().map(ProductEntity::getId).toList());
   }
 }

@@ -24,7 +24,7 @@ import com.borjaglez.shop.catalog.application.command.ChangeProductPriceCommand;
 import com.borjaglez.shop.catalog.application.command.CreateProductCommand;
 import com.borjaglez.shop.catalog.application.command.DiscontinueProductCommand;
 import com.borjaglez.shop.catalog.application.command.PublishProductCommand;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
+import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.eskit.StoredEvent;
 import com.borjaglez.shop.eskit.StoredEventRepository;
@@ -52,7 +52,7 @@ class CatalogCommandsIT {
   private static final String SELLER = "seller-fermin";
 
   @Autowired CommandBus commands;
-  @Autowired ProductRepository products;
+  @Autowired ProductJpaRepository products;
   @Autowired StoredEventRepository outbox;
   @Autowired TransactionTemplate transactions;
 

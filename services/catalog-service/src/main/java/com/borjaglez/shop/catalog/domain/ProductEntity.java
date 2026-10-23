@@ -50,7 +50,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "product")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Product {
+public class ProductEntity {
 
   static final int MAX_TAGS = 10;
   private static final Pattern SKU = Pattern.compile("[A-Z0-9-]{3,40}");
@@ -72,7 +72,7 @@ public class Product {
   @Column(nullable = false, length = MAX_DESCRIPTION)
   private String description;
 
-  @Embedded private Money price;
+  @Embedded private MoneyEmbeddable price;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 20)
@@ -80,14 +80,14 @@ public class Product {
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "seller_id", nullable = false)
-  private Seller seller;
+  private SellerEntity seller;
 
   @ManyToMany
   @JoinTable(
       name = "product_category",
       joinColumns = @JoinColumn(name = "product_id"),
       inverseJoinColumns = @JoinColumn(name = "category_id"))
-  private Set<Category> categories = new LinkedHashSet<>();
+  private Set<CategoryEntity> categories = new LinkedHashSet<>();
 
   @ElementCollection
   @CollectionTable(name = "product_tag", joinColumns = @JoinColumn(name = "product_id"))
@@ -108,10 +108,10 @@ public class Product {
   @Transient private final List<Event> events = new ArrayList<>();
 
   /** Creates an unpublished product. */
-  public static Product draft(ProductDraft draft, Clock clock) {
+  public static ProductEntity draft(ProductEntityDraft draft, Clock clock) {
     Objects.requireNonNull(draft.seller(), "seller must not be null");
     Objects.requireNonNull(draft.price(), "price must not be null");
-    Product product = new Product();
+    ProductEntity product = new ProductEntity();
     product.id = UUID.randomUUID();
     product.sku = validSku(draft.sku());
     product.name = validName(draft.name());
@@ -145,7 +145,7 @@ public class Product {
   }
 
   /** Changes the selling price. Only published products announce the change. */
-  public void changePrice(Money newPrice, Clock clock) {
+  public void changePrice(MoneyEmbeddable newPrice, Clock clock) {
     Objects.requireNonNull(newPrice, "newPrice must not be null");
     if (status == ProductStatus.DISCONTINUED) {
       throw discontinued();
@@ -157,7 +157,7 @@ public class Product {
     if (newPrice.equals(price)) {
       return;
     }
-    Money oldPrice = price;
+    MoneyEmbeddable oldPrice = price;
     price = newPrice;
     touch(clock);
     if (status == ProductStatus.ACTIVE) {
@@ -186,7 +186,7 @@ public class Product {
     return drained;
   }
 
-  public Set<Category> getCategories() {
+  public Set<CategoryEntity> getCategories() {
     return Collections.unmodifiableSet(categories);
   }
 

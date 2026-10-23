@@ -17,22 +17,23 @@ import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
 import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
-class ProductTest {
+class ProductEntityTest {
 
   private static final Instant NOW = Instant.parse("2026-09-24T10:00:00Z");
   private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-  private final Seller seller =
-      new Seller("seller-ana", "Tostadores Ana", "ana@example.com", "Madrid");
-  private final Category coffee = new Category(UUID.randomUUID(), "cafe-e-infusiones", "Café");
+  private final SellerEntity seller =
+      new SellerEntity("seller-ana", "Tostadores Ana", "ana@example.com", "Madrid");
+  private final CategoryEntity coffee =
+      new CategoryEntity(UUID.randomUUID(), "cafe-e-infusiones", "Café");
 
-  private Product draft() {
-    return Product.draft(
-        new ProductDraft(
+  private ProductEntity draft() {
+    return ProductEntity.draft(
+        new ProductEntityDraft(
             seller,
             "caf-001",
             "Café de Colombia en grano",
             "Tueste medio, 1 kg",
-            Money.of("18.90", "EUR"),
+            MoneyEmbeddable.of("18.90", "EUR"),
             Set.of(coffee),
             Set.of(" Ecológico ", "comercio justo")),
         clock);
@@ -40,7 +41,7 @@ class ProductTest {
 
   @Test
   void draftIsNotPublicAndRecordsNothing() {
-    Product product = draft();
+    ProductEntity product = draft();
 
     assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
     assertThat(product.getPublishedAt()).isNull();
@@ -50,7 +51,7 @@ class ProductTest {
 
   @Test
   void draftNormalisesSkuSlugAndTags() {
-    Product product = draft();
+    ProductEntity product = draft();
 
     assertThat(product.getSku()).isEqualTo("CAF-001");
     assertThat(product.getSlug()).isEqualTo("cafe-de-colombia-en-grano-caf-001");
@@ -61,9 +62,15 @@ class ProductTest {
   void rejectsInvalidSku() {
     assertThatThrownBy(
             () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "a b", "Café", "", Money.of("1", "EUR"), Set.of(), Set.of()),
+                ProductEntity.draft(
+                    new ProductEntityDraft(
+                        seller,
+                        "a b",
+                        "Café",
+                        "",
+                        MoneyEmbeddable.of("1", "EUR"),
+                        Set.of(),
+                        Set.of()),
                     clock))
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasFieldOrPropertyWithValue("code", "invalid-sku");
@@ -73,9 +80,15 @@ class ProductTest {
   void rejectsBlankName() {
     assertThatThrownBy(
             () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "SKU-1", "  ", "", Money.of("1", "EUR"), Set.of(), Set.of()),
+                ProductEntity.draft(
+                    new ProductEntityDraft(
+                        seller,
+                        "SKU-1",
+                        "  ",
+                        "",
+                        MoneyEmbeddable.of("1", "EUR"),
+                        Set.of(),
+                        Set.of()),
                     clock))
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasFieldOrPropertyWithValue("code", "invalid-name");
@@ -86,9 +99,15 @@ class ProductTest {
     Set<String> tags = Set.of("a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11");
     assertThatThrownBy(
             () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "SKU-1", "Café", "", Money.of("1", "EUR"), Set.of(), tags),
+                ProductEntity.draft(
+                    new ProductEntityDraft(
+                        seller,
+                        "SKU-1",
+                        "Café",
+                        "",
+                        MoneyEmbeddable.of("1", "EUR"),
+                        Set.of(),
+                        tags),
                     clock))
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasFieldOrPropertyWithValue("code", "too-many-tags");
@@ -96,7 +115,7 @@ class ProductTest {
 
   @Test
   void publishMakesTheProductActiveAndRecordsProductPublished() {
-    Product product = draft();
+    ProductEntity product = draft();
 
     product.publish(clock);
 
@@ -117,7 +136,7 @@ class ProductTest {
 
   @Test
   void publishingTwiceIsRejected() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
 
     assertThatThrownBy(() -> product.publish(clock))
@@ -127,7 +146,7 @@ class ProductTest {
 
   @Test
   void discontinuedProductCannotBePublished() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.discontinue("Sin proveedor", clock);
 
     assertThatThrownBy(() -> product.publish(clock))
@@ -137,13 +156,13 @@ class ProductTest {
 
   @Test
   void priceChangeOfActiveProductRecordsOldAndNewPrice() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
     product.pullEvents();
 
-    product.changePrice(Money.of("16.50", "EUR"), clock);
+    product.changePrice(MoneyEmbeddable.of("16.50", "EUR"), clock);
 
-    assertThat(product.getPrice()).isEqualTo(Money.of("16.50", "EUR"));
+    assertThat(product.getPrice()).isEqualTo(MoneyEmbeddable.of("16.50", "EUR"));
     assertThat(product.pullEvents())
         .singleElement()
         .isInstanceOfSatisfying(
@@ -156,47 +175,47 @@ class ProductTest {
 
   @Test
   void priceChangeOfDraftRecordsNothing() {
-    Product product = draft();
+    ProductEntity product = draft();
 
-    product.changePrice(Money.of("20.00", "EUR"), clock);
+    product.changePrice(MoneyEmbeddable.of("20.00", "EUR"), clock);
 
-    assertThat(product.getPrice()).isEqualTo(Money.of("20.00", "EUR"));
+    assertThat(product.getPrice()).isEqualTo(MoneyEmbeddable.of("20.00", "EUR"));
     assertThat(product.pullEvents()).isEmpty();
   }
 
   @Test
   void samePriceIsANoOp() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
     product.pullEvents();
 
-    product.changePrice(Money.of("18.9", "EUR"), clock);
+    product.changePrice(MoneyEmbeddable.of("18.9", "EUR"), clock);
 
     assertThat(product.pullEvents()).isEmpty();
   }
 
   @Test
   void priceInAnotherCurrencyIsRejected() {
-    Product product = draft();
+    ProductEntity product = draft();
 
-    assertThatThrownBy(() -> product.changePrice(Money.of("20", "USD"), clock))
+    assertThatThrownBy(() -> product.changePrice(MoneyEmbeddable.of("20", "USD"), clock))
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasFieldOrPropertyWithValue("code", "currency-mismatch");
   }
 
   @Test
   void discontinuedProductPriceCannotChange() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.discontinue("Sin proveedor", clock);
 
-    assertThatThrownBy(() -> product.changePrice(Money.of("20", "EUR"), clock))
+    assertThatThrownBy(() -> product.changePrice(MoneyEmbeddable.of("20", "EUR"), clock))
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasFieldOrPropertyWithValue("code", "product-discontinued");
   }
 
   @Test
   void discontinuingAPublishedProductRecordsProductDiscontinued() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
     product.pullEvents();
 
@@ -212,7 +231,7 @@ class ProductTest {
 
   @Test
   void discontinuingANeverPublishedProductRecordsNothing() {
-    Product product = draft();
+    ProductEntity product = draft();
 
     product.discontinue("Descartado", clock);
 
@@ -222,7 +241,7 @@ class ProductTest {
 
   @Test
   void discontinuingTwiceIsANoOp() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
     product.discontinue("Fin de temporada", clock);
     product.pullEvents();
@@ -234,7 +253,7 @@ class ProductTest {
 
   @Test
   void pullEventsDrainsTheRecordedEvents() {
-    Product product = draft();
+    ProductEntity product = draft();
     product.publish(clock);
 
     assertThat(product.pullEvents()).hasSize(1);

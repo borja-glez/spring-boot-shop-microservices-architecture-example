@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 import org.springframework.core.annotation.AliasFor;
 
-import com.borjaglez.shop.catalog.domain.Product;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.specrepository.http.spring.FilterableQuery;
 
 /**
@@ -24,7 +24,7 @@ import com.borjaglez.specrepository.http.spring.FilterableQuery;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @FilterableQuery(
-    value = Product.class,
+    value = ProductEntity.class,
     filterableFields = {
       "name",
       "description",

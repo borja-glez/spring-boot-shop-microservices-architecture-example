@@ -32,7 +32,7 @@ import com.borjaglez.shop.catalog.application.query.ProductViews.CatalogFacets;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductCard;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductDetail;
 import com.borjaglez.shop.catalog.application.query.SearchProductsQuery;
-import com.borjaglez.shop.catalog.domain.Product;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.support.web.CurrentUser;
 import com.borjaglez.shop.support.web.PageResponse;
 import com.borjaglez.specrepository.core.QueryPlan;
@@ -60,7 +60,7 @@ class ProductController {
   @GetMapping
   PageResponse<ProductCard> search(
       @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
-          QueryPlan<Product> plan,
+          QueryPlan<ProductEntity> plan,
       Pageable pageable) {
     Page<ProductCard> page = queries.ask(new SearchProductsQuery(plan, pageable));
     return PageResponse.of(page);
@@ -72,7 +72,7 @@ class ProductController {
   }
 
   @GetMapping("/facets")
-  CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
+  CatalogFacets facets(@ProductFilter QueryPlan<ProductEntity> plan) {
     return queries.ask(new GetCatalogFacetsQuery(plan));
   }
 

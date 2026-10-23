@@ -6,8 +6,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
-import com.borjaglez.shop.catalog.domain.Category;
-import com.borjaglez.shop.catalog.domain.Product;
+import com.borjaglez.shop.catalog.domain.CategoryEntity;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 
 /** Read models returned by the catalog queries. */
@@ -126,7 +126,7 @@ public final class ProductViews {
   /** Cheapest and most expensive price among the matching products. */
   public record PriceRange(BigDecimal min, BigDecimal max) {}
 
-  static ProductCard card(Product product) {
+  static ProductCard card(ProductEntity product) {
     return new ProductCard(
         product.getId(),
         product.getSlug(),
@@ -136,12 +136,12 @@ public final class ProductViews {
         product.getPrice().currency(),
         product.getStatus(),
         seller(product),
-        product.getCategories().stream().map(Category::getSlug).sorted().toList(),
+        product.getCategories().stream().map(CategoryEntity::getSlug).sorted().toList(),
         product.getTags().stream().sorted().toList(),
         product.getPublishedAt());
   }
 
-  static ProductDetail detail(Product product) {
+  static ProductDetail detail(ProductEntity product) {
     return new ProductDetail(
         product.getId(),
         product.getSlug(),
@@ -163,7 +163,7 @@ public final class ProductViews {
         null);
   }
 
-  private static SellerSummary seller(Product product) {
+  private static SellerSummary seller(ProductEntity product) {
     var seller = product.getSeller();
     return new SellerSummary(seller.getId(), seller.getDisplayName(), seller.getCity());
   }

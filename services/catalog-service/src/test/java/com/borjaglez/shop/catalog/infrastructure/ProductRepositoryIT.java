@@ -14,8 +14,8 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Sort;
 
-import com.borjaglez.shop.catalog.domain.Product;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
+import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.specrepository.boot4.SpecificationRepositoryAutoConfiguration;
@@ -34,7 +34,7 @@ class ProductRepositoryIT {
   private static final int SEEDED = 72;
   private static final int SEEDED_ACTIVE = 62;
 
-  @Autowired ProductRepository products;
+  @Autowired ProductJpaRepository products;
 
   @Test
   void seedIsLoaded() {
@@ -43,7 +43,7 @@ class ProductRepositoryIT {
 
   @Test
   void filtersByEnumStatus() {
-    List<Product> active =
+    List<ProductEntity> active =
         products.query().where("status", Operators.EQUALS, ProductStatus.ACTIVE).findAll();
 
     assertThat(active).hasSize(SEEDED_ACTIVE);
@@ -65,7 +65,7 @@ class ProductRepositoryIT {
             .sort(Sort.by("sku"))
             .findAll()
             .stream()
-            .map(Product::getSku)
+            .map(ProductEntity::getSku)
             .toList();
 
     assertThat(skus)
@@ -76,7 +76,7 @@ class ProductRepositoryIT {
 
   @Test
   void filtersOnEmbeddedRecordField() {
-    List<Product> affordable =
+    List<ProductEntity> affordable =
         products
             .query()
             .where(
@@ -96,7 +96,7 @@ class ProductRepositoryIT {
 
   @Test
   void sortsByEmbeddedRecordField() {
-    List<Product> cheapestFirst =
+    List<ProductEntity> cheapestFirst =
         products
             .query()
             .where("status", Operators.EQUALS, ProductStatus.ACTIVE)
@@ -119,7 +119,7 @@ class ProductRepositoryIT {
   void containsIgnoresAccentsOfTheSearchTermToo() {
     List<String> skus =
         products.query().where("name", Operators.CONTAINS, "café", true, false).findAll().stream()
-            .map(Product::getSku)
+            .map(ProductEntity::getSku)
             .toList();
 
     assertThat(skus).contains("CAF-001", "CAF-002", "CAF-003", "ELE-005");
@@ -129,7 +129,7 @@ class ProductRepositoryIT {
   void filtersOnElementCollectionOfStrings() {
     List<String> skus =
         products.query().where("tags", Operators.EQUALS, "ecologico").findAll().stream()
-            .map(Product::getSku)
+            .map(ProductEntity::getSku)
             .sorted()
             .toList();
 
@@ -153,7 +153,7 @@ class ProductRepositoryIT {
 
   @Test
   void fetchesSellerTogetherWithProducts() {
-    List<Product> page =
+    List<ProductEntity> page =
         products
             .query()
             .where("seller.id", Operators.EQUALS, "seller-diego")

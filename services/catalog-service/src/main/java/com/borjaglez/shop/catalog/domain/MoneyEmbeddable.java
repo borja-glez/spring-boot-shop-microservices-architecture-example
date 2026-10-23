@@ -18,11 +18,11 @@ import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
  * price.currency} through specification-repository paths.
  */
 @Embeddable
-public record Money(
+public record MoneyEmbeddable(
     @Column(name = "price_amount", nullable = false, precision = 12, scale = 2) BigDecimal amount,
     @Column(name = "price_currency", nullable = false, length = 3) String currency) {
 
-  public Money {
+  public MoneyEmbeddable {
     Objects.requireNonNull(amount, "amount must not be null");
     Objects.requireNonNull(currency, "currency must not be null");
     if (amount.signum() <= 0) {
@@ -36,11 +36,11 @@ public record Money(
     currency = validCurrency(currency);
   }
 
-  public static Money of(String amount, String currency) {
-    return new Money(new BigDecimal(amount), currency);
+  public static MoneyEmbeddable of(String amount, String currency) {
+    return new MoneyEmbeddable(new BigDecimal(amount), currency);
   }
 
-  public boolean sameCurrencyAs(Money other) {
+  public boolean sameCurrencyAs(MoneyEmbeddable other) {
     return currency.equals(other.currency);
   }
 

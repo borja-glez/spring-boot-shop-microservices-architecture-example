@@ -23,9 +23,9 @@ import com.borjaglez.shop.catalog.application.query.ProductViews.FacetValue;
 import com.borjaglez.shop.catalog.application.query.ProductViews.PriceRange;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductCard;
 import com.borjaglez.shop.catalog.application.query.ProductViews.ProductDetail;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
-import com.borjaglez.shop.catalog.domain.Product;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
+import com.borjaglez.shop.catalog.domain.CategoryJpaRepository;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
+import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
 import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.support.query.QueryPlans;
@@ -56,14 +56,14 @@ public class CatalogQueryHandler {
    */
   static final int SEARCH_TIMEOUT_SECONDS = 5;
 
-  private final ProductRepository products;
-  private final CategoryRepository categories;
+  private final ProductJpaRepository products;
+  private final CategoryJpaRepository categories;
   private final StockLevelsGateway stock;
   private final TransactionTemplate readOnly;
 
   public CatalogQueryHandler(
-      ProductRepository products,
-      CategoryRepository categories,
+      ProductJpaRepository products,
+      CategoryJpaRepository categories,
       StockLevelsGateway stock,
       PlatformTransactionManager transactionManager) {
     this.products = products;
@@ -120,7 +120,7 @@ public class CatalogQueryHandler {
   public CatalogFacets facets(GetCatalogFacetsQuery query) {
     // Each facet ignores its own filter (disjunctive faceting), so shoppers can pick several
     // sellers or tags and see what each extra choice would add.
-    QueryPlan<Product> client = query.getPlan();
+    QueryPlan<ProductEntity> client = query.getPlan();
     return new CatalogFacets(
         countBy(
             onSale(QueryPlans.without(client, "categories.slug")),
@@ -151,7 +151,7 @@ public class CatalogQueryHandler {
    * not checked against the client's whitelist and a client {@code orFilter} cannot widen it, so a
    * filter on {@code status} can narrow the results but never reveal drafts.
    */
-  private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPlan) {
+  private SpecificationExecutableQuery<ProductEntity> onSale(QueryPlan<ProductEntity> clientPlan) {
     return products.query(clientPlan).where("status", Operators.EQUALS, ProductStatus.ACTIVE);
   }
 
@@ -160,7 +160,7 @@ public class CatalogQueryHandler {
    * the rows of a product.
    */
   private static List<FacetValue> countBy(
-      SpecificationExecutableQuery<Product> query, String valueField, String labelField) {
+      SpecificationExecutableQuery<ProductEntity> query, String valueField, String labelField) {
     String[] groupBy =
         labelField == null ? new String[] {valueField} : new String[] {valueField, labelField};
     List<GroupedRow> rows =
@@ -181,7 +181,7 @@ public class CatalogQueryHandler {
         .toList();
   }
 
-  private static PriceRange priceRange(SpecificationExecutableQuery<Product> query) {
+  private static PriceRange priceRange(SpecificationExecutableQuery<ProductEntity> query) {
     return query
         .minAs("min", "price.amount")
         .maxAs("max", "price.amount")

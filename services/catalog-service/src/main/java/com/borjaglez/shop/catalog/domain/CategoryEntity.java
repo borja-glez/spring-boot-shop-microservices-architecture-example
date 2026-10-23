@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "category")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Category {
+public class CategoryEntity {
 
   @Id private UUID id;
 
@@ -26,7 +26,7 @@ public class Category {
   @Column(nullable = false, length = 120)
   private String name;
 
-  public Category(UUID id, String slug, String name) {
+  public CategoryEntity(UUID id, String slug, String name) {
     this.id = id;
     this.slug = slug;
     this.name = name;

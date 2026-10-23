@@ -11,14 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.borjaglez.cqrs.command.annotation.CommandHandler;
 import com.borjaglez.cqrs.command.annotation.HandleCommand;
-import com.borjaglez.shop.catalog.domain.Category;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
-import com.borjaglez.shop.catalog.domain.Money;
-import com.borjaglez.shop.catalog.domain.Product;
-import com.borjaglez.shop.catalog.domain.ProductDraft;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
-import com.borjaglez.shop.catalog.domain.Seller;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
+import com.borjaglez.shop.catalog.domain.CategoryEntity;
+import com.borjaglez.shop.catalog.domain.CategoryJpaRepository;
+import com.borjaglez.shop.catalog.domain.MoneyEmbeddable;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
+import com.borjaglez.shop.catalog.domain.ProductEntityDraft;
+import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
+import com.borjaglez.shop.catalog.domain.SellerEntity;
+import com.borjaglez.shop.catalog.domain.SellerJpaRepository;
 import com.borjaglez.shop.eskit.EventStore;
 import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 import com.borjaglez.shop.kernel.error.ConflictException;
@@ -34,16 +34,16 @@ import com.borjaglez.specrepository.core.Operators;
 @CommandHandler
 public class CatalogCommandHandler {
 
-  private final ProductRepository products;
-  private final SellerRepository sellers;
-  private final CategoryRepository categories;
+  private final ProductJpaRepository products;
+  private final SellerJpaRepository sellers;
+  private final CategoryJpaRepository categories;
   private final EventStore eventStore;
   private final Clock clock;
 
   public CatalogCommandHandler(
-      ProductRepository products,
-      SellerRepository sellers,
-      CategoryRepository categories,
+      ProductJpaRepository products,
+      SellerJpaRepository sellers,
+      CategoryJpaRepository categories,
       EventStore eventStore,
       Clock clock) {
     this.products = products;
@@ -56,11 +56,11 @@ public class CatalogCommandHandler {
   @HandleCommand
   @Transactional
   public UUID create(CreateProductCommand command) {
-    Seller seller = seller(command.getSellerId());
-    Money price = new Money(command.getPrice(), command.getCurrency());
-    Product product =
-        Product.draft(
-            new ProductDraft(
+    SellerEntity seller = seller(command.getSellerId());
+    MoneyEmbeddable price = new MoneyEmbeddable(command.getPrice(), command.getCurrency());
+    ProductEntity product =
+        ProductEntity.draft(
+            new ProductEntityDraft(
                 seller,
                 command.getSku(),
                 command.getName(),
@@ -81,7 +81,7 @@ public class CatalogCommandHandler {
   @HandleCommand
   @Transactional
   public void publish(PublishProductCommand command) {
-    Product product = ownedProduct(command.getProductId(), command.getSellerId());
+    ProductEntity product = ownedProduct(command.getProductId(), command.getSellerId());
     product.publish(clock);
     publish(product);
   }
@@ -89,15 +89,15 @@ public class CatalogCommandHandler {
   @HandleCommand
   @Transactional
   public void changePrice(ChangeProductPriceCommand command) {
-    Product product = ownedProduct(command.getProductId(), command.getSellerId());
-    product.changePrice(new Money(command.getPrice(), command.getCurrency()), clock);
+    ProductEntity product = ownedProduct(command.getProductId(), command.getSellerId());
+    product.changePrice(new MoneyEmbeddable(command.getPrice(), command.getCurrency()), clock);
     publish(product);
   }
 
   @HandleCommand
   @Transactional
   public void discontinue(DiscontinueProductCommand command) {
-    Product product = ownedProduct(command.getProductId(), command.getSellerId());
+    ProductEntity product = ownedProduct(command.getProductId(), command.getSellerId());
     product.discontinue(command.getReason(), clock);
     publish(product);
   }
@@ -106,14 +106,14 @@ public class CatalogCommandHandler {
    * Records the product's events in the outbox, in the same transaction as the product. The relay
    * publishes them to Kafka after the commit, so a rolled-back change never announces anything.
    */
-  private void publish(Product product) {
+  private void publish(ProductEntity product) {
     var events = product.pullEvents();
     if (!events.isEmpty()) {
       eventStore.record("product", product.getId().toString(), events);
     }
   }
 
-  private Seller seller(String sellerId) {
+  private SellerEntity seller(String sellerId) {
     return sellers
         .query()
         .where("id", Operators.EQUALS, sellerId)
@@ -122,7 +122,7 @@ public class CatalogCommandHandler {
   }
 
   /** Products of other sellers are reported as missing so their existence is not revealed. */
-  private Product ownedProduct(UUID productId, String sellerId) {
+  private ProductEntity ownedProduct(UUID productId, String sellerId) {
     return products
         .query()
         .where("id", Operators.EQUALS, productId)
@@ -132,15 +132,15 @@ public class CatalogCommandHandler {
             () -> new NotFoundException("product-not-found", "Unknown product " + productId));
   }
 
-  private Set<Category> categories(Set<String> slugs) {
+  private Set<CategoryEntity> categories(Set<String> slugs) {
     if (slugs.isEmpty()) {
       return Set.of();
     }
-    List<Category> found =
+    List<CategoryEntity> found =
         categories.query().where("slug", Operators.IN, List.copyOf(slugs)).findAll();
     if (found.size() != slugs.size()) {
       Set<String> missing = new HashSet<>(slugs);
-      missing.removeAll(found.stream().map(Category::getSlug).collect(Collectors.toSet()));
+      missing.removeAll(found.stream().map(CategoryEntity::getSlug).collect(Collectors.toSet()));
       throw new BusinessRuleViolationException(
           "unknown-category", "Unknown categories: " + String.join(", ", missing));
     }
