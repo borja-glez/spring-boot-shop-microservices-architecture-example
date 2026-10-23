@@ -1,6 +1,7 @@
 plugins {
     id("shop.library-conventions")
     id("shop.openapi-conventions")
+    id("shop.coverage-conventions")
 }
 
 description = "Cross-cutting web support shared by every service: problem details, correlation ids, current user"
