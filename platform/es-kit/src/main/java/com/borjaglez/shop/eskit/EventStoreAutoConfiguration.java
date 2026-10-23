@@ -175,8 +175,17 @@ public class EventStoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     ChaosEventBus chaosEventBus(
-        @Qualifier("kafkaEventBus") EventBus kafkaEventBus, ObjectProvider<Chaos> chaos) {
-      return new ChaosEventBus(kafkaEventBus, chaos.getIfAvailable(Chaos::new));
+        @Qualifier("kafkaEventBus") ObjectProvider<EventBus> kafkaEventBus,
+        ObjectProvider<Chaos> chaos) {
+      EventBus kafka = kafkaEventBus.getIfAvailable();
+      if (kafka == null) {
+        throw new IllegalStateException(
+            "No kafkaEventBus bean: a service that declares DomainEventTypes and an"
+                + " IntegrationEventTranslator publishes its integration events to Kafka, so it"
+                + " needs the cqrs Kafka module (com.borjaglez.cqrs:spring-boot-cqrs-kafka) with"
+                + " Kafka configured");
+      }
+      return new ChaosEventBus(kafka, chaos.getIfAvailable(Chaos::new));
     }
   }
 
