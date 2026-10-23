@@ -20,6 +20,7 @@ import com.borjaglez.shop.catalog.domain.event.ProductPublished;
 import com.borjaglez.shop.catalog.domain.exception.CurrencyMismatchException;
 import com.borjaglez.shop.catalog.domain.exception.InvalidDescriptionException;
 import com.borjaglez.shop.catalog.domain.exception.InvalidNameException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidTagException;
 import com.borjaglez.shop.catalog.domain.exception.ProductAlreadyPublishedException;
 import com.borjaglez.shop.catalog.domain.exception.ProductDiscontinuedException;
 import com.borjaglez.shop.catalog.domain.exception.TooManyTagsException;
@@ -33,7 +34,7 @@ class ProductTest {
   private final SellerId seller = new SellerId("seller-ana");
   private final CategoryId coffee = new CategoryId(UUID.randomUUID());
 
-  private ProductDraft draftOf(String name, String description, Set<Tag> tags) {
+  private ProductDraft draftOf(String name, String description, Set<String> tags) {
     return new ProductDraft(
         seller,
         new Sku("caf-001"),
@@ -49,14 +50,14 @@ class ProductTest {
         draftOf(
             "Café de Colombia en grano",
             "Tueste medio, 1 kg",
-            Set.of(new Tag(" Ecológico "), new Tag("comercio justo"))),
+            Set.of(" Ecológico ", "comercio justo")),
         clock);
   }
 
-  private static Set<Tag> tags(int count) {
-    Set<Tag> tags = new LinkedHashSet<>();
+  private static Set<String> tags(int count) {
+    Set<String> tags = new LinkedHashSet<>();
     for (int i = 1; i <= count; i++) {
-      tags.add(new Tag("a" + i));
+      tags.add("a" + i);
     }
     return tags;
   }
@@ -137,6 +138,38 @@ class ProductTest {
     assertThatThrownBy(() -> Product.draft(draftOf("Café", "", tags(11)), clock))
         .isInstanceOf(TooManyTagsException.class)
         .hasFieldOrPropertyWithValue("code", "too-many-tags");
+  }
+
+  @Test
+  void rejectsInvalidTags() {
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "", Set.of("ok", "!!!")), clock))
+        .isInstanceOf(InvalidTagException.class)
+        .hasFieldOrPropertyWithValue("code", "invalid-tag");
+  }
+
+  @Test
+  void tagsThatSlugifyAlikeCountOnce() {
+    Set<String> raw = tags(9);
+    raw.add("Café");
+    raw.add(" cafe ");
+
+    assertThat(Product.draft(draftOf("Café", "", raw), clock).getTags())
+        .hasSize(10)
+        .contains(new Tag("cafe"));
+  }
+
+  @Test
+  void checksTheNameThenTheDescriptionThenTheTags() {
+    Set<String> badTags = tags(11);
+    badTags.add("!!!");
+    String longDescription = "d".repeat(4001);
+
+    assertThatThrownBy(() -> Product.draft(draftOf(" ", longDescription, badTags), clock))
+        .isInstanceOf(InvalidNameException.class);
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", longDescription, badTags), clock))
+        .isInstanceOf(InvalidDescriptionException.class);
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "", badTags), clock))
+        .isInstanceOf(InvalidTagException.class);
   }
 
   @Test

@@ -67,12 +67,14 @@ public final class Product extends AggregateRoot<ProductEvent> {
     this.version = state.version();
   }
 
-  /** Creates an unpublished product. */
+  /** Creates an unpublished product. Checks the name, then the description, then the tags. */
   public static Product draft(ProductDraft draft, Clock clock) {
     Objects.requireNonNull(draft.seller(), "seller must not be null");
     Objects.requireNonNull(draft.sku(), "sku must not be null");
     Objects.requireNonNull(draft.price(), "price must not be null");
     String name = validName(draft.name());
+    String description = validDescription(draft.description());
+    Set<Tag> tags = validTags(orEmpty(draft.tags()));
     Instant now = clock.instant();
     return new Product(
         new ProductState(
@@ -80,12 +82,12 @@ public final class Product extends AggregateRoot<ProductEvent> {
             draft.sku(),
             Slug.of(name, draft.sku()),
             name,
-            validDescription(draft.description()),
+            description,
             draft.price(),
             ProductStatus.DRAFT,
             draft.seller(),
             orEmpty(draft.categories()),
-            validTags(orEmpty(draft.tags())),
+            tags,
             now,
             null,
             now,
@@ -202,7 +204,12 @@ public final class Product extends AggregateRoot<ProductEvent> {
     return description;
   }
 
-  private static Set<Tag> validTags(Set<Tag> tags) {
+  /** Each tag is checked first; tags that read the same once slugified count once. */
+  private static Set<Tag> validTags(Set<String> raw) {
+    Set<Tag> tags = new LinkedHashSet<>();
+    for (String candidate : raw) {
+      tags.add(new Tag(candidate));
+    }
     if (tags.size() > MAX_TAGS) {
       throw new TooManyTagsException("A product can have at most " + MAX_TAGS + " tags");
     }

@@ -8,7 +8,7 @@ public record Tag(String value) {
   static final int MAX_LENGTH = 30;
 
   public Tag {
-    value = value == null ? "" : Slugs.slugify(value);
+    value = value == null ? "" : Slug.slugify(value);
     if (value.isEmpty() || value.length() > MAX_LENGTH) {
       throw new InvalidTagException("Tags must have between 1 and " + MAX_LENGTH + " characters");
     }

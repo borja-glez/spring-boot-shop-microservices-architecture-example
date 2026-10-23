@@ -43,6 +43,18 @@ server:
 cqrs:
   naming:
     prefix: shop
+  # Each command runs in a transaction of the bus, so the handlers carry no @Transactional. Queries
+  # get none from the bus: the read side opens its own read-only ones, and the product page asks the
+  # inventory outside of them.
+  transactions:
+    enabled: true
+    queries: none
+  # The integration events of the products go through the transactional outbox (cqrs_outbox),
+  # written with the product, and its relay sends them to Kafka through the chaos-aware bus.
+  outbox:
+    enabled: true
+    relay:
+      event-bus: chaosEventBus
   kafka:
     prefix: shop
     # Kafka carries integration events only.
