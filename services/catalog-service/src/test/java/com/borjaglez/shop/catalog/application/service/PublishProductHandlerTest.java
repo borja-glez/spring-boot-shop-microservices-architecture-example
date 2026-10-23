@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.application.fakes.InMemoryProductRepository;
 import com.borjaglez.shop.catalog.application.port.in.PublishProductCommand;
 import com.borjaglez.shop.catalog.domain.Money;
@@ -79,7 +79,7 @@ class PublishProductHandlerTest {
     UUID id = draft.getId().value();
 
     assertThatThrownBy(() -> handler.handle(new PublishProductCommand(id, "seller-bruno")))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .isInstanceOf(NotFoundException.class)
         .hasMessage("Unknown product " + id)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
@@ -93,7 +93,7 @@ class PublishProductHandlerTest {
     UUID id = UUID.randomUUID();
 
     assertThatThrownBy(() -> handler.handle(new PublishProductCommand(id, "seller-ana")))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
   }
 

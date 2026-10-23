@@ -19,9 +19,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import com.borjaglez.shop.catalog.application.exception.DuplicateSku;
-import com.borjaglez.shop.catalog.application.exception.SellerNotFound;
-import com.borjaglez.shop.catalog.application.exception.UnknownCategory;
+import com.borjaglez.shop.catalog.application.exception.DuplicateSkuException;
+import com.borjaglez.shop.catalog.application.exception.SellerNotFoundException;
+import com.borjaglez.shop.catalog.application.exception.UnknownCategoryException;
 import com.borjaglez.shop.catalog.application.fakes.InMemoryCategories;
 import com.borjaglez.shop.catalog.application.fakes.InMemoryProductRepository;
 import com.borjaglez.shop.catalog.application.fakes.InMemorySellers;
@@ -174,7 +174,7 @@ class CreateProductHandlerTest {
   @Test
   void anUnknownSellerIsNotFound() {
     assertThatThrownBy(() -> handler.handle(Request.valid().seller("seller-nobody").command()))
-        .isInstanceOf(SellerNotFound.class)
+        .isInstanceOf(SellerNotFoundException.class)
         .isInstanceOf(NotFoundException.class)
         .hasMessage("Unknown seller seller-nobody")
         .hasFieldOrPropertyWithValue("code", "seller-not-found");
@@ -186,7 +186,7 @@ class CreateProductHandlerTest {
     Request request = Request.valid().categories(Set.of("cafe-e-infusiones", "tes", "no-existe"));
 
     assertThatThrownBy(() -> handler.handle(request.command()))
-        .isInstanceOf(UnknownCategory.class)
+        .isInstanceOf(UnknownCategoryException.class)
         .isInstanceOf(BusinessRuleViolationException.class)
         .hasMessage("Unknown categories: no-existe, tes")
         .hasFieldOrPropertyWithValue("code", "unknown-category");
@@ -218,7 +218,7 @@ class CreateProductHandlerTest {
     givenAProductWithSku("CAF-900");
 
     assertThatThrownBy(() -> handler.handle(Request.valid().command()))
-        .isInstanceOf(DuplicateSku.class)
+        .isInstanceOf(DuplicateSkuException.class)
         .isInstanceOf(ConflictException.class)
         .hasMessage("Another product already uses SKU CAF-900")
         .hasFieldOrPropertyWithValue("code", "duplicate-sku");

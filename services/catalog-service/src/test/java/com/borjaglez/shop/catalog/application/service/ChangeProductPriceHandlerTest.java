@@ -12,7 +12,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.application.fakes.InMemoryProductRepository;
 import com.borjaglez.shop.catalog.application.port.in.ChangeProductPriceCommand;
 import com.borjaglez.shop.catalog.domain.Money;
@@ -131,7 +131,7 @@ class ChangeProductPriceHandlerTest {
     Product product = givenAPublishedProductOf("seller-ana");
 
     assertThatThrownBy(() -> handler.handle(change(product, "seller-bruno", "0", "EURO")))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
     assertThat(products.stored(product.getId()).price()).isEqualTo(Money.of("14.20", "EUR"));
     assertThat(products.saves()).isZero();
@@ -143,7 +143,7 @@ class ChangeProductPriceHandlerTest {
         new ChangeProductPriceCommand(UUID.randomUUID(), "seller-ana", BigDecimal.TEN, "EUR");
 
     assertThatThrownBy(() -> handler.handle(command))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
   }
 }

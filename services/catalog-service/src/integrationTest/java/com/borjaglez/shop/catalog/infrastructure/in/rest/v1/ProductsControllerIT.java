@@ -51,10 +51,10 @@ import com.borjaglez.cqrs.command.Command;
 import com.borjaglez.cqrs.command.CommandBus;
 import com.borjaglez.cqrs.query.Query;
 import com.borjaglez.cqrs.query.QueryBus;
-import com.borjaglez.shop.catalog.application.exception.DuplicateSku;
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
-import com.borjaglez.shop.catalog.application.exception.SellerNotFound;
-import com.borjaglez.shop.catalog.application.exception.UnknownCategory;
+import com.borjaglez.shop.catalog.application.exception.DuplicateSkuException;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
+import com.borjaglez.shop.catalog.application.exception.SellerNotFoundException;
+import com.borjaglez.shop.catalog.application.exception.UnknownCategoryException;
 import com.borjaglez.shop.catalog.application.port.in.Availability;
 import com.borjaglez.shop.catalog.application.port.in.CatalogFacets;
 import com.borjaglez.shop.catalog.application.port.in.CategoryRef;
@@ -561,7 +561,8 @@ class ProductsControllerIT {
 
   @Test
   void aProductWithoutAPublicPageIsNotFound() throws Exception {
-    when(queries.ask(any(Query.class))).thenThrow(ProductNotFound.publishedAs("no-existe"));
+    when(queries.ask(any(Query.class)))
+        .thenThrow(ProductNotFoundException.publishedAs("no-existe"));
 
     mvc.perform(get(PRODUCTS + "/{slug}", "no-existe"))
         .andExpect(status().isNotFound())
@@ -573,7 +574,8 @@ class ProductsControllerIT {
 
   @Test
   void aJsonOnlyClientGetsANotFoundAsJson() throws Exception {
-    when(queries.ask(any(Query.class))).thenThrow(ProductNotFound.publishedAs("no-existe"));
+    when(queries.ask(any(Query.class)))
+        .thenThrow(ProductNotFoundException.publishedAs("no-existe"));
 
     mvc.perform(get(PRODUCTS + "/{slug}", "no-existe").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isNotFound())
@@ -984,16 +986,16 @@ class ProductsControllerIT {
 
   static Stream<Arguments> writeProblems() {
     return Stream.of(
-        arguments("create", new SellerNotFound(SELLER), 404, "seller-not-found"),
-        arguments("create", new DuplicateSku(new Sku("CAF-900")), 409, "duplicate-sku"),
+        arguments("create", new SellerNotFoundException(SELLER), 404, "seller-not-found"),
+        arguments("create", new DuplicateSkuException(new Sku("CAF-900")), 409, "duplicate-sku"),
         arguments(
             "create",
             new DataIntegrityViolationException("product_sku_key"),
             409,
             "data-integrity-violation"),
-        arguments("create", new UnknownCategory(List.of("nope")), 422, "unknown-category"),
+        arguments("create", new UnknownCategoryException(List.of("nope")), 422, "unknown-category"),
         arguments("create", new InvalidPriceException("too low"), 422, "invalid-price"),
-        arguments("publish", new ProductNotFound(ID), 404, "product-not-found"),
+        arguments("publish", new ProductNotFoundException(ID), 404, "product-not-found"),
         arguments(
             "publish",
             new ProductAlreadyPublishedException("published"),
@@ -1004,7 +1006,7 @@ class ProductsControllerIT {
             new OptimisticLockingFailureException("stale"),
             409,
             "concurrent-modification"),
-        arguments("price", new ProductNotFound(ID), 404, "product-not-found"),
+        arguments("price", new ProductNotFoundException(ID), 404, "product-not-found"),
         arguments("price", new CurrencyMismatchException("in EUR"), 422, "currency-mismatch"),
         arguments("price", new InvalidCurrencyException("XXX"), 422, "invalid-currency"),
         arguments("price", new ProductDiscontinuedException("gone"), 422, "product-discontinued"),
@@ -1013,7 +1015,7 @@ class ProductsControllerIT {
             new OptimisticLockingFailureException("stale"),
             409,
             "concurrent-modification"),
-        arguments("discontinue", new ProductNotFound(ID), 404, "product-not-found"),
+        arguments("discontinue", new ProductNotFoundException(ID), 404, "product-not-found"),
         arguments(
             "discontinue",
             new OptimisticLockingFailureException("stale"),

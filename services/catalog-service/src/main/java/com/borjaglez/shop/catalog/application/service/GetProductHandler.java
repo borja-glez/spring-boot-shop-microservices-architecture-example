@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.application.port.in.Availability;
 import com.borjaglez.shop.catalog.application.port.in.GetProductQuery;
 import com.borjaglez.shop.catalog.application.port.in.ProductDetail;
@@ -34,14 +34,14 @@ public class GetProductHandler {
   }
 
   /**
-   * @throws ProductNotFound if no product with a public page has that slug
+   * @throws ProductNotFoundException if no product with a public page has that slug
    */
   @HandleQuery
   public ProductDetail handle(GetProductQuery query) {
     ProductDetail detail =
         catalog
             .publicProduct(query.getSlug())
-            .orElseThrow(() -> ProductNotFound.publishedAs(query.getSlug()));
+            .orElseThrow(() -> ProductNotFoundException.publishedAs(query.getSlug()));
     if (detail.status() != ProductStatus.ACTIVE) {
       return detail;
     }

@@ -13,7 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.application.fakes.StubCatalogReadModel;
 import com.borjaglez.shop.catalog.application.fakes.StubStockLevels;
 import com.borjaglez.shop.catalog.application.port.in.Availability;
@@ -125,7 +125,7 @@ class GetProductHandlerTest {
   @Test
   void aProductWithoutAPublicPageIsNotFound() {
     assertThatThrownBy(this::ask)
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .isInstanceOf(NotFoundException.class)
         .hasMessage("No product is published as " + SLUG)
         .extracting(e -> ((NotFoundException) e).code())

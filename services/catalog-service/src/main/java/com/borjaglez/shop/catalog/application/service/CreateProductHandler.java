@@ -8,9 +8,9 @@ import java.util.UUID;
 
 import com.borjaglez.cqrs.command.annotation.CommandHandler;
 import com.borjaglez.cqrs.command.annotation.HandleCommand;
-import com.borjaglez.shop.catalog.application.exception.DuplicateSku;
-import com.borjaglez.shop.catalog.application.exception.SellerNotFound;
-import com.borjaglez.shop.catalog.application.exception.UnknownCategory;
+import com.borjaglez.shop.catalog.application.exception.DuplicateSkuException;
+import com.borjaglez.shop.catalog.application.exception.SellerNotFoundException;
+import com.borjaglez.shop.catalog.application.exception.UnknownCategoryException;
 import com.borjaglez.shop.catalog.application.port.in.CreateProductCommand;
 import com.borjaglez.shop.catalog.domain.CategoryId;
 import com.borjaglez.shop.catalog.domain.CategoryRepository;
@@ -67,7 +67,7 @@ public class CreateProductHandler {
                 command.getTags()),
             clock);
     if (products.existsBySku(sku)) {
-      throw new DuplicateSku(sku);
+      throw new DuplicateSkuException(sku);
     }
     products.save(product);
     return product.getId().value();
@@ -77,7 +77,7 @@ public class CreateProductHandler {
   private SellerId existingSeller(String sellerId) {
     return sellers
         .findById(new SellerId(sellerId))
-        .orElseThrow(() -> new SellerNotFound(sellerId))
+        .orElseThrow(() -> new SellerNotFoundException(sellerId))
         .id();
   }
 
@@ -86,7 +86,7 @@ public class CreateProductHandler {
     if (found.size() != slugs.size()) {
       Set<String> unknown = new HashSet<>(slugs);
       unknown.removeAll(found.keySet());
-      throw new UnknownCategory(unknown);
+      throw new UnknownCategoryException(unknown);
     }
     return Set.copyOf(found.values());
   }

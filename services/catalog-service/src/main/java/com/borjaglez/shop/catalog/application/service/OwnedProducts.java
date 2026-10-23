@@ -2,7 +2,7 @@ package com.borjaglez.shop.catalog.application.service;
 
 import java.util.UUID;
 
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductId;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
@@ -16,14 +16,14 @@ final class OwnedProducts {
   /**
    * The product, if it belongs to the seller.
    *
-   * @throws ProductNotFound if there is no such product or another seller owns it, so the products
-   *     of other sellers cannot be told apart from missing ones
+   * @throws ProductNotFoundException if there is no such product or another seller owns it, so the
+   *     products of other sellers cannot be told apart from missing ones
    */
   static Product find(ProductRepository products, UUID productId, String sellerId) {
     SellerId seller = new SellerId(sellerId);
     return products
         .findById(new ProductId(productId))
         .filter(product -> product.belongsTo(seller))
-        .orElseThrow(() -> new ProductNotFound(productId));
+        .orElseThrow(() -> new ProductNotFoundException(productId));
   }
 }

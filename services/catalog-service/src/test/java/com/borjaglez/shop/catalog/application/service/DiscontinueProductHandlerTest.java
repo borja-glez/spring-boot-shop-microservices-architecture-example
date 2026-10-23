@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.catalog.application.exception.ProductNotFound;
+import com.borjaglez.shop.catalog.application.exception.ProductNotFoundException;
 import com.borjaglez.shop.catalog.application.fakes.InMemoryProductRepository;
 import com.borjaglez.shop.catalog.application.port.in.DiscontinueProductCommand;
 import com.borjaglez.shop.catalog.domain.Money;
@@ -85,7 +85,7 @@ class DiscontinueProductHandlerTest {
     Product product = givenADraftOf("seller-ana", true);
 
     assertThatThrownBy(() -> handler.handle(discontinue(product, "seller-bruno")))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
     assertThat(products.stored(product.getId()).status()).isEqualTo(ProductStatus.ACTIVE);
     assertThat(products.saves()).isZero();
@@ -97,7 +97,7 @@ class DiscontinueProductHandlerTest {
         new DiscontinueProductCommand(UUID.randomUUID(), "seller-ana", "Fin de cosecha");
 
     assertThatThrownBy(() -> handler.handle(command))
-        .isInstanceOf(ProductNotFound.class)
+        .isInstanceOf(ProductNotFoundException.class)
         .hasFieldOrPropertyWithValue("code", "product-not-found");
   }
 }
