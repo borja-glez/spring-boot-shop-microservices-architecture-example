@@ -20,12 +20,14 @@ public record ApiDeprecationProperties(@Nullable List<Deprecation> deprecations)
   }
 
   /**
-   * One deprecated operation.
+   * One deprecated operation. An incomplete entry, or one whose sunset comes before its
+   * deprecation, stops the application at startup.
    *
-   * @param method HTTP method, such as {@code GET}
+   * @param method HTTP method, such as {@code GET}; a {@code GET} entry covers {@code HEAD} too
    * @param path Ant-style path pattern, such as {@code /api/v1/catalog/products/**}
    * @param deprecatedAt when the operation was deprecated
-   * @param sunset when the operation stops being available, if known
+   * @param sunset when the operation stops being available, if known; not before {@code
+   *     deprecatedAt}
    * @param successor URI of the operation or documentation that replaces it, if any
    */
   public record Deprecation(
@@ -33,5 +35,25 @@ public record ApiDeprecationProperties(@Nullable List<Deprecation> deprecations)
       String path,
       Instant deprecatedAt,
       @Nullable Instant sunset,
-      @Nullable String successor) {}
+      @Nullable String successor) {
+
+    public Deprecation {
+      if (method == null || method.isBlank()) {
+        throw new IllegalArgumentException("A deprecation needs a method, such as GET");
+      }
+      if (path == null || path.isBlank()) {
+        throw new IllegalArgumentException(
+            "The deprecation of " + method + " needs a path, such as /api/v1/things/**");
+      }
+      if (deprecatedAt == null) {
+        throw new IllegalArgumentException(
+            "The deprecation of " + method + " " + path + " needs deprecated-at");
+      }
+      if (sunset != null && sunset.isBefore(deprecatedAt)) {
+        throw new IllegalArgumentException(
+            "The deprecation of %s %s has its sunset (%s) before deprecated-at (%s)"
+                .formatted(method, path, sunset, deprecatedAt));
+      }
+    }
+  }
 }

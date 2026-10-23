@@ -1,6 +1,7 @@
 package com.borjaglez.shop.support.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,6 +39,9 @@ class ApiDeprecationFilterTest {
         "shop.api.deprecations[3].path=/declared-user",
         "shop.api.deprecations[3].deprecated-at=2026-01-15T00:00:00Z",
         "shop.api.deprecations[3].sunset=2026-12-25T01:30:00+02:00",
+        "shop.api.deprecations[4].method=POST",
+        "shop.api.deprecations[4].path=/owned-things",
+        "shop.api.deprecations[4].deprecated-at=2026-01-15T00:00:00Z",
       })
   @Nested
   class Configured {
@@ -82,6 +86,19 @@ class ApiDeprecationFilterTest {
                       "Link",
                       "<https://shop.example.com/api/v2/things>; rel=\"successor-version\""))
           .andExpect(header().doesNotExist("Sunset"));
+    }
+
+    @Test
+    void aHeadRequestGetsTheHeadersOfItsGet() throws Exception {
+      mvc.perform(head("/whoami-optional"))
+          .andExpect(header().string("Deprecation", "@1768435200"))
+          .andExpect(header().string("Sunset", "Wed, 01 Jul 2026 00:00:00 GMT"));
+    }
+
+    @Test
+    void otherMethodsMatchOnlyThemselves() throws Exception {
+      mvc.perform(post("/owned-things")).andExpect(header().string("Deprecation", "@1768435200"));
+      mvc.perform(head("/owned-things")).andExpect(header().doesNotExist("Deprecation"));
     }
 
     @Test

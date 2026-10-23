@@ -20,10 +20,11 @@ import com.borjaglez.shop.support.web.ApiDeprecationProperties.Deprecation;
 /**
  * Announces the deprecated operations of the API in their responses.
  *
- * <p>A request that matches an entry of {@code shop.api.deprecations} (method and Ant path pattern)
- * gets {@code Deprecation: @<epoch seconds>} (RFC 9745), {@code Sunset: <HTTP date>} (RFC 8594)
- * when the entry has a {@code sunset}, and {@code Link: <successor>; rel="successor-version"} when
- * it has a {@code successor}. Without entries the filter does nothing.
+ * <p>A request that matches an entry of {@code shop.api.deprecations} (method and Ant path pattern;
+ * a {@code HEAD} request matches the {@code GET} entries too) gets {@code Deprecation: @<epoch
+ * seconds>} (RFC 9745), {@code Sunset: <HTTP date>} (RFC 8594) when the entry has a {@code sunset},
+ * and {@code Link: <successor>; rel="successor-version"} when it has a {@code successor}. Without
+ * entries the filter does nothing.
  */
 public class ApiDeprecationFilter extends OncePerRequestFilter {
 
@@ -50,13 +51,18 @@ public class ApiDeprecationFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
     for (Deprecation deprecation : deprecations) {
-      if (deprecation.method().equalsIgnoreCase(request.getMethod())
-          && matcher.match(deprecation.path(), path)) {
+      if (covers(deprecation, request.getMethod()) && matcher.match(deprecation.path(), path)) {
         announce(deprecation, response);
         break;
       }
     }
     chain.doFilter(request, response);
+  }
+
+  /** An entry covers its method; a {@code GET} entry also covers {@code HEAD}, its headers only. */
+  private static boolean covers(Deprecation deprecation, String method) {
+    return deprecation.method().equalsIgnoreCase(method)
+        || ("HEAD".equalsIgnoreCase(method) && "GET".equalsIgnoreCase(deprecation.method()));
   }
 
   private static void announce(Deprecation deprecation, HttpServletResponse response) {
