@@ -25,10 +25,4 @@ public class CategoryEntity {
 
   @Column(nullable = false, length = 120)
   private String name;
-
-  public CategoryEntity(UUID id, String slug, String name) {
-    this.id = id;
-    this.slug = slug;
-    this.name = name;
-  }
 }

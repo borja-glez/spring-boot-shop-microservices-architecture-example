@@ -52,7 +52,7 @@ class CatalogMessageContractsIT {
   @Autowired MessageSerializer serializer;
   @Autowired MessageNamingStrategy naming;
 
-  /** The payload V1001 and V1002 build in SQL for the seed products, field for field. */
+  /** The payload V1001 builds in SQL for the seed products, field for field. */
   private static final String SEED_PAYLOAD =
       """
       {"eventId":"6f1c1c0e-52f5-4a43-a0a4-1d6d4f1b3f01","occurredOn":"2025-01-15T09:30:00.123456Z",

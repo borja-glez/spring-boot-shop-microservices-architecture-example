@@ -32,11 +32,4 @@ public class SellerEntity {
 
   @Column(nullable = false, length = 80)
   private String city;
-
-  public SellerEntity(String id, String displayName, String email, String city) {
-    this.id = id;
-    this.displayName = displayName;
-    this.email = email;
-    this.city = city;
-  }
 }

@@ -98,19 +98,18 @@ public final class Product extends AggregateRoot<ProductEvent> {
 
   /** Puts the product on sale. */
   public void publish(Clock clock) {
-    switch (status) {
-      case DISCONTINUED -> throw discontinued();
-      case ACTIVE ->
-          throw new ProductAlreadyPublishedException(
-              "Product " + sku.value() + " is already published");
-      case DRAFT -> {
-        Instant now = clock.instant();
-        status = ProductStatus.ACTIVE;
-        publishedAt = now;
-        updatedAt = now;
-        record(new ProductPublished(id, sku, name, price, seller, now));
-      }
+    if (status == ProductStatus.DISCONTINUED) {
+      throw discontinued();
     }
+    if (status == ProductStatus.ACTIVE) {
+      throw new ProductAlreadyPublishedException(
+          "Product " + sku.value() + " is already published");
+    }
+    Instant now = clock.instant();
+    status = ProductStatus.ACTIVE;
+    publishedAt = now;
+    updatedAt = now;
+    record(new ProductPublished(id, sku, name, price, seller, now));
   }
 
   /** Changes the selling price. Only published products announce the change. */
