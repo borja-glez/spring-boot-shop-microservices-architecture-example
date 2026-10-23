@@ -2,20 +2,20 @@ package com.borjaglez.shop.catalog.infrastructure.out.persistence;
 
 import java.util.Optional;
 
-import com.borjaglez.shop.catalog.domain.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Sellers;
 import com.borjaglez.shop.catalog.domain.SellerId;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
 import com.borjaglez.specrepository.core.Operators;
 
 /**
  * [Hexagonal · adaptador driven] Looks sellers up in PostgreSQL. Only their public data reaches the
  * core; the email stays here.
  */
-public class JpaSellerRepository implements SellerRepository {
+public class JpaSellers implements Sellers {
 
   private final SellerJpaRepository sellers;
 
-  public JpaSellerRepository(SellerJpaRepository sellers) {
+  public JpaSellers(SellerJpaRepository sellers) {
     this.sellers = sellers;
   }
 

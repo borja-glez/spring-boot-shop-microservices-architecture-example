@@ -5,16 +5,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.borjaglez.shop.catalog.application.port.out.Categories;
 import com.borjaglez.shop.catalog.domain.CategoryId;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
 import com.borjaglez.specrepository.core.Operators;
 
 /** [Hexagonal · adaptador driven] Resolves categories from PostgreSQL by their slug. */
-public class JpaCategoryRepository implements CategoryRepository {
+public class JpaCategories implements Categories {
 
   private final CategoryJpaRepository categories;
 
-  public JpaCategoryRepository(CategoryJpaRepository categories) {
+  public JpaCategories(CategoryJpaRepository categories) {
     this.categories = categories;
   }
 

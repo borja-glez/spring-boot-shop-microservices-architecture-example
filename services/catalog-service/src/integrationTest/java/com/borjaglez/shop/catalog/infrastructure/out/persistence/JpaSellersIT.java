@@ -5,15 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.borjaglez.shop.catalog.domain.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Sellers;
 import com.borjaglez.shop.catalog.domain.SellerId;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
 
 /** Sellers of the seed (V2__catalog_seed.sql), looked up by id. */
 @CatalogPersistenceTest
-class JpaSellerRepositoryIT {
+class JpaSellersIT {
 
-  @Autowired SellerRepository sellers;
+  @Autowired Sellers sellers;
 
   @Test
   void findsASellerWithItsPublicData() {

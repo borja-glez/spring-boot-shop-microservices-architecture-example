@@ -2,7 +2,7 @@ package com.borjaglez.shop.catalog.domain;
 
 import java.util.Objects;
 
-/** [DDD · Value Object] Identity of a {@link Seller}: the user id sent by the client. */
+/** [DDD · Value Object] Identity of a seller: the user id sent by the client. */
 public record SellerId(String value) {
 
   public SellerId {

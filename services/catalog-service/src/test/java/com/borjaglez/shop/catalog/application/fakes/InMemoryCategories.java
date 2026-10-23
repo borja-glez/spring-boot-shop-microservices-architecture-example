@@ -6,11 +6,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.borjaglez.shop.catalog.application.port.out.Categories;
 import com.borjaglez.shop.catalog.domain.CategoryId;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
 
 /** [Hexagonal · adaptador driven] The categories in a map, for the unit tests of the use cases. */
-public final class InMemoryCategories implements CategoryRepository {
+public final class InMemoryCategories implements Categories {
 
   private final Map<String, CategoryId> categories = new LinkedHashMap<>();
 

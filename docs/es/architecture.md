@@ -70,10 +70,10 @@ El [catálogo](../../services/catalog-service/src/main/java/com/borjaglez/shop/c
 
 ```
 com.borjaglez.shop.catalog
-├── domain/                  aggregate, value objects, eventos de dominio, interfaces de repositorio
+├── domain/                  aggregate, value objects, eventos de dominio, el repositorio de productos
 ├── application/
 │   ├── port/in/             comandos, consultas y las vistas que responden
-│   ├── port/out/            lo que los casos de uso necesitan del exterior (modelo de lectura, stock)
+│   ├── port/out/            lo que los casos de uso necesitan del exterior (modelo de lectura, stock, vendedores, categorías)
 │   └── service/             un handler por caso de uso
 └── infrastructure/
     ├── in/                  adaptadores de entrada: REST (generado desde el contrato), mensajería

@@ -10,14 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.borjaglez.shop.catalog.application.port.out.Categories;
 import com.borjaglez.shop.catalog.domain.CategoryId;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
 
 /** Categories of the seed (V2__catalog_seed.sql), looked up by slug. */
 @CatalogPersistenceTest
-class JpaCategoryRepositoryIT {
+class JpaCategoriesIT {
 
-  @Autowired CategoryRepository categories;
+  @Autowired Categories categories;
   @Autowired JdbcTemplate jdbc;
 
   private CategoryId idOf(String slug) {

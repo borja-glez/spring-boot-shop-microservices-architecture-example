@@ -9,9 +9,9 @@ import org.springframework.context.annotation.Configuration;
 import com.borjaglez.shop.catalog.infrastructure.out.messaging.CatalogIntegrationEvents;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.CategoryJpaRepository;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaCatalogReadModel;
-import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaCategoryRepository;
+import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaCategories;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaProductRepository;
-import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaSellerRepository;
+import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaSellers;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.ProductJpaRepository;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.SellerJpaRepository;
 import com.borjaglez.shop.eskit.DomainEventStore;
@@ -51,13 +51,13 @@ public class CatalogConfiguration {
   }
 
   @Bean
-  JpaSellerRepository sellerRepository(SellerJpaRepository sellers) {
-    return new JpaSellerRepository(sellers);
+  JpaSellers sellers(SellerJpaRepository sellers) {
+    return new JpaSellers(sellers);
   }
 
   @Bean
-  JpaCategoryRepository categoryRepository(CategoryJpaRepository categories) {
-    return new JpaCategoryRepository(categories);
+  JpaCategories categories(CategoryJpaRepository categories) {
+    return new JpaCategories(categories);
   }
 
   /**

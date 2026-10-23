@@ -12,14 +12,14 @@ import com.borjaglez.shop.catalog.application.exception.DuplicateSkuException;
 import com.borjaglez.shop.catalog.application.exception.SellerNotFoundException;
 import com.borjaglez.shop.catalog.application.exception.UnknownCategoryException;
 import com.borjaglez.shop.catalog.application.port.in.CreateProductCommand;
+import com.borjaglez.shop.catalog.application.port.out.Categories;
+import com.borjaglez.shop.catalog.application.port.out.Sellers;
 import com.borjaglez.shop.catalog.domain.CategoryId;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
 import com.borjaglez.shop.catalog.domain.Money;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductDraft;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
 import com.borjaglez.shop.catalog.domain.SellerId;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
 import com.borjaglez.shop.catalog.domain.Sku;
 
 /**
@@ -34,15 +34,12 @@ import com.borjaglez.shop.catalog.domain.Sku;
 public class CreateProductHandler {
 
   private final ProductRepository products;
-  private final SellerRepository sellers;
-  private final CategoryRepository categories;
+  private final Sellers sellers;
+  private final Categories categories;
   private final Clock clock;
 
   public CreateProductHandler(
-      ProductRepository products,
-      SellerRepository sellers,
-      CategoryRepository categories,
-      Clock clock) {
+      ProductRepository products, Sellers sellers, Categories categories, Clock clock) {
     this.products = products;
     this.sellers = sellers;
     this.categories = categories;

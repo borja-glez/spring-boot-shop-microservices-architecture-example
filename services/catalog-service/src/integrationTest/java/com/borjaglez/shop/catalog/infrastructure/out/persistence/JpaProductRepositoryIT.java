@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
+import com.borjaglez.shop.catalog.application.port.out.Categories;
 import com.borjaglez.shop.catalog.domain.Money;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.Product.ProductState;
@@ -55,7 +55,7 @@ class JpaProductRepositoryIT {
   private static final Clock LATER = Clock.fixed(NOW.plus(Duration.ofHours(1)), ZoneOffset.UTC);
 
   @Autowired ProductRepository products;
-  @Autowired CategoryRepository categories;
+  @Autowired Categories categories;
   @Autowired TestEntityManager entityManager;
   @Autowired JdbcTemplate jdbc;
   @Autowired PlatformTransactionManager transactionManager;

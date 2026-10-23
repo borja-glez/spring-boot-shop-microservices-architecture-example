@@ -4,12 +4,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import com.borjaglez.shop.catalog.domain.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Seller;
+import com.borjaglez.shop.catalog.application.port.out.Sellers;
 import com.borjaglez.shop.catalog.domain.SellerId;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
 
 /** [Hexagonal · adaptador driven] The sellers in a map, for the unit tests of the use cases. */
-public final class InMemorySellers implements SellerRepository {
+public final class InMemorySellers implements Sellers {
 
   private final Map<SellerId, Seller> sellers = new LinkedHashMap<>();
 
