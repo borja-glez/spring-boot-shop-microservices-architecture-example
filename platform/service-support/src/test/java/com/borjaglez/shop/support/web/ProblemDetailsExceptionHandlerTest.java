@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -191,5 +192,37 @@ class ProblemDetailsExceptionHandlerTest {
     mvc.perform(post("/things").contentType(MediaType.APPLICATION_JSON).content("{not json"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("bad-request"));
+  }
+
+  @Test
+  void aClientThatAcceptsOnlyJsonGetsTheProblemAsJson() throws Exception {
+    mvc.perform(get("/not-found").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("product-not-found"));
+    mvc.perform(post("/not-found").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("method-not-allowed"));
+  }
+
+  @Test
+  void problemJsonStaysTheMediaTypeOfEveryOtherClient() throws Exception {
+    // A browser-like client, one that names problem+json, and one that accepts neither type.
+    for (String accept :
+        new String[] {
+          "application/json, text/plain, */*", "application/problem+json", "text/html"
+        }) {
+      mvc.perform(get("/not-found").header(HttpHeaders.ACCEPT, accept))
+          .andExpect(status().isNotFound())
+          .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+          .andExpect(jsonPath("$.code").value("product-not-found"));
+    }
+  }
+
+  @Test
+  void anUnreadableAcceptHeaderKeepsTheStatus() throws Exception {
+    mvc.perform(get("/not-found").header(HttpHeaders.ACCEPT, "not-a-media-type"))
+        .andExpect(status().isNotFound());
   }
 }

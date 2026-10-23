@@ -17,6 +17,11 @@ info:
     replaced by a new UUID. Every response returns the id used in its `X-Correlation-Id` header
     (`#/components/headers/CorrelationId`) and, in a problem, in `correlationId`.
 
+    Every error response of `#/components/responses` is a `Problem`, sent as
+    `application/problem+json`, or as `application/json` to a client that accepts only JSON. Both
+    media types are listed so that such a client can call any operation, including one whose
+    success response has no body.
+
     `info.version` is the version of these components; a change that breaks a contract that
     references them goes to a new file, `common.v2.yaml`.
 paths: {}
@@ -67,9 +72,9 @@ components:
       type: object
       description: |
         RFC 9457 problem details, the body of every error response
-        (`application/problem+json`). `code` is a stable kebab-case identifier for clients to
-        branch on; `type` is derived from it. Some problems add members of their own, such as
-        `field` for an invalid filter.
+        (`application/problem+json`, or `application/json` for a client that accepts only JSON).
+        `code` is a stable kebab-case identifier for clients to branch on; `type` is derived from
+        it. Some problems add members of their own, such as `field` for an invalid filter.
       required:
         - type
         - title
@@ -200,6 +205,9 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: The operation needs the `X-Shop-User` header (`missing-user`).
       headers:
@@ -209,6 +217,9 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     NotFound:
       description: The resource does not exist; the code names it, such as `product-not-found`.
       headers:
@@ -216,6 +227,9 @@ components:
           $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
           schema:
             $ref: '#/components/schemas/Problem'
     Conflict:
@@ -230,6 +244,9 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     UnprocessableContent:
       description: The request is valid but breaks a business rule; the code names the rule.
       headers:
@@ -237,6 +254,9 @@ components:
           $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
           schema:
             $ref: '#/components/schemas/Problem'
     InternalServerError:
@@ -248,5 +268,8 @@ components:
           $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
           schema:
             $ref: '#/components/schemas/Problem'

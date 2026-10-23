@@ -98,9 +98,9 @@ export interface components {
         };
         /**
          * @description RFC 9457 problem details, the body of every error response
-         *     (`application/problem+json`). `code` is a stable kebab-case identifier for clients to
-         *     branch on; `type` is derived from it. Some problems add members of their own, such as
-         *     `field` for an invalid filter.
+         *     (`application/problem+json`, or `application/json` for a client that accepts only JSON).
+         *     `code` is a stable kebab-case identifier for clients to branch on; `type` is derived from
+         *     it. Some problems add members of their own, such as `field` for an invalid filter.
          */
         Problem: {
             /**
@@ -149,6 +149,7 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
+                "application/json": components["schemas"]["Problem"];
             };
         };
         /**
@@ -163,6 +164,7 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
+                "application/json": components["schemas"]["Problem"];
             };
         };
         /** @description The request is valid but breaks a business rule; the code names the rule. */
@@ -173,6 +175,7 @@ export interface components {
             };
             content: {
                 "application/problem+json": components["schemas"]["Problem"];
+                "application/json": components["schemas"]["Problem"];
             };
         };
     };
@@ -234,17 +237,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The service has no fault injection (`chaos-disabled`). */
-            404: {
-                headers: {
-                    "X-Correlation-Id": components["headers"]["CorrelationId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                    "application/json": components["schemas"]["Problem"];
-                };
-            };
+            404: components["responses"]["NotFound"];
         };
     };
     setFault: {

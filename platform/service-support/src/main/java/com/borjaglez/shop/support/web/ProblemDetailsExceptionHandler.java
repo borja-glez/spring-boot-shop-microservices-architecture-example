@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -37,7 +39,8 @@ import com.borjaglez.shop.support.web.problem.UserHeaderProblemMapper;
  * <p>Each response carries a stable {@code code}, the request {@code correlationId} and, for
  * validation failures, the list of invalid fields. Framework exceptions keep Spring's status and
  * get a code derived from it. Unknown exceptions become a 500 whose body never includes the
- * exception message.
+ * exception message. The media type is {@code application/problem+json}, or {@code
+ * application/json} for a client that accepts only that.
  */
 @RestControllerAdvice
 public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandler {
@@ -67,7 +70,11 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
     ProblemDetail body = ProblemDetail.forStatusAndDetail(problem.status(), problem.detail());
     decorate(body, problem.code(), problem.errors(), request);
     problem.properties().forEach(body::setProperty);
-    return ResponseEntity.status(problem.status()).body(body);
+    ResponseEntity.BodyBuilder response = ResponseEntity.status(problem.status());
+    if (acceptsJsonButNotProblems(request)) {
+      response.contentType(MediaType.APPLICATION_JSON);
+    }
+    return response.body(body);
   }
 
   @Override
@@ -136,7 +143,31 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
     if (body instanceof ProblemDetail problem && !hasCode(problem)) {
       decorate(problem, codeFor(statusCode), List.of(), request);
     }
+    if (acceptsJsonButNotProblems(request)) {
+      headers.setContentType(MediaType.APPLICATION_JSON);
+    }
     return super.createResponseEntity(body, headers, statusCode, request);
+  }
+
+  /**
+   * Problems are sent as {@code application/problem+json}. A client whose {@code Accept} header
+   * admits {@code application/json} but not {@code application/problem+json} gets the same body as
+   * {@code application/json}, which the shared error responses of the contracts list too; for any
+   * other client Spring negotiates as usual and falls back on {@code application/problem+json}.
+   */
+  private static boolean acceptsJsonButNotProblems(WebRequest request) {
+    String[] accept = request.getHeaderValues(HttpHeaders.ACCEPT);
+    if (accept == null) {
+      return false;
+    }
+    List<MediaType> accepted;
+    try {
+      accepted = MediaType.parseMediaTypes(List.of(accept));
+    } catch (InvalidMediaTypeException unreadable) {
+      return false;
+    }
+    return accepted.stream().noneMatch(MediaType.APPLICATION_PROBLEM_JSON::isCompatibleWith)
+        && accepted.stream().anyMatch(MediaType.APPLICATION_JSON::isCompatibleWith);
   }
 
   /** The problems with the user header, which the contracts declare as a header parameter. */

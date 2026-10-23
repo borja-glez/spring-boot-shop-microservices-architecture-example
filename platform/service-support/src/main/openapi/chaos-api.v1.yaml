@@ -51,19 +51,7 @@ paths:
             X-Correlation-Id:
               $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
         '404':
-          description: The service has no fault injection (`chaos-disabled`).
-          headers:
-            X-Correlation-Id:
-              $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
-          content:
-            application/problem+json:
-              schema:
-                $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/schemas/Problem'
-            # Lets a client that sends `Accept: application/json` reach the operation, whose success
-            # response has no body.
-            application/json:
-              schema:
-                $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/schemas/Problem'
+          $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
   /api/v1/chaos/{service}/{key}:
     put:
       tags:

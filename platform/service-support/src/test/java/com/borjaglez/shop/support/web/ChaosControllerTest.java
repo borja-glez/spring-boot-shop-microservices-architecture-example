@@ -3,6 +3,7 @@ package com.borjaglez.shop.support.web;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,9 +76,13 @@ class ChaosControllerTest {
   @Test
   void everythingOffAnswersAClientThatOnlyAcceptsJson() throws Exception {
     mvc.perform(delete("/api/v1/chaos/payments").accept(MediaType.APPLICATION_JSON))
-        .andExpect(status().isNoContent());
+        .andExpect(status().isNoContent())
+        .andExpect(CONTRACT.matches());
     mvc.perform(delete("/api/v1/chaos/orders").accept(MediaType.APPLICATION_JSON))
-        .andExpect(status().isNotFound());
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.code").value("chaos-disabled"))
+        .andExpect(CONTRACT.matches());
   }
 
   @Test

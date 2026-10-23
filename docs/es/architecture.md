@@ -102,7 +102,7 @@ Kafka transporta solo eventos (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.
 
 ## Modelo de errores
 
-Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 (`application/problem+json`), generados por [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
+Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 (`application/problem+json`, o `application/json` para un cliente que solo acepta JSON), generados por [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
 
 ```json
 {

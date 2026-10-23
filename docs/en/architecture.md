@@ -102,7 +102,7 @@ Kafka carries events only (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.quer
 
 ## Error model
 
-Every Boot 4 service answers errors as RFC 9457 problem details (`application/problem+json`), rendered by [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
+Every Boot 4 service answers errors as RFC 9457 problem details (`application/problem+json`, or `application/json` for a client that accepts only JSON), rendered by [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
 
 ```json
 {
