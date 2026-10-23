@@ -73,6 +73,14 @@ class ChaosControllerTest {
   }
 
   @Test
+  void everythingOffAnswersAClientThatOnlyAcceptsJson() throws Exception {
+    mvc.perform(delete("/api/v1/payments/chaos").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNoContent());
+    mvc.perform(delete("/api/v1/orders/chaos").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
   void rejectsUnknownFaultsAndBadValues() throws Exception {
     mvc.perform(
             put("/api/v1/payments/chaos/nope")
