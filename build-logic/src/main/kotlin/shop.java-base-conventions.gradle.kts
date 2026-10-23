@@ -31,11 +31,15 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 // Three suites: `test` (unit), `integrationTest` (slices, src/integrationTest) and `componentTest`
-// (src/componentTest). The two extra ones inherit the unit suite's dependencies and see its classes.
+// (src/componentTest). The two extra ones test the main classes, inherit the unit suite's
+// dependencies and see its classes.
 testing {
     suites {
         listOf("integrationTest", "componentTest").forEach { name ->
             register<JvmTestSuite>(name) {
+                dependencies {
+                    implementation(project())
+                }
                 sources {
                     java.setSrcDirs(listOf("src/$name/java"))
                     resources.setSrcDirs(listOf("src/$name/resources"))
