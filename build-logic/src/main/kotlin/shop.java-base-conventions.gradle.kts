@@ -69,7 +69,12 @@ tasks.named("check") {
     dependsOn("integrationTest", "componentTest")
 }
 
+// Absolute path of the repository root as a plain string (no Project reference at execution time):
+// the AsyncAPI contract tests read their documents relative to it.
+val repoRoot: String = rootProject.layout.projectDirectory.asFile.absolutePath
+
 tasks.withType<Test>().configureEach {
+    systemProperty("shop.repoRoot", repoRoot)
     useJUnitPlatform()
     maxParallelForks = 1
     testLogging {

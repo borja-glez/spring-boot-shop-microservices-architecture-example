@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "occurredOn", "widgetId", "name"],
+  "properties": {
+    "eventId": { "type": "string", "minLength": 1 },
+    "occurredOn": { "type": "string", "format": "date-time" },
+    "widgetId": { "type": "string", "format": "uuid" },
+    "name": { "type": "string", "minLength": 1 }
+  }
+}

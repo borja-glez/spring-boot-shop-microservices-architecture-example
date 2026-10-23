@@ -3,7 +3,7 @@ plugins {
     id("shop.openapi-conventions")
 }
 
-description = "Test fixtures shared by the services: Testcontainers, architecture rules and contract checks"
+description = "Test fixtures shared by the services: Testcontainers, architecture rules and contract checks (OpenAPI and AsyncAPI)"
 
 dependencies {
     api(libs.spring.boot.starter.test)
@@ -14,6 +14,8 @@ dependencies {
     api(libs.testcontainers.junit.jupiter)
     api(project(":platform:architecture-rules"))
     api(libs.archunit.junit5)
+    api(libs.cqrs.core)
+    api(libs.cqrs.asyncapi.test)
     api(libs.awaitility)
     implementation(libs.openapi.request.validator.mockmvc)
 
@@ -22,6 +24,7 @@ dependencies {
     testImplementation(libs.spring.boot.starter.validation)
     testImplementation(libs.specrepo.core)
     testImplementation(libs.specrepo.http)
+    testImplementation(libs.jackson.databind)
 }
 
 // Contract of the controllers of OpenApiContractTest: its interfaces and DTOs are test code.

@@ -1,0 +1,169 @@
+asyncapi: 3.0.0
+info:
+  title: Mercado common messaging components
+  version: 1.0.0
+  description: |
+    Components shared by the Mercado AsyncAPI contracts: the brokers, the headers the spring-boot-cqrs
+    adapters put on every record or message, and the Kafka and RabbitMQ bindings. This document
+    declares no channels; a service contract references what it needs with a relative `$ref`, for
+    example `$ref: '../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'`.
+
+    ## Message names
+
+    The `name` of every message is its logical name, as `DefaultMessageNamingStrategy` builds it from
+    `@CqrsMessage` with `cqrs.naming.prefix=shop`:
+    `shop.<service>.<version>.<command|event|query>.<module>.<name>`, for example
+    `shop.orders.1.event.order.order-placed`. The contract tests compare those names with the Java
+    classes. Replies have no logical name; the contract names them in kebab-case.
+
+    ## Kafka
+
+    Kafka carries integration events only. The topic is the one `DefaultKafkaTopicNamingStrategy`
+    gives the events bus with `cqrs.kafka.prefix=shop`. The record key is the id of the aggregate
+    that emitted the event (the key declared by `KeyedMessage`, also sent in the `cqrs.message.key`
+    header), so the events of one aggregate stay ordered inside a partition. Consumers must still
+    tolerate out-of-order delivery across event types.
+
+    ## RabbitMQ
+
+    Commands and queries go over RabbitMQ as request and reply. `DefaultRabbitMqNamingStrategy` with
+    `cqrs.rabbitmq.prefix=shop` builds the names:
+
+    | Element | Rule | Example |
+    |---|---|---|
+    | Exchange | `shop.<bus>` where bus is `commands`, `events` or `queries` | `shop.commands` |
+    | Routing key | the logical name of the message | `shop.inventory.1.command.stock.reserve-stock` |
+    | Queue | `shop.<application name>.<bus>` | `shop.inventory-service.commands` |
+    | Retry exchange and queue | the exchange or queue name plus `.retry` | `shop.inventory-service.commands.retry` |
+    | Dead-letter exchange and queue | the exchange or queue name plus `.dead_letter` | `shop.inventory-service.commands.dead_letter` |
+
+    ## Context headers
+
+    The message context travels in headers named `cqrs.context.<key>`; the shop sets `correlationId`
+    from the `X-Correlation-Id` request header, so it arrives as `cqrs.context.correlationId`.
+servers:
+  kafka:
+    host: kafka:9092
+    protocol: kafka
+    description: Kafka broker (`localhost:9094` from the host with Docker Compose).
+  rabbitmq:
+    host: rabbitmq:5672
+    protocol: amqp
+    protocolVersion: 0.9.1
+    description: RabbitMQ broker (`localhost:5672` from the host with Docker Compose).
+components:
+  schemas:
+    CqrsKafkaHeaders:
+      description: Headers of the records the Kafka adapter publishes.
+      type: object
+      properties:
+        cqrs.message.kind:
+          type: string
+          enum: [command, event, query]
+          description: Kind of the message.
+        cqrs.message.name:
+          type: string
+          description: Logical name of the message.
+          examples: [shop.catalog.1.event.product.product-published]
+        cqrs.message.key:
+          type: string
+          description: Key declared by the message (the aggregate id); absent when it declares none or a blank one.
+        cqrs.payload.type:
+          type: string
+          description: Java type of the payload.
+        cqrs.correlation.id:
+          type: string
+          description: Correlation id of a request and its reply.
+        cqrs.reply.topic:
+          type: string
+          description: Topic the reply must be sent to.
+        cqrs.request.mode:
+          type: string
+          description: How the sender waits for the message to be handled.
+        cqrs.context.correlationId:
+          type: string
+          description: Correlation id of the request that caused the message.
+    CqrsRabbitMqHeaders:
+      description: Headers of the messages the RabbitMQ adapter publishes. The routing key is the logical name of the message.
+      type: object
+      properties:
+        cqrs.context.correlationId:
+          type: string
+          description: Correlation id of the request that caused the message.
+    CqrsErrorHeaders:
+      description: Headers that describe a failure, on error replies and on dead-lettered records and messages.
+      type: object
+      properties:
+        cqrs.error:
+          type: string
+          description: Marks a reply as an error reply.
+        cqrs.error.type:
+          type: string
+          description: Class name of the exception thrown by the handler.
+        cqrs.error.message:
+          type: string
+          maxLength: 1000
+          description: Message of the exception, truncated to 1000 characters; only on dead-lettered messages.
+        cqrs.error.attempts:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Deliveries made before the message was dead-lettered, as a decimal string.
+        cqrs.error.timestamp:
+          type: string
+          format: date-time
+          description: ISO-8601 instant at which the message was dead-lettered.
+  messageTraits:
+    KafkaEvent:
+      description: An integration event published to Kafka, keyed by the id of its aggregate.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CqrsKafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: Id of the aggregate that emitted the event.
+          bindingVersion: 0.5.0
+    RabbitMqMessage:
+      description: A command, query or reply sent over RabbitMQ; the routing key is its logical name.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CqrsRabbitMqHeaders'
+    RabbitMqErrorReply:
+      description: The reply of a command or query whose handler failed.
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/CqrsErrorHeaders'
+  channelBindings:
+    KafkaEvents:
+      kafka:
+        replicas: 1
+        partitions: 3
+        bindingVersion: 0.5.0
+    RabbitMqCommands:
+      amqp:
+        is: routingKey
+        exchange:
+          name: shop.commands
+          type: topic
+          durable: true
+          autoDelete: false
+        bindingVersion: 0.3.0
+    RabbitMqEvents:
+      amqp:
+        is: routingKey
+        exchange:
+          name: shop.events
+          type: topic
+          durable: true
+          autoDelete: false
+        bindingVersion: 0.3.0
+    RabbitMqQueries:
+      amqp:
+        is: routingKey
+        exchange:
+          name: shop.queries
+          type: topic
+          durable: true
+          autoDelete: false
+        bindingVersion: 0.3.0
