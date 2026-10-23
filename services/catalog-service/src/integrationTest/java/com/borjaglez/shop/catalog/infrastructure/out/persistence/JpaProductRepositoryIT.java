@@ -137,6 +137,18 @@ class JpaProductRepositoryIT {
   }
 
   @Test
+  void anUnchangedProductIsNotWrittenAgain() {
+    Product product = draft(uniqueSku());
+    products.save(product);
+    Product stored = reload(product.getId());
+
+    stored.changePrice(Money.of("4.1", "EUR"), LATER);
+    products.save(stored);
+
+    assertThat(reload(product.getId()).getVersion()).isZero();
+  }
+
+  @Test
   void anUnknownProductIsNotFound() {
     assertThat(products.findById(ProductId.newId())).isEmpty();
   }

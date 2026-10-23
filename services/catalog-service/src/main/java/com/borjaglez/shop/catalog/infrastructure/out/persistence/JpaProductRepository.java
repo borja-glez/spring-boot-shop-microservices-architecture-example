@@ -4,12 +4,16 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import com.borjaglez.shop.catalog.domain.CategoryEntity;
 import com.borjaglez.shop.catalog.domain.CategoryJpaRepository;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.Product.ProductState;
+import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.catalog.domain.ProductId;
 import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
@@ -67,22 +71,47 @@ public class JpaProductRepository implements ProductRepository {
 
   /**
    * Writes the product at once, so a conflict with another transaction fails here, and then records
-   * its events. A product with no version is inserted; any other is merged over the stored one,
-   * which must still have the same version.
+   * its events. A product without a version is inserted; any other updates the stored one, which
+   * must still have the version the product was read with, and only if something changed.
    */
   @Override
   public void save(Product product) {
     ProductState state = product.state();
-    Set<CategoryEntity> productCategories =
-        state.categories().stream()
-            .map(category -> categories.getReferenceById(category.value()))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-    products.saveAndFlush(
-        ProductMapper.toEntity(
-            state, sellers.getReferenceById(state.seller().value()), productCategories));
+    ProductEntity changed = toEntity(state);
+    if (state.version() == null) {
+      products.saveAndFlush(changed);
+    } else {
+      stored(state).update(changed);
+      products.flush();
+    }
     List<ProductEvent> recorded = product.pullEvents();
     if (!recorded.isEmpty()) {
       events.record(STREAM_TYPE, state.id().value().toString(), recorded);
     }
+  }
+
+  /** The seller and the categories are references: only their ids are written. */
+  private ProductEntity toEntity(ProductState state) {
+    Set<CategoryEntity> productCategories =
+        state.categories().stream()
+            .map(category -> categories.getReferenceById(category.value()))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    return ProductMapper.toEntity(
+        state, sellers.getReferenceById(state.seller().value()), productCategories);
+  }
+
+  /**
+   * The stored product, if it still has the version the product was read with.
+   *
+   * @throws ObjectOptimisticLockingFailureException if another transaction changed it since
+   */
+  private ProductEntity stored(ProductState state) {
+    UUID id = state.id().value();
+    return products
+        .query()
+        .where("id", Operators.EQUALS, id)
+        .findOne()
+        .filter(entity -> entity.getVersion().equals(state.version()))
+        .orElseThrow(() -> new ObjectOptimisticLockingFailureException(ProductEntity.class, id));
   }
 }

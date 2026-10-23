@@ -119,6 +119,27 @@ public class ProductEntity {
     this.version = version;
   }
 
+  /**
+   * Takes the values of {@code changed}, a newer form of this same product. Values that did not
+   * change are left as they are, so a product saved without changes is not written again.
+   */
+  public void update(ProductEntity changed) {
+    sku = changed.sku;
+    slug = changed.slug;
+    name = changed.name;
+    description = changed.description;
+    price = changed.price;
+    status = changed.status;
+    seller = changed.seller;
+    createdAt = changed.createdAt;
+    publishedAt = changed.publishedAt;
+    updatedAt = changed.updatedAt;
+    categories.retainAll(changed.categories);
+    categories.addAll(changed.categories);
+    tags.retainAll(changed.tags);
+    tags.addAll(changed.tags);
+  }
+
   public Set<CategoryEntity> getCategories() {
     return Collections.unmodifiableSet(categories);
   }
