@@ -19,8 +19,6 @@ import com.borjaglez.shop.catalog.domain.exception.ProductDiscontinuedException;
 import com.borjaglez.shop.catalog.domain.exception.TooManyTagsException;
 import com.borjaglez.shop.kernel.domain.AggregateRoot;
 
-import lombok.Getter;
-
 /**
  * [DDD · Aggregate Root] A product offered by a seller.
  *
@@ -28,7 +26,6 @@ import lombok.Getter;
  * -> ACTIVE -> DISCONTINUED}) and record the {@link ProductEvent}s other contexts need. Events are
  * drained with {@link #pullEvents()} once the change is stored.
  */
-@Getter
 public final class Product extends AggregateRoot<ProductEvent> {
 
   static final int MAX_TAGS = 10;
@@ -156,12 +153,62 @@ public final class Product extends AggregateRoot<ProductEvent> {
     return seller.equals(candidate);
   }
 
+  public ProductId getId() {
+    return id;
+  }
+
+  public Sku getSku() {
+    return sku;
+  }
+
+  public Slug getSlug() {
+    return slug;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public Money getPrice() {
+    return price;
+  }
+
+  public ProductStatus getStatus() {
+    return status;
+  }
+
+  public SellerId getSeller() {
+    return seller;
+  }
+
   public Set<CategoryId> getCategories() {
     return Collections.unmodifiableSet(categories);
   }
 
   public Set<Tag> getTags() {
     return Collections.unmodifiableSet(tags);
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  /** {@code null} until the product is published. */
+  public Instant getPublishedAt() {
+    return publishedAt;
+  }
+
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  /** The version the product was read with; {@code null} for a product not stored yet. */
+  public Long getVersion() {
+    return version;
   }
 
   /** Snapshot of every field, for the persistence adapter. */

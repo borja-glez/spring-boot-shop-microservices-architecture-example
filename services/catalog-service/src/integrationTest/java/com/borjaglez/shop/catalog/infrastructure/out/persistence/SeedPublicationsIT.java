@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.borjaglez.cqrs.context.MessageContext;
 import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.cqrs.event.EventBus;
 import com.borjaglez.cqrs.jdbc.outbox.OutboxContextCodec;
@@ -32,14 +34,16 @@ import com.borjaglez.shop.contracts.catalog.ProductPublished;
 /**
  * The seed products on sale are announced through the outbox of spring-boot-cqrs: {@code V1001}
  * records a {@code ProductPublished} per product in {@code event_store}, and {@code V1002} hands
- * each one to {@code cqrs_outbox} under the same event id, where the relay reads it like any other
- * integration event. The migrations ran on a new database when the context started.
+ * each one to {@code cqrs_outbox} under the same event id and with the seed's correlation id, where
+ * the relay reads it like any other integration event. The migrations ran on a new database when
+ * the context started.
  */
 @CatalogPersistenceTest
 class SeedPublicationsIT {
 
   private static final int SEEDED_ACTIVE = 62;
   private static final String PUBLISHED = "shop.catalog.1.event.product.product-published";
+  private static final String SEED_CORRELATION_ID = "catalog-seed";
   private static final String HAND_OVER =
       "db/migration/V1002__hand_seed_publications_to_the_outbox.sql";
 
@@ -128,7 +132,8 @@ class SeedPublicationsIT {
     assertThat(rows).hasSize(SEEDED_ACTIVE);
     for (Map<String, Object> row : rows) {
       assertThat(row.get("event_name")).isEqualTo(PUBLISHED);
-      assertThat(row.get("context")).isNull();
+      assertThat(contexts.decode((byte[]) row.get("context")).context())
+          .containsExactly(Map.entry(MessageContext.CORRELATION_ID_KEY, SEED_CORRELATION_ID));
       assertThat(read(row))
           .isInstanceOfSatisfying(
               ProductPublished.class,
@@ -176,6 +181,10 @@ class SeedPublicationsIT {
         .filteredOn(event -> seedEventIds.contains(event.getEventId()))
         .hasSize(SEEDED_ACTIVE)
         .allSatisfy(event -> assertThat(event).isInstanceOf(ProductPublished.class));
+    assertThat(seedEventIds)
+        .allSatisfy(
+            eventId ->
+                assertThat(kafka.correlationIds).containsEntry(eventId, SEED_CORRELATION_ID));
   }
 
   @Test
@@ -189,14 +198,19 @@ class SeedPublicationsIT {
         .allSatisfy(row -> assertThat(row.get("outbox_rows")).isEqualTo(1L));
   }
 
-  /** The Kafka event bus as the relay sees it, recording what it publishes. */
+  /**
+   * The Kafka event bus as the relay sees it, recording what it publishes and the correlation id of
+   * the message context it publishes each event in.
+   */
   private static final class RecordingEventBus implements EventBus {
 
     private final List<Event> published = new ArrayList<>();
+    private final Map<String, String> correlationIds = new HashMap<>();
 
     @Override
     public void publish(Event event) {
       published.add(event);
+      correlationIds.put(event.getEventId(), MessageContext.current().correlationId());
     }
 
     @Override

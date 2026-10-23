@@ -149,6 +149,20 @@ class JpaProductRepositoryIT {
   }
 
   @Test
+  void aProductIsSavedOncePerRead() {
+    Product product = draft(uniqueSku());
+    products.save(product);
+    Product stored = reload(product.getId());
+    stored.publish(LATER);
+    products.save(stored);
+
+    stored.changePrice(Money.of("3.95", "EUR"), LATER);
+
+    assertThatThrownBy(() -> products.save(stored))
+        .isInstanceOf(OptimisticLockingFailureException.class);
+  }
+
+  @Test
   void anUnknownProductIsNotFound() {
     assertThat(products.findById(ProductId.newId())).isEmpty();
   }
