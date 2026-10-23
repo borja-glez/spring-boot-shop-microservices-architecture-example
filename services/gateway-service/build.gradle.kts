@@ -39,7 +39,7 @@ val collectContracts by tasks.registering(Sync::class) {
         repositoryRoot.dir("platform").asFileTree.matching {
             include(
                 "api-contracts/**",
-                "service-support/src/main/openapi/**",
+                "*/src/main/openapi/**",
                 "contracts/src/main/resources/schemas/**",
             )
         }

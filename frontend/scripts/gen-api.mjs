@@ -1,6 +1,7 @@
-// Generates src/app/core/api/generated/<spec>.d.ts for every OpenAPI contract of a service or of
-// service-support, with openapi-typescript. The component libraries in platform/api-contracts
-// are referenced by those contracts and are not generated on their own.
+// Generates src/app/core/api/generated/<spec>.d.ts for every OpenAPI contract of a service or of a
+// platform module (services/*/src/main/openapi and platform/*/src/main/openapi, such as
+// service-support), with openapi-typescript. The component libraries in platform/api-contracts are
+// referenced by those contracts and are not generated on their own.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -23,10 +24,13 @@ function specs(directory) {
   }
 }
 
-const serviceDirectories = readdirSync(join(repository, 'services'), { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => join(repository, 'services', entry.name, 'src/main/openapi'));
-const found = [...serviceDirectories, join(repository, 'platform/service-support/src/main/openapi')]
+function openApiDirectories(parent) {
+  return readdirSync(join(repository, parent), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(repository, parent, entry.name, 'src/main/openapi'));
+}
+
+const found = [...openApiDirectories('services'), ...openApiDirectories('platform')]
   .flatMap(specs)
   .sort();
 

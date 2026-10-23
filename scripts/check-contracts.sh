@@ -31,7 +31,8 @@ export MSYS_NO_PATHCONV=1
 
 shopt -s nullglob
 openapi_libraries=(platform/api-contracts/openapi/*.yaml)
-openapi_services=(services/*/src/main/openapi/*.yaml platform/service-support/src/main/openapi/*.yaml)
+# The OpenAPI documents of the services and of the platform modules (such as service-support).
+openapi_services=(services/*/src/main/openapi/*.yaml platform/*/src/main/openapi/*.yaml)
 asyncapi_libraries=(platform/api-contracts/asyncapi/*.yaml)
 asyncapi_services=(services/*/src/main/asyncapi/*.yaml)
 
