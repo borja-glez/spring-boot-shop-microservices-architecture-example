@@ -4,7 +4,7 @@
 rules:
   # Path segments are kebab-case; a path parameter is a camelCase name in braces. Whether a segment
   # names a collection (`/products/{id}`), an action (`/{id}/cancel`) or a single view
-  # (`/summary`) is a design decision a pattern cannot check; reviews look after it.
+  # (`/summary`) is a design decision that a pattern cannot check.
   rule/path-kebab-case:
     message: 'Path {{problems}}'
     severity: error
