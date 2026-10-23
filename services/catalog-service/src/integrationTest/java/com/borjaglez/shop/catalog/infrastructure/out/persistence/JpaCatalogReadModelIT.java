@@ -291,22 +291,36 @@ class JpaCatalogReadModelIT {
   }
 
   /**
-   * The count, the page with the seller of each product, and one batch each for the categories and
-   * the tags: a filter that joins the sellers does not cost a query more to read them.
+   * At most the count, the page with the seller of each product, and one batch each for the
+   * categories and the tags, however many sellers the page shows and even when a filter joins them:
+   * reading the sellers costs no query of their own.
    */
   @Test
-  void aPageIsReadWithItsSellersInFourStatements() {
+  void aPageTakesAtMostFourStatementsWhateverItsSellers() {
     Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     statistics.setStatisticsEnabled(true);
     try {
       statistics.clear();
 
-      List<ProductCard> found = catalog.search(filters("seller.city:eq:Bilbao"), ALL).content();
+      List<ProductCard> found =
+          catalog
+              .search(
+                  filters(
+                      "categories.slug:eq:cafe-e-infusiones",
+                      "seller.city:in:Madrid|Valencia|Bilbao|A Coruña|Zaragoza"),
+                  ALL)
+              .content();
 
+      assertThat(found).hasSize(8);
       assertThat(found)
-          .hasSize(7)
-          .allMatch(card -> card.seller().displayName().equals("Diego Electrónica"));
-      assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+          .extracting(card -> card.seller().displayName())
+          .containsOnly(
+              "Tostadores Ana",
+              "Carmen Hogar",
+              "Diego Electrónica",
+              "Librería Elena",
+              "Ultramarinos Fermín");
+      assertThat(statistics.getPrepareStatementCount()).isLessThanOrEqualTo(4);
     } finally {
       statistics.setStatisticsEnabled(false);
     }

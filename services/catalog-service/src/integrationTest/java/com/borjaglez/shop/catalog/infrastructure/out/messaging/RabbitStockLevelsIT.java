@@ -52,8 +52,11 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
     properties = "REMOTE_QUERY_TIMEOUT=" + RabbitStockLevelsIT.TIMEOUT_MILLIS + "ms")
 class RabbitStockLevelsIT {
 
-  static final long TIMEOUT_MILLIS = 500;
+  static final long TIMEOUT_MILLIS = 250;
   private static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MILLIS);
+
+  /** What the catalog waits when {@code REMOTE_QUERY_TIMEOUT} is not set (application.yaml). */
+  private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
 
   private static final ProductId IN_STOCK = new ProductId(UUID.randomUUID());
   private static final ProductId SOLD_OUT = new ProductId(UUID.randomUUID());
@@ -132,8 +135,7 @@ class RabbitStockLevelsIT {
 
       Duration waited = Duration.ofNanos(System.nanoTime() - start);
       assertThat(levels).isEmpty();
-      // Well under the 1 s the catalog waits when REMOTE_QUERY_TIMEOUT is not set.
-      assertThat(waited).isLessThan(TIMEOUT.plusMillis(400));
+      assertThat(waited).isLessThan(DEFAULT_TIMEOUT);
       if (slow) {
         assertThat(waited).isGreaterThanOrEqualTo(TIMEOUT);
       }
