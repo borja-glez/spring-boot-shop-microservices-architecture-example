@@ -45,11 +45,16 @@ public final class OpenApiContract {
     this.validator = validator;
   }
 
-  /** Reads the contract; fails if the file does not exist or is not a valid OpenAPI document. */
+  /**
+   * Reads the contract; fails if the file does not exist or is not a valid OpenAPI document.
+   *
+   * @param spec path of the document, relative to the module directory
+   */
   public static OpenApiContract of(Path spec) {
     Objects.requireNonNull(spec, "spec must not be null");
     if (!Files.isRegularFile(spec)) {
-      throw new IllegalArgumentException("No OpenAPI document at " + spec.toAbsolutePath());
+      throw new IllegalArgumentException(
+          "No OpenAPI document at " + spec.toAbsolutePath().normalize());
     }
     OpenApiInteractionValidator validator =
         OpenApiInteractionValidator.createForSpecificationUrl(spec.toUri().toString())

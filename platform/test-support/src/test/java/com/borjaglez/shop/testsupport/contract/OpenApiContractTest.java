@@ -204,9 +204,11 @@ class OpenApiContractTest {
 
   @Test
   void rejectsADocumentThatDoesNotExist() {
-    assertThatThrownBy(() -> OpenApiContract.of(Path.of("src/test/resources/openapi/none.yaml")))
+    Path missing = Path.of("src/test/resources/openapi/../openapi/none.yaml");
+
+    assertThatThrownBy(() -> OpenApiContract.of(missing))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("none.yaml");
+        .hasMessageContaining(missing.toAbsolutePath().normalize().toString());
   }
 
   private static Widget lamp() {

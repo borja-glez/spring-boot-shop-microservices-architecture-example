@@ -25,9 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 class AsyncApiContractsTest {
 
-  // Relative to the repository root, which the build passes in shop.repoRoot.
-  private static final String CONTRACT =
-      "platform/test-support/src/test/resources/asyncapi/widgets.asyncapi.yaml";
+  // Relative to the module directory, the working directory of the Gradle test tasks.
+  private static final Path CONTRACT = Path.of("src/test/resources/asyncapi/widgets.asyncapi.yaml");
 
   private final MessageSerializer serializer = new JsonSerializer(JsonMapper.builder().build());
   private final MessageNamingStrategy naming = new DefaultMessageNamingStrategy("shop");
@@ -37,9 +36,7 @@ class AsyncApiContractsTest {
   }
 
   @Test
-  void loadsTheDocumentThroughTheRepoRoot() {
-    assertThat(System.getProperty("shop.repoRoot")).isNotBlank();
-
+  void loadsTheDocumentRelativeToTheModule() {
     assertThatCode(
             () ->
                 verifier()
@@ -78,37 +75,18 @@ class AsyncApiContractsTest {
 
   @Test
   void sharedComponentsDocumentIsAValidContractWithoutChannels() {
-    var common =
-        AsyncApiContract.load(
-            Path.of(System.getProperty("shop.repoRoot"))
-                .resolve("platform/api-contracts/asyncapi/common.yaml"));
+    var common = AsyncApiContract.load(Path.of("../api-contracts/asyncapi/common.yaml"));
 
     assertThat(common.messages()).isEmpty();
   }
 
   @Test
   void failsClearlyWhenTheFileDoesNotExist() {
-    assertThatThrownBy(() -> AsyncApiContracts.verifier("nope/missing.yaml", serializer, naming))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("nope")
-        .hasMessageContaining("missing.yaml");
-  }
+    Path missing = Path.of("nope/missing.yaml");
 
-  @Test
-  void failsClearlyWhenTheRepoRootIsNotConfigured() {
-    String previous = System.getProperty("shop.repoRoot");
-    System.clearProperty("shop.repoRoot");
-    try {
-      assertThatThrownBy(() -> AsyncApiContracts.verifier(CONTRACT, serializer, naming))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("shop.repoRoot");
-    } finally {
-      if (previous == null) {
-        System.clearProperty("shop.repoRoot");
-      } else {
-        System.setProperty("shop.repoRoot", previous);
-      }
-    }
+    assertThatThrownBy(() -> AsyncApiContracts.verifier(missing, serializer, naming))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(missing.toAbsolutePath().normalize().toString());
   }
 
   @Getter
