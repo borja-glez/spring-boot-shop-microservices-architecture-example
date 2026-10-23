@@ -21,14 +21,26 @@ import com.borjaglez.shop.gateway.GatewayRoutesProperties.Route;
 class DefaultRoutesTest {
 
   @Test
-  void everyServiceHasAnUnversionedAndAVersionedRoute() throws Exception {
+  void everyServiceHasAVersionedRoute() throws Exception {
     var paths = defaultRoutes().stream().map(Route::path).toList();
     for (String service :
         List.of("catalog", "orders", "inventory", "payments", "notifications", "reporting")) {
-      assertThat(paths).contains("/api/" + service + "/**", "/api/v1/" + service + "/**");
+      assertThat(paths).contains("/api/v1/" + service + "/**");
     }
     assertThat(paths).contains("/api/v2/orders/**");
     assertThat(paths).doesNotContain("/api/**");
+  }
+
+  /** The catalog serves its API from its contract, under the version only. */
+  @Test
+  void theCatalogHasNoUnversionedRoute() throws Exception {
+    var paths = defaultRoutes().stream().map(Route::path).toList();
+
+    assertThat(paths).doesNotContain("/api/catalog/**");
+    for (String service :
+        List.of("orders", "inventory", "payments", "notifications", "reporting")) {
+      assertThat(paths).contains("/api/" + service + "/**");
+    }
   }
 
   /** The services that set {@code shop.chaos.service} serve the chaos API of service-support. */

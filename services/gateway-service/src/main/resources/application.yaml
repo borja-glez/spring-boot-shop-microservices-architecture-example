@@ -13,9 +13,6 @@ server:
 shop:
   gateway:
     routes:
-      - id: catalog
-        path: /api/catalog/**
-        uri: ${CATALOG_URI:http://localhost:8081}
       - id: orders
         path: /api/orders/**
         uri: ${ORDERS_URI:http://localhost:8082}

@@ -36,22 +36,20 @@ class GatewayRoutingIT {
     catalog = new StubService();
     ordersV1 = new StubService();
     ordersV2 = new StubService();
-    registry.add("shop.gateway.routes[0].id", () -> "catalog");
-    registry.add("shop.gateway.routes[0].path", () -> "/api/catalog/**");
+    // As in application.yaml, the catalog is routed under its version only.
+    registry.add("shop.gateway.routes[0].id", () -> "catalog-v1");
+    registry.add("shop.gateway.routes[0].path", () -> "/api/v1/catalog/**");
     registry.add("shop.gateway.routes[0].uri", catalog::baseUrl);
     registry.add("shop.gateway.routes[1].id", () -> "orders");
     registry.add("shop.gateway.routes[1].path", () -> "/api/orders/**");
     // Nothing listens on port 9: the orders service is "down".
     registry.add("shop.gateway.routes[1].uri", () -> "http://localhost:9");
-    registry.add("shop.gateway.routes[2].id", () -> "catalog-v1");
-    registry.add("shop.gateway.routes[2].path", () -> "/api/v1/catalog/**");
-    registry.add("shop.gateway.routes[2].uri", catalog::baseUrl);
-    registry.add("shop.gateway.routes[3].id", () -> "orders-v1");
-    registry.add("shop.gateway.routes[3].path", () -> "/api/v1/orders/**");
-    registry.add("shop.gateway.routes[3].uri", ordersV1::baseUrl);
-    registry.add("shop.gateway.routes[4].id", () -> "orders-v2");
-    registry.add("shop.gateway.routes[4].path", () -> "/api/v2/orders/**");
-    registry.add("shop.gateway.routes[4].uri", ordersV2::baseUrl);
+    registry.add("shop.gateway.routes[2].id", () -> "orders-v1");
+    registry.add("shop.gateway.routes[2].path", () -> "/api/v1/orders/**");
+    registry.add("shop.gateway.routes[2].uri", ordersV1::baseUrl);
+    registry.add("shop.gateway.routes[3].id", () -> "orders-v2");
+    registry.add("shop.gateway.routes[3].path", () -> "/api/v2/orders/**");
+    registry.add("shop.gateway.routes[3].uri", ordersV2::baseUrl);
   }
 
   @AfterAll
@@ -84,7 +82,7 @@ class GatewayRoutingIT {
                 URI.create(
                     "http://localhost:"
                         + port
-                        + "/api/catalog/products?filter=name:contains:caf%C3%A9&page=1"))
+                        + "/api/v1/catalog/products?filter=name:contains:caf%C3%A9&page=1"))
             .retrieve()
             .toEntity(JSON);
 
@@ -96,14 +94,14 @@ class GatewayRoutingIT {
             r -> {
               assertThat(r.method()).isEqualTo("GET");
               assertThat(URLDecoder.decode(r.pathAndQuery(), StandardCharsets.UTF_8))
-                  .isEqualTo("/api/catalog/products?filter=name:contains:café&page=1");
+                  .isEqualTo("/api/v1/catalog/products?filter=name:contains:café&page=1");
             });
   }
 
   @Test
   void forwardsTheUserHeader() {
     http.post()
-        .uri("/api/catalog/products/1/publish")
+        .uri("/api/v1/catalog/products/1/publish")
         .header("X-Shop-User", "seller-ana")
         .retrieve()
         .toBodilessEntity();
@@ -113,7 +111,7 @@ class GatewayRoutingIT {
 
   @Test
   void generatedCorrelationIdReachesTheServiceAndTheClient() {
-    var response = http.get().uri("/api/catalog/categories").retrieve().toBodilessEntity();
+    var response = http.get().uri("/api/v1/catalog/categories").retrieve().toBodilessEntity();
 
     String returned = response.getHeaders().getFirst("X-Correlation-Id");
     assertThat(returned).isNotBlank();
@@ -124,12 +122,21 @@ class GatewayRoutingIT {
   @Test
   void clientCorrelationIdIsKept() {
     http.get()
-        .uri("/api/catalog/categories")
+        .uri("/api/v1/catalog/categories")
         .header("X-Correlation-Id", "ui-123")
         .retrieve()
         .toBodilessEntity();
 
     assertThat(catalog.received().getFirst().header("X-Correlation-Id")).isEqualTo("ui-123");
+  }
+
+  @Test
+  void theCatalogIsNotReachedWithoutTheVersionOfItsApi() {
+    var response = http.get().uri("/api/catalog/products").retrieve().toEntity(JSON);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getBody()).containsEntry("code", "not-found");
+    assertThat(catalog.received()).isEmpty();
   }
 
   @Test
