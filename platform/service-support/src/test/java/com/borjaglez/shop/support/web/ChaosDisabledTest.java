@@ -33,17 +33,17 @@ class ChaosDisabledTest {
 
   @Test
   void theChaosEndpointAnswersNotFound() throws Exception {
-    mvc.perform(get("/api/v1/payments/chaos"))
+    mvc.perform(get("/api/v1/chaos/payments"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-disabled"));
     mvc.perform(
-            put("/api/v1/payments/chaos/x")
+            put("/api/v1/chaos/payments/x")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches());
-    mvc.perform(delete("/api/v1/payments/chaos"))
+    mvc.perform(delete("/api/v1/chaos/payments"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches());
   }

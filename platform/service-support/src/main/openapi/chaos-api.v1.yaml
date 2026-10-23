@@ -4,14 +4,16 @@ info:
   version: 1.0.0
   description: |
     Fault injection for the demo, served by every service that sets `shop.chaos.service` to its
-    name. A service answers it only when it started with `SHOP_CHAOS_ENABLED=true`; otherwise
-    every operation is answered with 404 `chaos-disabled`, as is a `{service}` other than the
-    service's own.
+    name, at `/api/v1/chaos/{service}`. The paths start with `chaos` rather than with the service
+    name, so no route of the service (such as `/api/v1/orders/{id}`) can take them; the gateway
+    routes `/api/v1/chaos/<service>/**` to that service. A service answers only when it started
+    with `SHOP_CHAOS_ENABLED=true`; otherwise every operation is answered with 404
+    `chaos-disabled`, as is a `{service}` other than the service's own.
 tags:
   - name: chaos
     description: Faults the demo can turn on.
 paths:
-  /api/v1/{service}/chaos:
+  /api/v1/chaos/{service}:
     get:
       tags:
         - chaos
@@ -62,7 +64,7 @@ paths:
             application/json:
               schema:
                 $ref: '../../../../api-contracts/openapi/common.v1.yaml#/components/schemas/Problem'
-  /api/v1/{service}/chaos/{key}:
+  /api/v1/chaos/{service}/{key}:
     put:
       tags:
         - chaos

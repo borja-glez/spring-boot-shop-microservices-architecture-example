@@ -45,7 +45,7 @@ class ChaosControllerTest {
 
   @Test
   void listsTheFaultsOfTheService() throws Exception {
-    mvc.perform(get("/api/v1/payments/chaos"))
+    mvc.perform(get("/api/v1/chaos/payments"))
         .andExpect(status().isOk())
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$[0].key").value("AuthorizePayment.delay-ms"))
@@ -57,40 +57,40 @@ class ChaosControllerTest {
   @Test
   void turnsAFaultOnAndEverythingOff() throws Exception {
     mvc.perform(
-            put("/api/v1/payments/chaos/AuthorizePayment.fail")
+            put("/api/v1/chaos/payments/AuthorizePayment.fail")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isOk())
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.value").value(1));
 
-    mvc.perform(delete("/api/v1/payments/chaos"))
+    mvc.perform(delete("/api/v1/chaos/payments"))
         .andExpect(status().isNoContent())
         .andExpect(CONTRACT.matches());
-    mvc.perform(get("/api/v1/payments/chaos"))
+    mvc.perform(get("/api/v1/chaos/payments"))
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$[1].value").value(0));
   }
 
   @Test
   void everythingOffAnswersAClientThatOnlyAcceptsJson() throws Exception {
-    mvc.perform(delete("/api/v1/payments/chaos").accept(MediaType.APPLICATION_JSON))
+    mvc.perform(delete("/api/v1/chaos/payments").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isNoContent());
-    mvc.perform(delete("/api/v1/orders/chaos").accept(MediaType.APPLICATION_JSON))
+    mvc.perform(delete("/api/v1/chaos/orders").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isNotFound());
   }
 
   @Test
   void rejectsUnknownFaultsAndBadValues() throws Exception {
     mvc.perform(
-            put("/api/v1/payments/chaos/nope")
+            put("/api/v1/chaos/payments/nope")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-fault-not-found"));
     mvc.perform(
-            put("/api/v1/payments/chaos/AuthorizePayment.fail")
+            put("/api/v1/chaos/payments/AuthorizePayment.fail")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":7}"))
         .andExpect(status().isUnprocessableContent())
@@ -100,17 +100,17 @@ class ChaosControllerTest {
 
   @Test
   void aServiceOtherThanTheConfiguredOneIsNotFound() throws Exception {
-    mvc.perform(get("/api/v1/orders/chaos"))
+    mvc.perform(get("/api/v1/chaos/orders"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-disabled"));
     mvc.perform(
-            put("/api/v1/orders/chaos/AuthorizePayment.fail")
+            put("/api/v1/chaos/orders/AuthorizePayment.fail")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches());
-    mvc.perform(delete("/api/v1/orders/chaos"))
+    mvc.perform(delete("/api/v1/chaos/orders"))
         .andExpect(status().isNotFound())
         .andExpect(CONTRACT.matches());
   }

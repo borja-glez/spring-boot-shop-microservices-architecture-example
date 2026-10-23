@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/v1/{service}/chaos": {
+    "/api/v1/chaos/{service}": {
         parameters: {
             query?: never;
             header?: never;
@@ -28,7 +28,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/{service}/chaos/{key}": {
+    "/api/v1/chaos/{service}/{key}": {
         parameters: {
             query?: never;
             header?: never;

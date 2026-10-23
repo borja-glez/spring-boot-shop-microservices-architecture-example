@@ -12,11 +12,12 @@ import com.borjaglez.shop.support.chaos.rest.v1.model.FaultChange;
 import com.borjaglez.shop.support.chaos.rest.v1.model.FaultKind;
 
 /**
- * Demo-only endpoint to inject faults, at {@code /api/v1/<shop.chaos.service>/chaos}. It answers
- * only when the service started with {@code shop.chaos.enabled=true}; otherwise every request gets
- * a 404 and the faults cannot be turned on, and so does a request for another service. The switch
- * is read at startup rather than used as a bean condition: a native image fixes its conditions at
- * build time.
+ * Demo-only endpoint to inject faults, at {@code /api/v1/chaos/<shop.chaos.service>}: under a
+ * platform prefix, so no route of the service (such as {@code /api/v1/orders/{id}}) takes it. It
+ * answers only when the service started with {@code shop.chaos.enabled=true}; otherwise every
+ * request gets a 404 and the faults cannot be turned on, and so does a request for another service.
+ * The switch is read at startup rather than used as a bean condition: a native image fixes its
+ * conditions at build time.
  */
 @RestController
 public class ChaosController implements ChaosApi {
