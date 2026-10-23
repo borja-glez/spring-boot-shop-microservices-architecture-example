@@ -70,7 +70,7 @@ Controllers contain no logic: they translate HTTP into a command or a query and 
 
 | Module | Contents |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-api`, the framework-free API of spring-boot-cqrs; no Spring or Jackson types, checked by `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-core`; `ContractsConventionsTest` applies the boundary rules of spring-boot-cqrs (wire name, no-argument constructor, no framework types in messages) and a rule of the shop that keeps every class of the module free of Spring, Jackson and JPA types, so Boot 3 and Boot 4 services can share it. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, consumer metrics, outbox metrics, native-image hints. |
 | [`platform/service-support`](../../platform/service-support) | RFC 9457 errors, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, OTLP export, chaos registry and endpoint, shared defaults. Auto-configured. |
 | [`platform/test-support`](../../platform/test-support) | Testcontainers configurations (PostgreSQL 17, Kafka, RabbitMQ) and the ArchUnit rules. |
@@ -110,7 +110,7 @@ Every Boot 4 service answers errors as RFC 9457 problem details (`application/pr
   "title": "Conflict",
   "status": 409,
   "detail": "Another product already uses SKU CAF-001",
-  "instance": "/api/catalog/products",
+  "instance": "/api/v1/catalog/products",
   "code": "duplicate-sku",
   "correlationId": "3f0c9a52-5d1e-4a57-9b43-2f0d5c6b7e11"
 }

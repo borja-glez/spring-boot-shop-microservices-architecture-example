@@ -45,7 +45,7 @@ public class OrderPlaced extends Event {
 }
 ```
 
-With `cqrs.naming.prefix: shop` the wire name of this event is `shop.orders.1.event.order.order-placed` (the `1` is the default `version` of `@CqrsMessage`). The event store keeps that name, never the Java class name, so classes can move without rewriting history. Replies to saga commands are plain records such as [`StockReservation`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/inventory/StockReservation.java) and [`PaymentAuthorization`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/payments/PaymentAuthorization.java). [`ContractsConventionsTest`](../../platform/contracts/src/test/java/com/borjaglez/shop/contracts/ContractsConventionsTest.java) checks all four rules with ArchUnit.
+With `cqrs.naming.prefix: shop` the wire name of this event is `shop.orders.1.event.order.order-placed` (the `1` is the default `version` of `@CqrsMessage`). The event store keeps that name, never the Java class name, so classes can move without rewriting history. Replies to saga commands are plain records such as [`StockReservation`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/inventory/StockReservation.java) and [`PaymentAuthorization`](../../platform/contracts/src/main/java/com/borjaglez/shop/contracts/payments/PaymentAuthorization.java). [`ContractsConventionsTest`](../../platform/contracts/src/test/java/com/borjaglez/shop/contracts/ContractsConventionsTest.java) checks them with ArchUnit: the three message rules of spring-boot-cqrs (wire name, no-argument constructor, no framework types in messages) and a rule of the shop, which keeps every class of the module free of Spring, Jackson and JPA types.
 
 The same name travels with every message over RabbitMQ and Kafka, in the `cqrs.message.name` header, next to the class name of the producer (`__TypeId__` on RabbitMQ, `cqrs.payload.type` on Kafka). A consumer reads an incoming `@CqrsMessage` message as the local class registered under that name, and only falls back to the producer's class name when it cannot resolve the name. A producer can therefore rename or move a contract class as long as its `@CqrsMessage` coordinates stay the same. The version is part of the name: a `version = 2` contract is a different message. `OrderNoticesOverRabbitIT` sends `GetOrderNotices` under a class name notifications does not have and still gets the answer.
 
@@ -56,46 +56,41 @@ Commands and queries that never leave their service (for example `CreateProductC
 Controllers only translate HTTP into messages. They inject `CommandBus` and `QueryBus` and use `dispatchAndReceive` (command with a result), `dispatchAndWait` (command without one) and `ask` (query):
 
 ```java
-@PostMapping
-@ResponseStatus(HttpStatus.CREATED)
-CreatedResponse create(
-    @CurrentUser String seller, @Valid @RequestBody CreateProductRequest body) {
+@Override
+public ResponseEntity<CreatedProduct> createProduct(
+    String seller, CreateProductRequest createProductRequest) {
   UUID id =
-      commands.dispatchAndReceive(
-          new CreateProductCommand(
-              seller, body.sku(), body.name(), body.description(),
-              body.price(), body.currency(), body.categories(), body.tags()));
-  return new CreatedResponse(id);
+      commands.dispatchAndReceive(CatalogRestMapper.createCommand(seller, createProductRequest));
+  return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProduct().id(id));
 }
 
-@PostMapping("/{id}/publish")
-@ResponseStatus(HttpStatus.NO_CONTENT)
-void publish(@CurrentUser String seller, @PathVariable UUID id) {
+@Override
+public ResponseEntity<Void> publishProduct(String seller, UUID id) {
   commands.dispatchAndWait(new PublishProductCommand(id, seller));
+  return ResponseEntity.noContent().build();
 }
 ```
 
-(from [`ProductController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductController.java))
+(from [`ProductsController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/in/rest/v1/ProductsController.java), which implements the interface generated from the OpenAPI contract)
 
 Handlers are plain classes in `application`, annotated `@CommandHandler` or `@QueryHandler`, with one `@HandleCommand` or `@HandleQuery` method per message. The method's transaction is the unit of work:
 
 ```java
-@CommandHandler
-public class CatalogCommandHandler {
+@CommandHandler(remote = false)
+public class ChangeProductPriceHandler {
 
   @HandleCommand
-  @Transactional
-  public void changePrice(ChangeProductPriceCommand command) {
-    Product product = ownedProduct(command.getProductId(), command.getSellerId());
+  public void handle(ChangeProductPriceCommand command) {
+    Product product = OwnedProducts.find(products, command.getProductId(), command.getSellerId());
     product.changePrice(new Money(command.getPrice(), command.getCurrency()), clock);
-    publish(product);   // records the events in the outbox, same transaction
+    products.save(product);   // stores the product and its events in the outbox, same transaction
   }
 }
 ```
 
 | Service | Command handlers | Query handlers |
 |---|---|---|
-| catalog | [`CatalogCommandHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/command/CatalogCommandHandler.java) | [`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) |
+| catalog | [`CreateProductHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/CreateProductHandler.java), [`PublishProductHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/PublishProductHandler.java), [`ChangeProductPriceHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/ChangeProductPriceHandler.java), [`DiscontinueProductHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/DiscontinueProductHandler.java) | [`SearchProductsHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/SearchProductsHandler.java), [`GetProductHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/GetProductHandler.java), [`GetCatalogFacetsHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/GetCatalogFacetsHandler.java), [`ListCategoriesHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/ListCategoriesHandler.java) |
 | orders | [`OrderCommandHandler`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/command/OrderCommandHandler.java) | [`OrderQueryHandler`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/query/OrderQueryHandler.java) |
 | inventory | [`InventoryCommandHandler`](../../services/inventory-service/src/main/java/com/borjaglez/shop/inventory/application/command/InventoryCommandHandler.java) | [`InventoryQueryHandler`](../../services/inventory-service/src/main/java/com/borjaglez/shop/inventory/application/query/InventoryQueryHandler.java) |
 | payments | [`PaymentCommandHandler`](../../services/payments-service/src/main/java/com/borjaglez/shop/payments/application/command/PaymentCommandHandler.java) | [`PaymentQueryHandler`](../../services/payments-service/src/main/java/com/borjaglez/shop/payments/application/query/PaymentQueryHandler.java) |
@@ -216,7 +211,7 @@ public StockLevels levels(GetStockLevels query) {
 }
 ```
 
-On the asking side the query goes through a port of the application layer (`StockLevelsGateway`, `OrderNoticesGateway`), implemented in `infrastructure` over RabbitMQ ([`RabbitStockLevelsGateway`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/messaging/RabbitStockLevelsGateway.java) in catalog, [`RabbitRemoteQueries`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RabbitRemoteQueries.java) in orders). Controllers keep using the local `QueryBus`; the local handler composes the answer:
+On the asking side the query goes through a port of the application layer (`StockLevels`, `OrderNoticesGateway`), implemented in `infrastructure` over RabbitMQ ([`RabbitStockLevels`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/messaging/RabbitStockLevels.java) in catalog, [`RabbitRemoteQueries`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/infrastructure/messaging/RabbitRemoteQueries.java) in orders). Controllers keep using the local `QueryBus`; the local handler composes the answer:
 
 - The product page is read in a short read-only transaction and the stock asked afterwards, so no database connection waits for the broker.
 - A timeout, a remote failure or a broker that cannot be reached returns an empty `Optional`: the page shows the stock as unknown instead of failing.
@@ -294,7 +289,7 @@ Every repository extends `SpecificationRepository` and declares no methods: ther
  * Products. Every read goes through the specification-repository DSL ({@link #query()}) or a {@code
  * QueryPlan}; there are deliberately no derived or {@code @Query} methods.
  */
-public interface ProductRepository extends SpecificationRepository<Product, UUID> {}
+public interface ProductJpaRepository extends SpecificationRepository<ProductEntity, UUID> {}
 ```
 
 This includes the platform: es-kit's `StoredEventRepository` reads the event store the same way. The idempotency markers belong to spring-boot-cqrs, whose JDBC store writes and reads them. The only SQL written by hand is where the DSL cannot express row locking: the outbox relay's `FOR UPDATE SKIP LOCKED` batch and the saga runner's claim statement.
@@ -304,22 +299,20 @@ This includes the platform: es-kit's `StoredEventRepository` reads the event sto
 Server-side reads use `repository.query()`: conditions with `where`, joins and fetches, sorting, and a terminal operation (`findOne`, `findAll`, `findSlice`, `count`).
 
 ```java
-@HandleQuery
-@Transactional(readOnly = true)
-public ProductDetail product(GetProductQuery query) {
+@Override
+@Transactional(readOnly = true, timeout = TIMEOUT_SECONDS)
+public Optional<ProductDetail> publicProduct(String slug) {
   return products
       .query()
-      .where("slug", Operators.EQUALS, query.getSlug())
+      .where("slug", Operators.EQUALS, slug)
       .where("status", Operators.NOT_EQUALS, ProductStatus.DRAFT)
       .leftFetch("seller")
       .findOne()
-      .map(ProductViews::detail)
-      .orElseThrow(() -> new NotFoundException(
-          "product-not-found", "No product is published as " + query.getSlug()));
+      .map(CatalogViewMapper::detail);
 }
 ```
 
-Other examples: loading a stream in version order ([`EventStore.load`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EventStore.java)), checking ownership (`ownedProduct` in `CatalogCommandHandler`), counting pending outbox rows ([`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java)) and reading the oldest one with `findSlice(PageRequest.of(0, 1))`.
+Other examples: loading a stream in version order ([`EventStore.load`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EventStore.java)), counting the products of each category (`categories` in [`JpaCatalogReadModel`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/persistence/JpaCatalogReadModel.java)), counting pending outbox rows ([`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java)) and reading the oldest one with `findSlice(PageRequest.of(0, 1))`.
 
 ### HTTP filters with `@FilterableQuery`
 
@@ -378,34 +371,24 @@ specrepository:
 | payments | defaults plus `contains` | the decline reason can be searched |
 | reporting | `eq`, `in`, `gt`, `gte`, `lt`, `lte`, `between`, `contains`, `startswith` | date ranges and currencies, plus SKU or name in the product report |
 
-`filter=seller.id:in:` with 51 sellers, an 11th `filter`, a 4th `sort` or a 201-character value (101 in the catalog) is a 400 `invalid-filter` whose `detail` names the limit and the field without echoing the value; so is an operator a service does not list. [`HttpFilterLimitsTest`](../../platform/service-support/src/test/java/com/borjaglez/shop/support/web/HttpFilterLimitsTest.java) checks the defaults, `CatalogApiIT`, `OrderControllerTest` and `ReportingControllerTest` the services.
+`filter=seller.id:in:` with 51 sellers, an 11th `filter`, a 4th `sort` or a 201-character value (101 in the catalog) is a 400 `invalid-filter` whose `detail` names the limit and the field without echoing the value; so is an operator a service does not list. [`HttpFilterLimitsTest`](../../platform/service-support/src/test/java/com/borjaglez/shop/support/web/HttpFilterLimitsTest.java) checks the defaults, `ProductsControllerIT`, `OrderControllerTest` and `ReportingControllerTest` the services.
 
-Endpoints that expose the same entity share one declaration through a composed annotation, since `@FilterableQuery` works as a meta-annotation. The catalog search and its facets both use [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), which also declares the text fields matched ignoring case and accents (`caseInsensitiveFields`), and lets the search add its sortable fields through an `@AliasFor` attribute:
+Endpoints that expose the same entity share one declaration through a composed annotation, since `@FilterableQuery` works as a meta-annotation. The four order reports share [`@OrderReportFilter`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/api/OrderReportFilter.java):
 
 ```java
 @FilterableQuery(
-    value = Product.class,
-    filterableFields = {"name", "description", "sku", "price.amount", /* ... */ "publishedAt"},
-    caseInsensitiveFields = {"name", "description"})
-@interface ProductFilter {
-
-  @AliasFor(annotation = FilterableQuery.class)
-  String[] sortableFields() default {};
-}
-
-PageResponse<ProductCard> search(
-    @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
-        QueryPlan<Product> plan,
-    Pageable pageable) { ... }
-
-CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) { ... }
+    value = ReportOrder.class,
+    filterableFields = {"placedAt", "placedDay", "currency"})
+@interface OrderReportFilter {}
 ```
 
-The four order reports share [`@OrderReportFilter`](../../services/reporting-service/src/main/java/com/borjaglez/shop/reporting/api/OrderReportFilter.java) the same way. Whitelists per endpoint:
+The catalog is contract-first and does not use the annotation. Its controllers implement the interfaces generated from `catalog-api.v1.yaml`, and the search reads `filter`, `orFilter` and `sort` whole from the request with [`ClientFilters`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ClientFilters.java) (binding them to a `List<String>` would split `sort=price.amount,desc` at its comma) and sends them to the read side as a `ClientFilter`. [`JpaCatalogReadModel`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/persistence/JpaCatalogReadModel.java) parses them with `HttpFilterParser` into a `QueryPlan` that carries the whitelist of [`ProductFilters`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/persistence/ProductFilters.java), one definition for the search and its facets, which also lists the text fields matched ignoring case and accents. The contract repeats the whitelist in `x-specrepo-filterable-fields` and `x-specrepo-sortable-fields`, and `FilterWhitelistMatchesContractTest` keeps both in step. [Querying](querying.md) follows one request through it.
+
+Whitelists per endpoint:
 
 | Endpoint | Filterable | Sortable |
 |---|---|---|
-| `GET /api/catalog/products`, `/facets` (`@ProductFilter`) | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | search: `name`, `sku`, `price.amount`, `publishedAt`; facets: none |
+| `GET /api/v1/catalog/products`, `/facets` (`ProductFilters`) | `name`, `description`, `sku`, `price.amount`, `status`, `categories.slug`, `tags`, `seller.id`, `seller.city`, `publishedAt` | search: `name`, `sku`, `price.amount`, `publishedAt`; facets: none |
 | `GET /api/orders` | `status`, `total`, `currency`, `placedAt`, `lines.sku` | `placedAt`, `total`, `status` |
 | `GET /api/orders/events` | `eventType`, `streamType`, `streamId`, `version`, `occurredAt`, `publishedAt`, `publishAttempts` | `globalPosition`, `occurredAt` |
 | `GET /api/inventory/stock` | `sku`, `name`, `onHand`, `reserved`, `updatedAt` | same |

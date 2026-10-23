@@ -135,7 +135,7 @@ The first run downloads the base images and takes a few minutes. Then open:
 |---|---|
 | <http://localhost:4200> | **The shop**: catalog, cart, orders with the live saga, notifications, backoffice, filter lab, chaos panel |
 | <http://localhost:3000> | **Grafana**: *Dashboards > Shop*, traces in Tempo, logs in Loki, alert rules |
-| <http://localhost:8080/api/catalog/products> | The public API, through the gateway |
+| <http://localhost:8080/api/v1/catalog/products> | The public API, through the gateway |
 | <http://localhost:15672> | RabbitMQ management (`shop` / `shop-dev`) |
 | <http://localhost:8090> | Kafka UI: the `shop.events` topic |
 

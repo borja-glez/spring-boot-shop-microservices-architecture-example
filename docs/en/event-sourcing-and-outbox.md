@@ -113,7 +113,7 @@ Any service that declares `DomainEventTypes` (a `static @Bean`) and an `Integrat
 
 <p align="center"><img src="../assets/diagrams/cqrs-event-sourcing.svg" alt="Write side and read side of orders: event-sourced aggregate, event store, relay to Kafka, projection and queries" width="100%"></p>
 
-A service turns the event store relay on by declaring an [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java) bean; orders, inventory and payments declare `KafkaOutboxDestination`. Reporting includes es-kit only for its idempotency markers and consumer metrics and declares none, and the catalog publishes through the cqrs outbox instead (see above).
+A service turns the event store relay on by declaring an [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java) bean; orders, inventory and payments declare `KafkaOutboxDestination`. Reporting includes es-kit only for its idempotency markers and consumer metrics and declares none. The catalog publishes through the cqrs outbox instead (see above).
 
 [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) runs on its own thread (`OutboxRelayScheduler`, a `SmartLifecycle` started after the context is ready and stopped before the database goes away), every `shop.outbox.relay.interval` (500 ms by default):
 

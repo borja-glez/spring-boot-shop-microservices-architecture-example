@@ -137,7 +137,7 @@ La primera vez descarga las imágenes base y tarda unos minutos. Después abre:
 |---|---|
 | <http://localhost:4200> | **La tienda**: catálogo, carrito, pedidos con la saga en vivo, avisos, backoffice, laboratorio de filtros, panel de caos |
 | <http://localhost:3000> | **Grafana**: *Dashboards > Shop*, trazas en Tempo, logs en Loki, reglas de alerta |
-| <http://localhost:8080/api/catalog/products> | La API pública, a través del gateway |
+| <http://localhost:8080/api/v1/catalog/products> | La API pública, a través del gateway |
 | <http://localhost:15672> | Consola de RabbitMQ (`shop` / `shop-dev`) |
 | <http://localhost:8090> | Kafka UI: el topic `shop.events` |
 
