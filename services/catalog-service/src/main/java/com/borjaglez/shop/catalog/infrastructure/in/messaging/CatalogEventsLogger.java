@@ -1,4 +1,4 @@
-package com.borjaglez.shop.catalog.infrastructure.messaging;
+package com.borjaglez.shop.catalog.infrastructure.in.messaging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,8 +10,9 @@ import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
 
 /**
- * Local subscriber that makes catalog events visible in the logs. Events travel through Kafka, so
- * inventory and reporting subscribe the same way from their own processes.
+ * [Hexagonal · adaptador driving] Local subscriber that makes catalog events visible in the logs.
+ * Events travel through Kafka, so inventory and reporting subscribe the same way from their own
+ * processes.
  */
 @EventHandler
 public class CatalogEventsLogger {
