@@ -37,6 +37,7 @@ import com.borjaglez.shop.support.web.CorrelationIdFilter;
 import com.borjaglez.shop.support.web.ProblemDetailsExceptionHandler;
 import com.borjaglez.shop.support.web.problem.DomainProblemMapper;
 import com.borjaglez.shop.support.web.problem.SpecificationProblemMapper;
+import com.borjaglez.shop.support.web.problem.UserHeaderProblemMapper;
 import com.borjaglez.shop.testsupport.contract.rest.v1.api.WidgetsApi;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.NewWidget;
 import com.borjaglez.shop.testsupport.contract.rest.v1.model.Widget;
@@ -59,7 +60,10 @@ class OpenApiContractTest {
       standaloneSetup(new WidgetsController())
           .setControllerAdvice(
               new ProblemDetailsExceptionHandler(
-                  List.of(new DomainProblemMapper(), new SpecificationProblemMapper())))
+                  List.of(
+                      new DomainProblemMapper(),
+                      new SpecificationProblemMapper(),
+                      new UserHeaderProblemMapper())))
           .addFilters(new CorrelationIdFilter(List.of()))
           .build();
 
@@ -137,6 +141,43 @@ class OpenApiContractTest {
     assertThatThrownBy(() -> shop.perform(invalidBody).andExpect(CONTRACT.matches()))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("validation.request.body.schema.minLength");
+  }
+
+  @Test
+  void aMissingUserHeaderOfAGeneratedInterfaceIsAMissingUserProblem() throws Exception {
+    // The implementation declares no annotation: the header and its pattern come from WidgetsApi.
+    assertThat(
+            WidgetsController.class
+                .getMethod("createWidget", String.class, NewWidget.class)
+                .getParameters()[0]
+                .getAnnotations())
+        .isEmpty();
+
+    shop.perform(
+            post("/api/v1/widgets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name": "Desk", "price": 120.50}
+                    """))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("missing-user"))
+        .andExpect(CONTRACT.matchesResponse());
+  }
+
+  @Test
+  void anInvalidUserHeaderOfAGeneratedInterfaceIsAnInvalidUserProblem() throws Exception {
+    shop.perform(
+            post("/api/v1/widgets")
+                .header("X-Shop-User", "not a valid user!")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name": "Desk", "price": 120.50}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("invalid-user"))
+        .andExpect(CONTRACT.matchesResponse());
   }
 
   @Test
