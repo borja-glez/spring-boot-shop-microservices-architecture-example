@@ -4,7 +4,7 @@ import { Observable, catchError, map, of } from 'rxjs';
 
 import { FilterQuery } from '../filters/filter-model';
 import { toQueryParams } from '../filters/filter-serializer';
-import { CatalogFacets, CategoryView, PageResponse, ProductCard, ProductDetail } from './models';
+import { CatalogFacets, CategoryView, ProductDetail, ProductPage } from './models';
 
 /** A response kept as is, for the filter lab. */
 export interface RawResponse {
@@ -15,14 +15,14 @@ export interface RawResponse {
   durationMs: number;
 }
 
-const BASE = '/api/catalog';
+const BASE = '/api/v1/catalog';
 
 @Injectable({ providedIn: 'root' })
 export class CatalogApi {
   private readonly http = inject(HttpClient);
 
-  search(query: FilterQuery): Observable<PageResponse<ProductCard>> {
-    return this.http.get<PageResponse<ProductCard>>(withQuery(`${BASE}/products`, query));
+  search(query: FilterQuery): Observable<ProductPage> {
+    return this.http.get<ProductPage>(withQuery(`${BASE}/products`, query));
   }
 
   facets(query: FilterQuery): Observable<CatalogFacets> {

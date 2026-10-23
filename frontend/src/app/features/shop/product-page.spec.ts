@@ -35,7 +35,7 @@ async function render(product: ProductDetail): Promise<HTMLElement> {
   fixture.componentRef.setInput('slug', product.slug);
   TestBed.tick();
   TestBed.inject(HttpTestingController)
-    .expectOne(`/api/catalog/products/${product.slug}`)
+    .expectOne(`/api/v1/catalog/products/${product.slug}`)
     .flush(product);
   await fixture.whenStable();
   fixture.detectChanges();
@@ -51,7 +51,7 @@ describe('ProductPage', () => {
     fixture.componentRef.setInput('slug', 'no-existe');
     TestBed.tick();
 
-    TestBed.inject(HttpTestingController).expectOne('/api/catalog/products/no-existe').flush(
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/catalog/products/no-existe').flush(
       {
         status: 404,
         title: 'Not Found',

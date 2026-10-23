@@ -32,7 +32,7 @@ describe('CatalogApi', () => {
       .search({ all: [{ field: 'name', operator: 'contains', value: 'café' }], anyOf: [], page: 1 })
       .subscribe();
 
-    const request = http.expectOne((r) => r.url.startsWith('/api/catalog/products?'));
+    const request = http.expectOne((r) => r.url.startsWith('/api/v1/catalog/products?'));
     const params = new URLSearchParams(request.request.url.split('?')[1]);
     expect(params.getAll('filter')).toEqual(['name:contains:café']);
     expect(params.get('page')).toBe('1');
@@ -44,7 +44,7 @@ describe('CatalogApi', () => {
 
     api.categories().subscribe();
 
-    const request = http.expectOne('/api/catalog/categories');
+    const request = http.expectOne('/api/v1/catalog/categories');
     expect(request.request.headers.get('X-Shop-User')).toBe('seller-ana');
     expect(request.request.headers.get('X-Correlation-Id')).toMatch(/^[0-9a-f-]{36}$/);
     request.flush([]);
@@ -53,11 +53,11 @@ describe('CatalogApi', () => {
   it('keeps the raw response of lab requests, errors included', () => {
     let status = 0;
     api
-      .raw('/api/catalog/products', 'filter=status:EQ:ACTIVE')
+      .raw('/api/v1/catalog/products', 'filter=status:EQ:ACTIVE')
       .subscribe((r) => (status = r.status));
 
     http
-      .expectOne('/api/catalog/products?filter=status:EQ:ACTIVE')
+      .expectOne('/api/v1/catalog/products?filter=status:EQ:ACTIVE')
       .flush({ code: 'internal-error' }, { status: 500, statusText: 'Server Error' });
 
     expect(status).toBe(500);
