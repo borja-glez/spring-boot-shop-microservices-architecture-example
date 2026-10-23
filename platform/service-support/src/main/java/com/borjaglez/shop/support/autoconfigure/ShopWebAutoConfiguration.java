@@ -15,6 +15,7 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.borjaglez.shop.support.web.ApiDeprecationFilter;
@@ -24,6 +25,7 @@ import com.borjaglez.shop.support.web.CorrelationScope;
 import com.borjaglez.shop.support.web.CurrentUserArgumentResolver;
 import com.borjaglez.shop.support.web.MessageContextCorrelationScope;
 import com.borjaglez.shop.support.web.ProblemDetailsExceptionHandler;
+import com.borjaglez.shop.support.web.UserHeaderInterceptor;
 import com.borjaglez.shop.support.web.problem.DataAccessProblemMapper;
 import com.borjaglez.shop.support.web.problem.DomainProblemMapper;
 import com.borjaglez.shop.support.web.problem.ProblemMapper;
@@ -80,13 +82,23 @@ public class ShopWebAutoConfiguration {
     return new UserHeaderProblemMapper();
   }
 
+  /**
+   * The current user: {@code @CurrentUser} parameters, and the user header that the interfaces
+   * generated from the contracts declare, checked before the rest of the request.
+   */
   @Bean
   WebMvcConfigurer currentUserWebMvcConfigurer() {
     var resolver = new CurrentUserArgumentResolver();
+    var userHeader = new UserHeaderInterceptor();
     return new WebMvcConfigurer() {
       @Override
       public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(resolver);
+      }
+
+      @Override
+      public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(userHeader);
       }
     };
   }

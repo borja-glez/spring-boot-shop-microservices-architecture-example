@@ -35,9 +35,19 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
       @Nullable WebDataBinderFactory binderFactory) {
     CurrentUser annotation =
         Objects.requireNonNull(parameter.getParameterAnnotation(CurrentUser.class));
-    String user = webRequest.getHeader(HEADER);
+    return checked(webRequest.getHeader(HEADER), annotation.required());
+  }
+
+  /**
+   * The user a value of the header names; {@code null} when the value is absent or blank and the
+   * user is optional.
+   *
+   * @throws MissingUserException if the value is absent or blank and the user is required
+   * @throws InvalidUserException if the value is not a valid user id
+   */
+  static @Nullable String checked(@Nullable String user, boolean required) {
     if (user == null || user.isBlank()) {
-      if (annotation.required()) {
+      if (required) {
         throw new MissingUserException();
       }
       return null;

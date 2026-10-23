@@ -3,6 +3,7 @@ package com.borjaglez.shop.support.web;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
@@ -156,6 +157,21 @@ class SampleController {
       @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user,
       @RequestParam @Min(1) int size) {
     return Map.of("size", size);
+  }
+
+  /** A write as the generated interfaces declare it: the user header, a path variable, a body. */
+  @PostMapping("/declared-user/{id}")
+  Map<String, Object> declaredUserWrite(
+      @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user,
+      @PathVariable UUID id,
+      @Valid @RequestBody CreateThing body) {
+    return Map.of("user", user, "id", id, "name", body.name());
+  }
+
+  @GetMapping("/declared-optional-user")
+  Map<String, String> declaredOptionalUser(
+      @RequestHeader(value = "X-Shop-User", required = false) String user) {
+    return Map.of("user", String.valueOf(user));
   }
 
   @GetMapping("/declared-other-header")

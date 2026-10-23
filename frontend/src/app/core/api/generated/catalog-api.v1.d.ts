@@ -395,14 +395,14 @@ export interface components {
              */
             currency: string;
             /**
-             * @description Slugs of its categories, up to 5; a repeated slug counts once.
+             * @description Slugs of its categories, up to 5 and without repeats; the server counts a repeated slug once.
              * @example [
              *       "cafe-e-infusiones"
              *     ]
              */
             categories?: string[] | null;
             /**
-             * @description Its tags, up to 10; a repeated tag counts once.
+             * @description Its tags, up to 10 and without repeats; the server counts a repeated tag once.
              * @example [
              *       "ecologico"
              *     ]
@@ -595,7 +595,8 @@ export interface components {
          * @description Conditions combined with AND, `field:operator[:value]`, on the public fields of a product.
          *     The syntax of `SpecrepoFilter` in `specrepo-filters.yaml`, restricted to the fields of
          *     `x-specrepo-filterable-fields`: `filter=name:contains:cafe&filter=price.amount:lte:20`.
-         *     The catalog offers every built-in operator; a value has at most 100 characters.
+         *     The catalog offers every built-in operator; a value has at most 100 characters, and the
+         *     list of `in` or `notin` at most 50 values.
          * @example [
          *       "name:contains:cafe",
          *       "price.amount:between:5|20"
@@ -606,7 +607,8 @@ export interface components {
          * @description Groups of alternative conditions, separated by `;` and combined with OR; each group is
          *     ANDed with `filter` and with the other groups. The syntax of `SpecrepoOrFilter` in
          *     `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-filterable-fields`:
-         *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`.
+         *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`. Its conditions take the operators and
+         *     the limits of `filter`.
          * @example [
          *       "seller.city:eq:Madrid;tags:eq:ecologico"
          *     ]
@@ -652,7 +654,8 @@ export interface operations {
                  * @description Conditions combined with AND, `field:operator[:value]`, on the public fields of a product.
                  *     The syntax of `SpecrepoFilter` in `specrepo-filters.yaml`, restricted to the fields of
                  *     `x-specrepo-filterable-fields`: `filter=name:contains:cafe&filter=price.amount:lte:20`.
-                 *     The catalog offers every built-in operator; a value has at most 100 characters.
+                 *     The catalog offers every built-in operator; a value has at most 100 characters, and the
+                 *     list of `in` or `notin` at most 50 values.
                  * @example [
                  *       "name:contains:cafe",
                  *       "price.amount:between:5|20"
@@ -663,7 +666,8 @@ export interface operations {
                  * @description Groups of alternative conditions, separated by `;` and combined with OR; each group is
                  *     ANDed with `filter` and with the other groups. The syntax of `SpecrepoOrFilter` in
                  *     `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-filterable-fields`:
-                 *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`.
+                 *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`. Its conditions take the operators and
+                 *     the limits of `filter`.
                  * @example [
                  *       "seller.city:eq:Madrid;tags:eq:ecologico"
                  *     ]
@@ -742,7 +746,8 @@ export interface operations {
                  * @description Conditions combined with AND, `field:operator[:value]`, on the public fields of a product.
                  *     The syntax of `SpecrepoFilter` in `specrepo-filters.yaml`, restricted to the fields of
                  *     `x-specrepo-filterable-fields`: `filter=name:contains:cafe&filter=price.amount:lte:20`.
-                 *     The catalog offers every built-in operator; a value has at most 100 characters.
+                 *     The catalog offers every built-in operator; a value has at most 100 characters, and the
+                 *     list of `in` or `notin` at most 50 values.
                  * @example [
                  *       "name:contains:cafe",
                  *       "price.amount:between:5|20"
@@ -753,7 +758,8 @@ export interface operations {
                  * @description Groups of alternative conditions, separated by `;` and combined with OR; each group is
                  *     ANDed with `filter` and with the other groups. The syntax of `SpecrepoOrFilter` in
                  *     `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-filterable-fields`:
-                 *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`.
+                 *     `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`. Its conditions take the operators and
+                 *     the limits of `filter`.
                  * @example [
                  *       "seller.city:eq:Madrid;tags:eq:ecologico"
                  *     ]

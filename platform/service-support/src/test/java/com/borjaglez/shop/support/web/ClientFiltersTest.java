@@ -38,6 +38,17 @@ class ClientFiltersTest {
     assertThat(defaults.from(request).sorts()).containsExactly("price.amount,desc", "name");
   }
 
+  /** The read side rejects an empty filter as malformed; it must reach it as one. */
+  @Test
+  void anEmptyValueIsKeptAsAnEmptyFilter() {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/things");
+    request.addParameter("filter", "");
+    request.addParameter("sort", "");
+
+    assertThat(defaults.from(request))
+        .isEqualTo(new ClientFilter(List.of(""), List.of(), List.of("")));
+  }
+
   @Test
   void aRequestWithoutFiltersHasNone() {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/things");
