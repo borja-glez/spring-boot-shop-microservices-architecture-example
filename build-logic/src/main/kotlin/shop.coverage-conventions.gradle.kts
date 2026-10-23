@@ -12,8 +12,10 @@ jacoco {
 
 val suites = listOf("test", "integrationTest", "componentTest")
 
-// Code generated from the OpenAPI contracts (rest/<version>/api and rest/<version>/model) is not measured.
-val generatedCode = listOf("**/rest/*/api/**", "**/rest/*/model/**")
+// Code generated from the OpenAPI contracts (shop.openapi-conventions) is not measured: a class is
+// left out only when the generator wrote its source, so a hand-written class in a generated
+// package is still measured.
+val generatedCode = GeneratedOpenApiClasses(layout.buildDirectory.dir("generated/openapi").get().asFile)
 
 // JaCoCo skips execution files that do not exist, so an empty suite needs no special case.
 val suiteExecutionData = files(
