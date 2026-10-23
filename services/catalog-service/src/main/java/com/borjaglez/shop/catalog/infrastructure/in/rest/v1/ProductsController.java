@@ -12,17 +12,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.cqrs.command.CommandBus;
 import com.borjaglez.cqrs.query.QueryBus;
+import com.borjaglez.shop.catalog.application.port.in.CatalogFacets;
 import com.borjaglez.shop.catalog.application.port.in.GetProductQuery;
 import com.borjaglez.shop.catalog.application.port.in.ProductCard;
+import com.borjaglez.shop.catalog.application.port.in.ProductDetail;
 import com.borjaglez.shop.catalog.application.port.in.PublishProductCommand;
 import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.api.ProductsApi;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CatalogFacets;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ChangePriceRequest;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreateProductRequest;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreatedProduct;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.DiscontinueRequest;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ProductDetail;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ProductPage;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CatalogFacetsDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ChangePriceRequestDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreateProductRequestDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreatedProductDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.DiscontinueRequestDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ProductDetailDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ProductPageDto;
 import com.borjaglez.shop.kernel.query.Page;
 import com.borjaglez.shop.support.web.ClientFilters;
 import com.borjaglez.specrepository.http.spring.HttpFilterProperties;
@@ -61,7 +63,7 @@ class ProductsController implements ProductsApi {
 
   /** {@code filter} and {@code orFilter} are read whole from {@code request} (see the class). */
   @Override
-  public ResponseEntity<ProductPage> searchProducts(
+  public ResponseEntity<ProductPageDto> searchProducts(
       List<String> filter, List<String> orFilter, Pageable pageable, HttpServletRequest request) {
     Page<ProductCard> page =
         queries.ask(CatalogRestMapper.searchQuery(clientFilters.from(request), pageable));
@@ -70,26 +72,24 @@ class ProductsController implements ProductsApi {
 
   /** {@code filter} and {@code orFilter} are read whole from {@code request} (see the class). */
   @Override
-  public ResponseEntity<CatalogFacets> getCatalogFacets(
+  public ResponseEntity<CatalogFacetsDto> getCatalogFacets(
       List<String> filter, List<String> orFilter, HttpServletRequest request) {
-    com.borjaglez.shop.catalog.application.port.in.CatalogFacets facets =
-        queries.ask(CatalogRestMapper.facetsQuery(clientFilters.from(request)));
+    CatalogFacets facets = queries.ask(CatalogRestMapper.facetsQuery(clientFilters.from(request)));
     return ResponseEntity.ok(CatalogRestMapper.facets(facets));
   }
 
   @Override
-  public ResponseEntity<ProductDetail> getProduct(String slug) {
-    com.borjaglez.shop.catalog.application.port.in.ProductDetail product =
-        queries.ask(new GetProductQuery(slug));
+  public ResponseEntity<ProductDetailDto> getProduct(String slug) {
+    ProductDetail product = queries.ask(new GetProductQuery(slug));
     return ResponseEntity.ok(CatalogRestMapper.detail(product));
   }
 
   @Override
-  public ResponseEntity<CreatedProduct> createProduct(
-      String seller, CreateProductRequest createProductRequest) {
+  public ResponseEntity<CreatedProductDto> createProduct(
+      String seller, CreateProductRequestDto createProductRequest) {
     UUID id =
         commands.dispatchAndReceive(CatalogRestMapper.createCommand(seller, createProductRequest));
-    return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProduct().id(id));
+    return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProductDto().id(id));
   }
 
   @Override
@@ -100,14 +100,14 @@ class ProductsController implements ProductsApi {
 
   @Override
   public ResponseEntity<Void> changeProductPrice(
-      String seller, UUID id, ChangePriceRequest changePriceRequest) {
+      String seller, UUID id, ChangePriceRequestDto changePriceRequest) {
     commands.dispatchAndWait(CatalogRestMapper.changePriceCommand(id, seller, changePriceRequest));
     return ResponseEntity.noContent().build();
   }
 
   @Override
   public ResponseEntity<Void> discontinueProduct(
-      String seller, UUID id, DiscontinueRequest discontinueRequest) {
+      String seller, UUID id, DiscontinueRequestDto discontinueRequest) {
     commands.dispatchAndWait(CatalogRestMapper.discontinueCommand(id, seller, discontinueRequest));
     return ResponseEntity.noContent().build();
   }

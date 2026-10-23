@@ -90,7 +90,7 @@ El contrato enumera los mismos campos en los `x-specrepo-filterable-fields` y `x
 
 ```java
 @Override
-public ResponseEntity<ProductPage> searchProducts(
+public ResponseEntity<ProductPageDto> searchProducts(
     List<String> filter, List<String> orFilter, Pageable pageable, HttpServletRequest request) {
   Page<ProductCard> page =
       queries.ask(CatalogRestMapper.searchQuery(clientFilters.from(request), pageable));
@@ -98,7 +98,7 @@ public ResponseEntity<ProductPage> searchProducts(
 }
 
 @Override
-public ResponseEntity<CatalogFacets> getCatalogFacets(
+public ResponseEntity<CatalogFacetsDto> getCatalogFacets(
     List<String> filter, List<String> orFilter, HttpServletRequest request) {
   ...
 }

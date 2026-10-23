@@ -18,9 +18,9 @@ import jakarta.validation.constraints.Positive;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ChangePriceRequest;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreateProductRequest;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.DiscontinueRequest;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.ChangePriceRequestDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CreateProductRequestDto;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.DiscontinueRequestDto;
 
 /**
  * The constraints of the contract, as the generated request models check them, accept and reject
@@ -55,22 +55,22 @@ class RequestConstraintsTest {
 
     for (String text : texts) {
       boolean notBlank = accepts(Reference.class, "text", text);
-      assertThat(accepts(CreateProductRequest.class, "sku", text))
+      assertThat(accepts(CreateProductRequestDto.class, "sku", text))
           .as("sku %s", codePoints(text))
           .isEqualTo(notBlank);
-      assertThat(accepts(CreateProductRequest.class, "name", text))
+      assertThat(accepts(CreateProductRequestDto.class, "name", text))
           .as("name %s", codePoints(text))
           .isEqualTo(notBlank);
-      assertThat(accepts(DiscontinueRequest.class, "reason", text))
+      assertThat(accepts(DiscontinueRequestDto.class, "reason", text))
           .as("reason %s", codePoints(text))
           .isEqualTo(notBlank);
       // A currency has exactly three characters.
       String currency = text.isEmpty() ? text : text.repeat(3).substring(0, 3);
       boolean validCurrency = accepts(Reference.class, "text", currency) && currency.length() == 3;
-      assertThat(accepts(CreateProductRequest.class, "currency", currency))
+      assertThat(accepts(CreateProductRequestDto.class, "currency", currency))
           .as("currency of a new product %s", codePoints(currency))
           .isEqualTo(validCurrency);
-      assertThat(accepts(ChangePriceRequest.class, "currency", currency))
+      assertThat(accepts(ChangePriceRequestDto.class, "currency", currency))
           .as("currency of a new price %s", codePoints(currency))
           .isEqualTo(validCurrency);
     }
@@ -110,10 +110,10 @@ class RequestConstraintsTest {
     for (String price : prices) {
       BigDecimal value = new BigDecimal(price);
       boolean valid = accepts(Reference.class, "price", value);
-      assertThat(accepts(CreateProductRequest.class, "price", value)).as(price).isEqualTo(valid);
-      assertThat(accepts(ChangePriceRequest.class, "price", value)).as(price).isEqualTo(valid);
+      assertThat(accepts(CreateProductRequestDto.class, "price", value)).as(price).isEqualTo(valid);
+      assertThat(accepts(ChangePriceRequestDto.class, "price", value)).as(price).isEqualTo(valid);
     }
-    assertThat(accepts(CreateProductRequest.class, "price", null)).isFalse();
+    assertThat(accepts(CreateProductRequestDto.class, "price", null)).isFalse();
   }
 
   private static boolean accepts(Class<?> type, String property, Object value) {

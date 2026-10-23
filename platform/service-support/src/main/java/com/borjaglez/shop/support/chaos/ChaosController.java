@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.support.chaos.rest.v1.api.ChaosApi;
-import com.borjaglez.shop.support.chaos.rest.v1.model.Fault;
-import com.borjaglez.shop.support.chaos.rest.v1.model.FaultChange;
-import com.borjaglez.shop.support.chaos.rest.v1.model.FaultKind;
+import com.borjaglez.shop.support.chaos.rest.v1.model.FaultChangeDto;
+import com.borjaglez.shop.support.chaos.rest.v1.model.FaultDto;
+import com.borjaglez.shop.support.chaos.rest.v1.model.FaultKindDto;
 
 /**
  * Demo-only endpoint to inject faults, at {@code /api/v1/chaos/<shop.chaos.service>}: under a
@@ -41,13 +41,13 @@ public class ChaosController implements ChaosApi {
   }
 
   @Override
-  public ResponseEntity<List<Fault>> listFaults(String service) {
+  public ResponseEntity<List<FaultDto>> listFaults(String service) {
     requireEnabled(service);
     return ResponseEntity.ok(chaos.faults().stream().map(ChaosController::toFault).toList());
   }
 
   @Override
-  public ResponseEntity<Fault> setFault(String service, String key, FaultChange faultChange) {
+  public ResponseEntity<FaultDto> setFault(String service, String key, FaultChangeDto faultChange) {
     requireEnabled(service);
     return ResponseEntity.ok(toFault(chaos.set(key, faultChange.getValue())));
   }
@@ -59,8 +59,8 @@ public class ChaosController implements ChaosApi {
     return ResponseEntity.noContent().build();
   }
 
-  private static Fault toFault(ChaosFault fault) {
-    return new Fault(
-        fault.key(), fault.description(), FaultKind.valueOf(fault.kind().name()), fault.value());
+  private static FaultDto toFault(ChaosFault fault) {
+    return new FaultDto(
+        fault.key(), fault.description(), FaultKindDto.valueOf(fault.kind().name()), fault.value());
   }
 }

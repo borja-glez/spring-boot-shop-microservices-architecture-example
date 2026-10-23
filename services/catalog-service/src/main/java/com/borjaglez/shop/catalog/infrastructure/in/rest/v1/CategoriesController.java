@@ -9,7 +9,7 @@ import com.borjaglez.cqrs.query.QueryBus;
 import com.borjaglez.shop.catalog.application.port.in.CategoryView;
 import com.borjaglez.shop.catalog.application.port.in.ListCategoriesQuery;
 import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.api.CategoriesApi;
-import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.Category;
+import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.CategoryDto;
 
 /**
  * [Hexagonal · adaptador driving] The categories of the catalog API, {@code
@@ -26,7 +26,7 @@ class CategoriesController implements CategoriesApi {
   }
 
   @Override
-  public ResponseEntity<List<Category>> listCategories() {
+  public ResponseEntity<List<CategoryDto>> listCategories() {
     List<CategoryView> categories = queries.ask(new ListCategoriesQuery());
     return ResponseEntity.ok(CatalogRestMapper.categories(categories));
   }

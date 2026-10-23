@@ -57,11 +57,11 @@ Los controladores solo traducen HTTP a mensajes. Inyectan `CommandBus` y `QueryB
 
 ```java
 @Override
-public ResponseEntity<CreatedProduct> createProduct(
-    String seller, CreateProductRequest createProductRequest) {
+public ResponseEntity<CreatedProductDto> createProduct(
+    String seller, CreateProductRequestDto createProductRequest) {
   UUID id =
       commands.dispatchAndReceive(CatalogRestMapper.createCommand(seller, createProductRequest));
-  return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProduct().id(id));
+  return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProductDto().id(id));
 }
 
 @Override
