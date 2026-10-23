@@ -76,8 +76,9 @@ class UserHeaderProblemsTest {
 
   /**
    * As with {@code @CurrentUser}, the user comes first: a request without a valid user is answered
-   * with the user problem whatever else it gets wrong, an unreadable body or a malformed path
-   * variable included.
+   * with the user problem whatever else its arguments get wrong, an unreadable body or a malformed
+   * path variable included. Only the rejections made while the request is mapped to a handler come
+   * before it ({@link UserHeaderOnInterfaceTest}).
    */
   @ParameterizedTest(name = "{0} user, {1}")
   @CsvSource({

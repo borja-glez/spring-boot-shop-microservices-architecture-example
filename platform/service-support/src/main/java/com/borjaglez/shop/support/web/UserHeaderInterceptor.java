@@ -18,10 +18,14 @@ import com.borjaglez.shop.support.web.CurrentUserArgumentResolver.MissingUserExc
  *
  * <p>Spring MVC resolves the arguments of a handler one after another and validates the constrained
  * ones once all are resolved, so an unreadable body or a malformed path variable would be answered
- * before a missing or invalid user. This check runs first and answers as {@code @CurrentUser} does,
- * whatever else the request gets wrong: an absent or blank header is a {@link MissingUserException}
- * (401 {@code missing-user}) when the parameter is required, a value that is not a user id an
- * {@link InvalidUserException} (400 {@code invalid-user}).
+ * before a missing or invalid user. This check runs before any argument is resolved and answers as
+ * {@code @CurrentUser} does: an absent or blank header is a {@link MissingUserException} (401
+ * {@code missing-user}) when the parameter is required, a value that is not a user id an {@link
+ * InvalidUserException} (400 {@code invalid-user}).
+ *
+ * <p>It runs once a handler is chosen, so the rejections Spring MVC makes while it maps the request
+ * come before it: a method the path does not allow (405), an {@code Accept} header the operation
+ * cannot produce (406) and a {@code Content-Type} it does not consume (415).
  */
 public class UserHeaderInterceptor implements HandlerInterceptor {
 
