@@ -59,10 +59,10 @@ datos en vivo a inventario y notificaciones por RabbitMQ, y los eventos de integ
 hasta proyectores `@Idempotent`.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.6.0")
 ```
 
 </td>

@@ -58,10 +58,10 @@ payments over RabbitMQ, the product page, the cart and the order page ask invent
 for live data over RabbitMQ, and integration events flow over Kafka to `@Idempotent` projectors.
 
 ```kotlin
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.5.0")
-implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.5.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-boot4-starter:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-rabbitmq:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-kafka:0.6.0")
+implementation("com.borjaglez.cqrs:spring-boot-cqrs-jdbc:0.6.0")
 ```
 
 </td>

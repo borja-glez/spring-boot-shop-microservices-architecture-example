@@ -39,13 +39,13 @@ Every fault starts off. Components register their faults in the [`Chaos`](../../
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) is a spring-boot-cqrs middleware registering a `.delay-ms` and a `.fail` fault for each simple class name listed in `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` in inventory, `AuthorizePayment, RefundPayment` in payments). It sits on the local buses, so it also affects the commands and queries that arrive over RabbitMQ: the caller sees a slow service or a remote error, exactly as in a real outage. An injected failure is a [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), deliberately not mapped to a 4xx.
 
-The endpoint, served by [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), exists in the services that set `shop.chaos.service` (catalog, orders, inventory, payments) at `/api/<service>/chaos`:
+The endpoint, served by [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), exists in the services that set `shop.chaos.service` (catalog, orders, inventory, payments) at `/api/v1/chaos/<service>`; the gateway routes `/api/v1/chaos/<service>/**` to that service:
 
 | Request | Effect |
 |---|---|
-| `GET /api/payments/chaos` | Lists the faults with key, description, kind and value |
-| `PUT /api/payments/chaos/AuthorizePayment.fail` with `{"value": 1}` | Turns a fault on (0 turns it off; delays take milliseconds) |
-| `DELETE /api/payments/chaos` | Turns every fault of the service off |
+| `GET /api/v1/chaos/payments` | Lists the faults with key, description, kind and value |
+| `PUT /api/v1/chaos/payments/AuthorizePayment.fail` with `{"value": 1}` | Turns a fault on (0 turns it off; delays take milliseconds) |
+| `DELETE /api/v1/chaos/payments` | Turns every fault of the service off |
 
 The endpoint answers only when the service started with `SHOP_CHAOS_ENABLED=true` (`shop.chaos.enabled`); otherwise every request gets 404 `chaos-disabled` and no fault can be turned on. The flag is read at startup rather than used as a bean condition, because a native image fixes its conditions at build time. Docker Compose and the local Kubernetes overlays enable it, since they are demo deployments; the endpoint is unauthenticated like the rest of the demo API and would stay disabled anywhere else.
 

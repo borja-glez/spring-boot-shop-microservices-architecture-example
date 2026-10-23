@@ -39,13 +39,13 @@ Todos los fallos empiezan desactivados. Los componentes registran sus fallos en 
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) es un middleware de spring-boot-cqrs que registra un fallo `.delay-ms` y otro `.fail` por cada nombre simple de clase listado en `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` en inventory, `AuthorizePayment, RefundPayment` en payments). Se sitúa en los buses locales, así que también afecta a los comandos y consultas que llegan por RabbitMQ: quien llama ve un servicio lento o un error remoto, exactamente igual que en una caída real. Un fallo inyectado es una [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), que deliberadamente no se traduce a un 4xx.
 
-El endpoint, servido por [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), existe en los servicios que fijan `shop.chaos.service` (catalog, orders, inventory, payments), en `/api/<service>/chaos`:
+El endpoint, servido por [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), existe en los servicios que fijan `shop.chaos.service` (catalog, orders, inventory, payments), en `/api/v1/chaos/<service>`; el gateway enruta `/api/v1/chaos/<service>/**` a ese servicio:
 
 | Petición | Efecto |
 |---|---|
-| `GET /api/payments/chaos` | Lista los fallos con clave, descripción, tipo y valor |
-| `PUT /api/payments/chaos/AuthorizePayment.fail` con `{"value": 1}` | Activa un fallo (0 lo desactiva; los retrasos se indican en milisegundos) |
-| `DELETE /api/payments/chaos` | Desactiva todos los fallos del servicio |
+| `GET /api/v1/chaos/payments` | Lista los fallos con clave, descripción, tipo y valor |
+| `PUT /api/v1/chaos/payments/AuthorizePayment.fail` con `{"value": 1}` | Activa un fallo (0 lo desactiva; los retrasos se indican en milisegundos) |
+| `DELETE /api/v1/chaos/payments` | Desactiva todos los fallos del servicio |
 
 El endpoint solo responde cuando el servicio arrancó con `SHOP_CHAOS_ENABLED=true` (`shop.chaos.enabled`); en caso contrario, toda petición recibe 404 `chaos-disabled` y no se puede activar ningún fallo. El flag se lee al arrancar en lugar de usarse como condición de un bean, porque una imagen nativa fija sus condiciones en tiempo de build. Docker Compose y los overlays locales de Kubernetes lo activan, ya que son despliegues de demostración; el endpoint no tiene autenticación, como el resto de la API de la demo, y permanecería desactivado en cualquier otro entorno.
 

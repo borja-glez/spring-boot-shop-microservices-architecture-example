@@ -62,7 +62,7 @@ cqrs:
 
 shop:
   chaos:
-    # Demo fault injection (/api/inventory/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    # Demo fault injection (/api/v1/chaos/inventory); off unless SHOP_CHAOS_ENABLED=true.
     service: inventory
     messages: ReserveStock, ReleaseStock, GetStockLevels
   inventory:
