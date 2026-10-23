@@ -9,7 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * The operations of the API that are deprecated ({@code shop.api.deprecations[n]}).
  *
- * @param deprecations one entry per deprecated operation, matched by method and path pattern
+ * @param deprecations one entry per deprecated operation, matched by method and path pattern; a
+ *     request that matches several gets the headers of the first one
  */
 @ConfigurationProperties("shop.api")
 public record ApiDeprecationProperties(@Nullable List<Deprecation> deprecations) {

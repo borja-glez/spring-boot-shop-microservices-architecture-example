@@ -49,9 +49,7 @@ public class UserHeaderProblemMapper implements ProblemMapper {
   }
 
   private static boolean isUserHeader(@Nullable RequestHeader header) {
-    return header != null
-        && (CurrentUserArgumentResolver.HEADER.equalsIgnoreCase(header.name())
-            || CurrentUserArgumentResolver.HEADER.equalsIgnoreCase(header.value()));
+    return header != null && CurrentUserArgumentResolver.HEADER.equalsIgnoreCase(header.name());
   }
 
   private static MappedProblem missingUser(String detail) {

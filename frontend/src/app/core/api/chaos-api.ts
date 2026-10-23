@@ -6,7 +6,7 @@ import { Observable, catchError, of, throwError } from 'rxjs';
 export const CHAOS_SERVICES = ['payments', 'inventory', 'orders', 'catalog'] as const;
 export type ChaosService = (typeof CHAOS_SERVICES)[number];
 
-/** A fault of a service (see service-support `ChaosController.FaultView`). */
+/** A fault of a service (the `Fault` schema of service-support `chaos-api.v1.yaml`). */
 export interface ChaosFault {
   key: string;
   description: string;

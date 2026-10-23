@@ -22,17 +22,17 @@ import com.borjaglez.shop.support.chaos.rest.v1.model.FaultKind;
 public class ChaosController implements ChaosApi {
 
   private final Chaos chaos;
-  private final String service;
+  private final String configuredService;
   private final boolean enabled;
 
   public ChaosController(Chaos chaos, String service, boolean enabled) {
     this.chaos = chaos;
-    this.service = service;
+    this.configuredService = service;
     this.enabled = enabled;
   }
 
   private void requireEnabled(String requestedService) {
-    if (!enabled || !service.equals(requestedService)) {
+    if (!enabled || !configuredService.equals(requestedService)) {
       throw new NotFoundException(
           "chaos-disabled",
           "Fault injection is off; start the service with SHOP_CHAOS_ENABLED=true");
