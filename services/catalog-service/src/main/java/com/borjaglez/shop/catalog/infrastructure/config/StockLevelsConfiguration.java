@@ -16,7 +16,7 @@ import com.borjaglez.shop.catalog.infrastructure.out.messaging.RabbitStockLevels
 public class StockLevelsConfiguration {
 
   @Bean
-  StockLevels stockLevels(RabbitMqQueryBus remoteQueries) {
+  RabbitStockLevels stockLevels(RabbitMqQueryBus remoteQueries) {
     return new RabbitStockLevels(remoteQueries);
   }
 }

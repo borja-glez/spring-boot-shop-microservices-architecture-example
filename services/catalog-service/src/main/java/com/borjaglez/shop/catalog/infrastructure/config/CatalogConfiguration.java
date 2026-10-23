@@ -6,10 +6,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.borjaglez.shop.catalog.application.port.out.CatalogReadModel;
-import com.borjaglez.shop.catalog.domain.CategoryRepository;
-import com.borjaglez.shop.catalog.domain.ProductRepository;
-import com.borjaglez.shop.catalog.domain.SellerRepository;
 import com.borjaglez.shop.catalog.infrastructure.out.messaging.CatalogIntegrationEvents;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.CategoryJpaRepository;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaCatalogReadModel;
@@ -19,7 +15,6 @@ import com.borjaglez.shop.catalog.infrastructure.out.persistence.JpaSellerReposi
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.ProductJpaRepository;
 import com.borjaglez.shop.catalog.infrastructure.out.persistence.SellerJpaRepository;
 import com.borjaglez.shop.eskit.DomainEventStore;
-import com.borjaglez.shop.eskit.IntegrationEventTranslator;
 import com.borjaglez.specrepository.http.spring.HttpFilterProperties;
 
 /**
@@ -31,6 +26,10 @@ import com.borjaglez.specrepository.http.spring.HttpFilterProperties;
  * cqrs.transactions.queries=none}), and the read side opens its own. With {@link CatalogEventTypes}
  * and the translator declared here, es-kit provides the {@link DomainEventStore}. The stock of the
  * product pages comes from {@link StockLevelsConfiguration}.
+ *
+ * <p>Each bean is declared with the adapter class it returns, not with its port: the AOT build of a
+ * native image generates proxies, such as the read-only transactions of {@link
+ * JpaCatalogReadModel}, from the declared type.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(HttpFilterProperties.class)
@@ -43,7 +42,7 @@ public class CatalogConfiguration {
   }
 
   @Bean
-  ProductRepository productRepository(
+  JpaProductRepository productRepository(
       ProductJpaRepository products,
       SellerJpaRepository sellers,
       CategoryJpaRepository categories,
@@ -52,12 +51,12 @@ public class CatalogConfiguration {
   }
 
   @Bean
-  SellerRepository sellerRepository(SellerJpaRepository sellers) {
+  JpaSellerRepository sellerRepository(SellerJpaRepository sellers) {
     return new JpaSellerRepository(sellers);
   }
 
   @Bean
-  CategoryRepository categoryRepository(CategoryJpaRepository categories) {
+  JpaCategoryRepository categoryRepository(CategoryJpaRepository categories) {
     return new JpaCategoryRepository(categories);
   }
 
@@ -66,7 +65,7 @@ public class CatalogConfiguration {
    * limits of the application, the same the filter API of specification-repository uses.
    */
   @Bean
-  CatalogReadModel catalogReadModel(
+  JpaCatalogReadModel catalogReadModel(
       ProductJpaRepository products,
       CategoryJpaRepository categories,
       HttpFilterProperties filters) {
@@ -74,7 +73,7 @@ public class CatalogConfiguration {
   }
 
   @Bean
-  IntegrationEventTranslator catalogIntegrationEvents() {
+  CatalogIntegrationEvents catalogIntegrationEvents() {
     return new CatalogIntegrationEvents();
   }
 }
