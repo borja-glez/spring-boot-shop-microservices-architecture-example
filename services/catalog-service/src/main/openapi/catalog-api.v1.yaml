@@ -339,7 +339,8 @@ components:
         Conditions combined with AND, `field:operator[:value]`, on the public fields of a product.
         The syntax of `SpecrepoFilter` in `specrepo-filters.yaml`, restricted to the fields of
         `x-specrepo-filterable-fields`: `filter=name:contains:cafe&filter=price.amount:lte:20`.
-        The catalog offers every built-in operator; a value has at most 100 characters.
+        The catalog offers every built-in operator; a value has at most 100 characters, and the
+        list of `in` or `notin` at most 50 values.
       schema:
         type: array
         items:
@@ -358,7 +359,8 @@ components:
         Groups of alternative conditions, separated by `;` and combined with OR; each group is
         ANDed with `filter` and with the other groups. The syntax of `SpecrepoOrFilter` in
         `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-filterable-fields`:
-        `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`.
+        `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`. Its conditions take the operators and
+        the limits of `filter`.
       schema:
         type: array
         items:
@@ -687,7 +689,6 @@ components:
         sku:
           type: string
           description: Stock keeping unit, not blank; the catalog stores it in upper case.
-          minLength: 1
           maxLength: 40
           pattern: &notBlank '^[\s\S]*[^\t\n\u000B\f\r\u001C-\u001F \u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000][\s\S]*$'
           x-pattern-message: must not be blank
@@ -695,7 +696,6 @@ components:
         name:
           type: string
           description: Name of the product, not blank.
-          minLength: 1
           maxLength: 160
           pattern: *notBlank
           x-pattern-message: must not be blank
@@ -711,7 +711,6 @@ components:
           minimum: 0
           exclusiveMinimum: true
           maximum: 9999999999.99
-          multipleOf: 0.01
           x-field-extra-annotation: '@jakarta.validation.constraints.Digits(integer = 10, fraction = 2)'
           example: 14.2
         currency:
@@ -725,7 +724,7 @@ components:
         categories:
           type: array
           nullable: true
-          description: Slugs of its categories, up to 5; a repeated slug counts once.
+          description: Slugs of its categories, up to 5 and without repeats; the server counts a repeated slug once.
           uniqueItems: true
           maxItems: 5
           items:
@@ -735,7 +734,7 @@ components:
         tags:
           type: array
           nullable: true
-          description: Its tags, up to 10; a repeated tag counts once.
+          description: Its tags, up to 10 and without repeats; the server counts a repeated tag once.
           uniqueItems: true
           maxItems: 10
           items:
@@ -765,7 +764,6 @@ components:
           minimum: 0
           exclusiveMinimum: true
           maximum: 9999999999.99
-          multipleOf: 0.01
           x-field-extra-annotation: '@jakarta.validation.constraints.Digits(integer = 10, fraction = 2)'
           example: 16.5
         currency:
@@ -785,7 +783,6 @@ components:
         reason:
           type: string
           description: Reason for withdrawing the product, not blank.
-          minLength: 1
           maxLength: 200
           pattern: *notBlank
           x-pattern-message: must not be blank

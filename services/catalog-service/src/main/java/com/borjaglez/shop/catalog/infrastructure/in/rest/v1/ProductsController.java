@@ -89,7 +89,7 @@ class ProductsController implements ProductsApi {
       String seller, CreateProductRequest createProductRequest) {
     UUID id =
         commands.dispatchAndReceive(CatalogRestMapper.createCommand(seller, createProductRequest));
-    return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProduct(id));
+    return ResponseEntity.status(HttpStatus.CREATED).body(new CreatedProduct().id(id));
   }
 
   @Override

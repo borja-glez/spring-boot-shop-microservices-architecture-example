@@ -71,67 +71,73 @@ final class CatalogRestMapper {
   }
 
   static ProductPage page(Page<com.borjaglez.shop.catalog.application.port.in.ProductCard> page) {
-    return new ProductPage(
-        page.page(),
-        page.size(),
-        page.totalElements(),
-        page.totalPages(),
-        page.content().stream().map(CatalogRestMapper::card).toList());
+    return new ProductPage()
+        .content(page.content().stream().map(CatalogRestMapper::card).toList())
+        .page(page.page())
+        .size(page.size())
+        .totalElements(page.totalElements())
+        .totalPages(page.totalPages());
   }
 
   static ProductDetail detail(com.borjaglez.shop.catalog.application.port.in.ProductDetail view) {
-    return new ProductDetail(
-        view.id(),
-        view.slug(),
-        view.sku(),
-        view.name(),
-        view.description(),
-        view.price(),
-        view.currency(),
-        ProductStatus.valueOf(view.status().name()),
-        seller(view.seller()),
-        view.categories().stream()
-            .map(category -> new CategoryRef(category.slug(), category.name()))
-            .toList(),
-        view.tags(),
-        view.publishedAt(),
-        view.updatedAt(),
-        view.version(),
-        availability(view.availability()));
+    return new ProductDetail()
+        .id(view.id())
+        .slug(view.slug())
+        .sku(view.sku())
+        .name(view.name())
+        .description(view.description())
+        .price(view.price())
+        .currency(view.currency())
+        .status(ProductStatus.valueOf(view.status().name()))
+        .seller(seller(view.seller()))
+        .categories(
+            view.categories().stream()
+                .map(category -> new CategoryRef().slug(category.slug()).name(category.name()))
+                .toList())
+        .tags(view.tags())
+        .publishedAt(view.publishedAt())
+        .updatedAt(view.updatedAt())
+        .version(view.version())
+        .availability(availability(view.availability()));
   }
 
   static CatalogFacets facets(com.borjaglez.shop.catalog.application.port.in.CatalogFacets view) {
-    return new CatalogFacets(
-        facetValues(view.categories()),
-        facetValues(view.sellers()),
-        facetValues(view.tags()),
-        new PriceRange(view.price().min(), view.price().max()));
+    return new CatalogFacets()
+        .categories(facetValues(view.categories()))
+        .sellers(facetValues(view.sellers()))
+        .tags(facetValues(view.tags()))
+        .price(new PriceRange().min(view.price().min()).max(view.price().max()));
   }
 
   static List<Category> categories(List<CategoryView> views) {
     return views.stream()
-        .map(view -> new Category(view.slug(), view.name(), view.activeProducts()))
+        .map(
+            view ->
+                new Category()
+                    .slug(view.slug())
+                    .name(view.name())
+                    .activeProducts(view.activeProducts()))
         .toList();
   }
 
   private static ProductCard card(com.borjaglez.shop.catalog.application.port.in.ProductCard view) {
-    return new ProductCard(
-        view.id(),
-        view.slug(),
-        view.sku(),
-        view.name(),
-        view.price(),
-        view.currency(),
-        ProductStatus.valueOf(view.status().name()),
-        seller(view.seller()),
-        view.categories(),
-        view.tags(),
-        view.publishedAt());
+    return new ProductCard()
+        .id(view.id())
+        .slug(view.slug())
+        .sku(view.sku())
+        .name(view.name())
+        .price(view.price())
+        .currency(view.currency())
+        .status(ProductStatus.valueOf(view.status().name()))
+        .seller(seller(view.seller()))
+        .categories(view.categories())
+        .tags(view.tags())
+        .publishedAt(view.publishedAt());
   }
 
   private static SellerSummary seller(
       com.borjaglez.shop.catalog.application.port.in.SellerSummary view) {
-    return new SellerSummary(view.id(), view.displayName(), view.city());
+    return new SellerSummary().id(view.id()).displayName(view.displayName()).city(view.city());
   }
 
   /** The stock of a product on sale; {@code null} for a product that is no longer on sale. */
@@ -139,13 +145,13 @@ final class CatalogRestMapper {
       com.borjaglez.shop.catalog.application.port.in.Availability view) {
     return view == null
         ? null
-        : new Availability(StockStatus.valueOf(view.status().name()), view.units());
+        : new Availability().status(StockStatus.valueOf(view.status().name())).units(view.units());
   }
 
   private static List<FacetValue> facetValues(
       List<com.borjaglez.shop.catalog.application.port.in.FacetValue> views) {
     return views.stream()
-        .map(view -> new FacetValue(view.value(), view.label(), view.count()))
+        .map(view -> new FacetValue().value(view.value()).label(view.label()).count(view.count()))
         .toList();
   }
 }

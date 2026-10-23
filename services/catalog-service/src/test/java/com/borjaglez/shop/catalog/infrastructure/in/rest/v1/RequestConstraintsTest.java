@@ -26,8 +26,8 @@ import com.borjaglez.shop.catalog.infrastructure.in.rest.v1.model.DiscontinueReq
  * The constraints of the contract, as the generated request models check them, accept and reject
  * exactly what the Bean Validation annotations of the catalog's requests define: {@code @NotBlank}
  * texts, and {@code @Positive @Digits(integer = 10, fraction = 2)} prices. The contract writes "not
- * blank" as a pattern and the digits as a maximum and a multiple of 0.01, which the generated
- * models complete with {@code @Digits}.
+ * blank" as a pattern, and a price as above 0 and at most 9999999999.99; the generated models add
+ * the {@code @Digits} its {@code x-field-extra-annotation} names.
  */
 class RequestConstraintsTest {
 
@@ -66,9 +66,13 @@ class RequestConstraintsTest {
           .isEqualTo(notBlank);
       // A currency has exactly three characters.
       String currency = text.isEmpty() ? text : text.repeat(3).substring(0, 3);
+      boolean validCurrency = accepts(Reference.class, "text", currency) && currency.length() == 3;
+      assertThat(accepts(CreateProductRequest.class, "currency", currency))
+          .as("currency of a new product %s", codePoints(currency))
+          .isEqualTo(validCurrency);
       assertThat(accepts(ChangePriceRequest.class, "currency", currency))
-          .as("currency %s", codePoints(currency))
-          .isEqualTo(accepts(Reference.class, "text", currency) && currency.length() == 3);
+          .as("currency of a new price %s", codePoints(currency))
+          .isEqualTo(validCurrency);
     }
   }
 

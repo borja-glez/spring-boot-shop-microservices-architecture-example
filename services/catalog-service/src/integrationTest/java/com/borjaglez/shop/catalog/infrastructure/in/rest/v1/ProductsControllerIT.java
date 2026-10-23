@@ -3,6 +3,7 @@ package com.borjaglez.shop.catalog.infrastructure.in.rest.v1;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -658,12 +660,16 @@ class ProductsControllerIT {
     assertThat(command.getTags()).isEmpty();
   }
 
-  /** Categories and tags are sets: repeating one does not count against the limit. */
+  /**
+   * The contract asks for categories and tags without repeats, but the server takes them as sets: a
+   * repeat counts once, also against the limits.
+   */
   @Test
   void repeatedCategoriesAndTagsCountOnce() throws Exception {
     when(commands.dispatchAndReceive(any(Command.class))).thenReturn(ID);
     Map<String, Object> product = newProduct();
     product.put("categories", List.of("vinos", "vinos", "vinos", "vinos", "vinos", "vinos"));
+    product.put("tags", Stream.generate(() -> "ecologico").limit(11).toList());
 
     mvc.perform(
             post(PRODUCTS)
@@ -675,8 +681,9 @@ class ProductsControllerIT {
 
     ArgumentCaptor<Command> captor = ArgumentCaptor.forClass(Command.class);
     verify(commands).dispatchAndReceive(captor.capture());
-    assertThat(((CreateProductCommand) captor.getValue()).getCategorySlugs())
-        .containsExactly("vinos");
+    CreateProductCommand command = (CreateProductCommand) captor.getValue();
+    assertThat(command.getCategorySlugs()).containsExactly("vinos");
+    assertThat(command.getTags()).containsExactly("ecologico");
   }
 
   @Test
@@ -694,10 +701,12 @@ class ProductsControllerIT {
     verifyNoInteractions(commands);
   }
 
-  @Test
-  void aBlankTextIsReportedAsBlank() throws Exception {
+  /** An empty or blank text breaks one rule, reported as Bean Validation's not-blank one. */
+  @ParameterizedTest
+  @ValueSource(strings = {"", "   "})
+  void aBlankTextIsReportedAsBlank(String sku) throws Exception {
     Map<String, Object> product = newProduct();
-    product.put("sku", "   ");
+    product.put("sku", sku);
 
     mvc.perform(
             post(PRODUCTS)
@@ -712,7 +721,8 @@ class ProductsControllerIT {
                     """
                     {"code": "validation-failed",
                      "errors": [{"field": "sku", "message": "must not be blank"}]}
-                    """));
+                    """))
+        .andExpect(jsonPath("$.errors.length()").value(1));
   }
 
   static Stream<Arguments> invalidNewProducts() {
@@ -753,6 +763,7 @@ class ProductsControllerIT {
         .andExpect(status().isBadRequest())
         .andExpect(CONTRACT.matchesResponse())
         .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[*].field", hasItem(field)))
         .andExpect(jsonPath("$.errors[*].field", everyItem(is(field))));
     verifyNoInteractions(commands);
   }
@@ -842,6 +853,7 @@ class ProductsControllerIT {
         .andExpect(status().isBadRequest())
         .andExpect(CONTRACT.matchesResponse())
         .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[*].field", hasItem(field)))
         .andExpect(jsonPath("$.errors[*].field", everyItem(is(field))));
     verifyNoInteractions(commands);
   }
@@ -857,6 +869,7 @@ class ProductsControllerIT {
         .andExpect(status().isBadRequest())
         .andExpect(CONTRACT.matchesResponse())
         .andExpect(jsonPath("$.code").value("validation-failed"))
+        .andExpect(jsonPath("$.errors[*].field", hasItem("reason")))
         .andExpect(jsonPath("$.errors[*].field", everyItem(is("reason"))));
     verifyNoInteractions(commands);
   }
@@ -878,6 +891,7 @@ class ProductsControllerIT {
                 .content(json(Map.of("reason", "R".repeat(201)))))
         .andExpect(status().isBadRequest())
         .andExpect(CONTRACT.matchesResponse())
+        .andExpect(jsonPath("$.errors[*].field", hasItem("reason")))
         .andExpect(jsonPath("$.errors[*].field", everyItem(is("reason"))));
   }
 
@@ -909,6 +923,53 @@ class ProductsControllerIT {
         .andExpect(status().isBadRequest())
         .andExpect(CONTRACT.matchesResponse())
         .andExpect(jsonPath("$.code").value("invalid-user"));
+    verifyNoInteractions(commands);
+  }
+
+  static Stream<Arguments> userAndRequestProblems() {
+    List<Arguments> cases = new ArrayList<>();
+    String[][] users = {
+      {"no", null, "401", "missing-user"},
+      {"a blank", " ", "401", "missing-user"},
+      {"an invalid", "ana; drop table", "400", "invalid-user"}
+    };
+    String[][] requests = {
+      {"create", "an unreadable body"},
+      {"create", "an invalid body"},
+      {"publish", "a malformed id"},
+      {"price", "an unreadable body"},
+      {"price", "a malformed id"},
+      {"discontinue", "an unreadable body"},
+      {"discontinue", "a malformed id"}
+    };
+    for (String[] user : users) {
+      for (String[] request : requests) {
+        cases.add(
+            arguments(
+                request[0], user[0], user[1], request[1], Integer.parseInt(user[2]), user[3]));
+      }
+    }
+    return cases.stream();
+  }
+
+  /**
+   * The user comes first: a write without a valid user is answered with the user problem whatever
+   * else the request gets wrong.
+   */
+  @ParameterizedTest(name = "{0} with {1} user and {3}")
+  @MethodSource("userAndRequestProblems")
+  void theUserIsCheckedBeforeTheRestOfTheRequest(
+      String operation, String label, String user, String problem, int status, String code)
+      throws Exception {
+    MockHttpServletRequestBuilder request = brokenWrite(operation, problem);
+    if (user != null) {
+      request.header(USER, user);
+    }
+
+    mvc.perform(request)
+        .andExpect(status().is(status))
+        .andExpect(CONTRACT.matchesResponse())
+        .andExpect(jsonPath("$.code").value(code));
     verifyNoInteractions(commands);
   }
 
@@ -994,6 +1055,30 @@ class ProductsControllerIT {
           default -> throw new IllegalArgumentException(operation);
         };
     return user == null ? request : request.header(USER, user);
+  }
+
+  /** A write that is wrong in another way than its user. */
+  private static MockHttpServletRequestBuilder brokenWrite(String operation, String problem) {
+    String id = problem.equals("a malformed id") ? "not-a-uuid" : ID.toString();
+    String body =
+        switch (problem) {
+          case "an unreadable body" -> "{";
+          case "an invalid body" -> "{\"sku\":\"\",\"price\":-2}";
+          default ->
+              operation.equals("price")
+                  ? "{\"price\":16.50,\"currency\":\"EUR\"}"
+                  : "{\"reason\":\"Out of production\"}";
+        };
+    return switch (operation) {
+      case "create" -> post(PRODUCTS).contentType(MediaType.APPLICATION_JSON).content(body);
+      case "publish" -> post(PRODUCTS + "/{id}/publish", id);
+      case "price" ->
+          put(PRODUCTS + "/{id}/price", id).contentType(MediaType.APPLICATION_JSON).content(body);
+      default ->
+          post(PRODUCTS + "/{id}/discontinue", id)
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(body);
+    };
   }
 
   /** A valid new product, as a mutable map to break one field at a time. */
