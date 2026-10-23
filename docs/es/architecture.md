@@ -70,7 +70,7 @@ Los controladores no contienen lógica: traducen HTTP a un comando o a una consu
 
 | Módulo | Contenido |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-core`; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-api`, la API sin framework de spring-boot-cqrs; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store que hace también de outbox transaccional, clase base de agregado con event sourcing, relay del outbox, destino Kafka, métricas de consumidores, métricas del outbox, hints para imagen nativa. |
 | [`platform/service-support`](../../platform/service-support) | Errores RFC 9457, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, exportación OTLP, registro y endpoint de caos, valores por defecto compartidos. Autoconfigurado. |
 | [`platform/test-support`](../../platform/test-support) | Configuraciones de Testcontainers (PostgreSQL 17, Kafka, RabbitMQ) y las reglas de ArchUnit. |
