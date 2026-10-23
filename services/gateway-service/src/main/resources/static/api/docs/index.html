@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mercado API contracts</title>
-    <link rel="stylesheet" href="/webjars/swagger-ui/5.33.1/swagger-ui.css" />
+    <link rel="stylesheet" href="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui.css" />
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; }
       header { padding: 12px 16px; background: #1f2937; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -24,9 +24,16 @@
     <p id="message">Select a contract.</p>
     <div id="viewer"></div>
 
-    <script src="/webjars/swagger-ui/5.33.1/swagger-ui-bundle.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@3.1.8/lib/asyncapi-web-component.js" defer></script>
+    <script src="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui-bundle.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@3.1.8/lib/asyncapi-web-component.js"
+      integrity="sha384-1lhhmwYf1Eif0PQgDyo9eNFJLiRmcSgsv4mkpEtxLPzd+gEPIjxuoEdCQq9PsSm5"
+      crossorigin="anonymous"
+      defer
+    ></script>
     <script>
+      const ASYNCAPI_CSS = 'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@3.1.8/styles/default.min.css';
+      const ASYNCAPI_CSS_INTEGRITY = 'sha384-oo9RoQcacP++XdMX6CjTucTvASEORHX3chFik0/V2kHcsHiVboGyWZztGeq/0bum';
       const viewer = document.getElementById('viewer');
       const message = document.getElementById('message');
       const nav = document.getElementById('contracts');
@@ -45,10 +52,12 @@
         } else {
           const component = document.createElement('asyncapi-component');
           component.setAttribute('schemaUrl', url);
-          component.setAttribute(
-            'cssImportPath',
-            'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@3.1.8/styles/default.min.css'
-          );
+          // The component loads this stylesheet itself, so it is fetched here with an integrity
+          // check and handed over as a blob URL.
+          fetch(ASYNCAPI_CSS, { integrity: ASYNCAPI_CSS_INTEGRITY, mode: 'cors' })
+            .then((response) => response.blob())
+            .then((blob) => component.setAttribute('cssImportPath', URL.createObjectURL(blob)))
+            .catch(() => {});
           viewer.append(component);
         }
       }

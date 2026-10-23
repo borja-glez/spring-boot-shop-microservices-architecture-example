@@ -22,51 +22,62 @@ tasks.withType<org.springframework.boot.gradle.tasks.aot.ProcessAot>().configure
 
 // The contracts page serves every OpenAPI/AsyncAPI document of the repository under
 // /api/docs/contracts/, keeping the repository layout so relative $refs resolve over HTTP.
-val repositoryRoot: Directory = rootProject.layout.projectDirectory
+// One file tree per source root keeps the other directories of the repository out of the inputs.
 val contractsStaging = layout.buildDirectory.dir("generated/contracts")
+val swaggerUiVersion = libs.versions.swagger.ui.get()
 
 val collectContracts by tasks.registering(Sync::class) {
+    val repositoryRoot = rootProject.layout.projectDirectory
     from(
-        repositoryRoot.asFileTree.matching {
-            include(
-                "services/*/src/main/openapi/**",
-                "services/*/src/main/asyncapi/**",
-                "platform/api-contracts/**",
-                "platform/service-support/src/main/openapi/**",
-                "platform/contracts/src/main/resources/schemas/**",
-            )
-            // Keep Gradle's own output out of the inputs.
-            exclude("**/build/**")
+        repositoryRoot.dir("services").asFileTree.matching {
+            include("*/src/main/openapi/**", "*/src/main/asyncapi/**")
         }
-    )
+    ) {
+        into("services")
+    }
+    from(
+        repositoryRoot.dir("platform").asFileTree.matching {
+            include(
+                "api-contracts/**",
+                "service-support/src/main/openapi/**",
+                "contracts/src/main/resources/schemas/**",
+            )
+        }
+    ) {
+        into("platform")
+    }
     into(contractsStaging.map { it.dir("api/docs/contracts") })
 
     val contractsRoot = contractsStaging.map { it.dir("api/docs/contracts") }
     doLast {
-        val root = contractsRoot.get().asFile.toPath()
+        val root = contractsRoot.get().asFile
+        // Only documents with operations (a non-empty paths or channels map) are listed; component libraries are still
+        // served so that the $refs of the listed documents resolve.
         val entries =
-            root.toFile()
-                .walkTopDown()
+            root.walkTopDown()
                 .filter { it.isFile && (it.extension == "yaml" || it.extension == "yml") }
                 .mapNotNull { file ->
+                    val lines = file.readLines()
                     val kind =
-                        file.useLines { lines ->
-                            lines
-                                .firstOrNull { it.startsWith("openapi:") || it.startsWith("asyncapi:") }
-                                ?.substringBefore(':')
+                        when {
+                            lines.any { it.startsWith("openapi:") } && lines.any { it.trimEnd() == "paths:" } -> "openapi"
+                            lines.any { it.startsWith("asyncapi:") } && lines.any { it.trimEnd() == "channels:" } -> "asyncapi"
+                            else -> null
                         }
-                    kind?.let { it to root.relativize(file.toPath()).joinToString("/") }
+                    kind?.let { mapOf("kind" to it, "path" to file.relativeTo(root).invariantSeparatorsPath) }
                 }
-                .sortedBy { it.second }
+                .sortedBy { it["path"] }
                 .toList()
-        val json =
-            entries.joinToString(",\n", "[\n", "\n]\n") { (kind, path) ->
-                "  {\"kind\":\"$kind\",\"path\":\"$path\"}"
-            }
-        root.resolve("index.json").toFile().writeText(if (entries.isEmpty()) "[]\n" else json)
+        root.resolve("index.json").writeText(groovy.json.JsonOutput.toJson(entries) + "\n")
     }
 }
 
 tasks.processResources {
     from(files(contractsStaging).builtBy(collectContracts)) { into("static") }
+    // The page takes the Swagger UI version from the version catalog.
+    val pageVersion = swaggerUiVersion
+    inputs.property("swaggerUiVersion", pageVersion)
+    filesMatching("static/api/docs/index.html") {
+        filter<org.apache.tools.ant.filters.ReplaceTokens>("tokens" to mapOf("swaggerUiVersion" to pageVersion))
+    }
 }

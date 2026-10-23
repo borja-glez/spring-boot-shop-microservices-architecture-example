@@ -19,6 +19,9 @@ class ContractsDocsIT {
 
   private static final String CHAOS_CONTRACT =
       "platform/service-support/src/main/openapi/chaos-api.v1.yaml";
+  private static final Pattern SWAGGER_UI_PATH =
+      Pattern.compile("/api/docs/webjars/swagger-ui/([0-9.]+)/");
+  private static final Pattern ASSET_REFERENCE = Pattern.compile("(?:src|href)=\"([^\"]+)\"");
   private static final Pattern RELATIVE_REF = Pattern.compile("\\$ref:\\s*'(\\.[^'#]+)#");
 
   @LocalServerPort int port;
@@ -74,13 +77,45 @@ class ContractsDocsIT {
   }
 
   @Test
-  void swaggerUiAssetsAreServedFromTheWebjar() {
+  void swaggerUiAssetsAreServedUnderTheDocsPrefix() {
+    String page = http.get().uri("/api/docs/").retrieve().body(String.class);
+    Matcher version = SWAGGER_UI_PATH.matcher(page);
+    assertThat(version.find()).isTrue();
+
     var response =
         http.get()
-            .uri("/webjars/swagger-ui/5.33.1/swagger-ui-bundle.js")
+            .uri("/api/docs/webjars/swagger-ui/" + version.group(1) + "/swagger-ui-bundle.js")
             .retrieve()
             .toBodilessEntity();
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  void pageReferencesOnlyDocsPathsAndPinnedCdnFiles() {
+    String page = http.get().uri("/api/docs/").retrieve().body(String.class);
+    Matcher reference = ASSET_REFERENCE.matcher(page);
+
+    int found = 0;
+    while (reference.find()) {
+      found++;
+      assertThat(reference.group(1))
+          .matches("/api/docs/.*|https://cdn.jsdelivr.net/npm/@asyncapi/[a-z-]+@[0-9.]+/.*");
+    }
+    assertThat(found).isGreaterThanOrEqualTo(3);
+    assertThat(page).doesNotContain("@swaggerUiVersion@");
+  }
+
+  @Test
+  void componentLibrariesAreServedButNotListed() {
+    String index = http.get().uri("/api/docs/contracts/index.json").retrieve().body(String.class);
+    var common =
+        http.get()
+            .uri("/api/docs/contracts/platform/api-contracts/openapi/common.v1.yaml")
+            .retrieve()
+            .toBodilessEntity();
+
+    assertThat(common.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(index).doesNotContain("common.v1.yaml");
   }
 }
