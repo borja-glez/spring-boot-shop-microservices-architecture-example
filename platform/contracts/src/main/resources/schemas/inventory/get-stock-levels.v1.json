@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GetStockLevels",
+  "description": "Free units of some products, right now. Answered with StockLevels.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["queryId", "productIds"],
+  "properties": {
+    "queryId": { "type": "string", "minLength": 1, "description": "Unique id of the query." },
+    "productIds": { "type": "array", "items": { "type": "string", "format": "uuid" } }
+  }
+}

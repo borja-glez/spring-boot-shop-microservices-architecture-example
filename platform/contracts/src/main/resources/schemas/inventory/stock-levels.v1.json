@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StockLevels",
+  "description": "Answer to GetStockLevels: one level per product the inventory knows; unknown products are left out.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["levels"],
+  "properties": {
+    "levels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["productId", "available"],
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "available": { "type": "integer", "description": "Units on hand that no order holds." }
+        }
+      }
+    }
+  }
+}

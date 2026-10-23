@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProductDiscontinued",
+  "description": "A product was withdrawn from sale for good.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "occurredOn", "productId", "reason"],
+  "properties": {
+    "eventId": { "type": "string", "minLength": 1, "description": "Unique id of the event." },
+    "occurredOn": { "type": "string", "format": "date-time", "description": "ISO-8601 instant at which the product was discontinued." },
+    "productId": { "type": "string", "format": "uuid" },
+    "reason": { "type": ["string", "null"] }
+  }
+}
