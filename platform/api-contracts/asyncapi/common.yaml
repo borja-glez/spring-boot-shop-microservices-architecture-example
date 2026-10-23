@@ -20,9 +20,9 @@ info:
     ## Kafka
 
     Kafka carries integration events only. The topic is the one `DefaultKafkaTopicNamingStrategy`
-    gives the events bus with `cqrs.kafka.prefix=shop`. The record key is the id of the aggregate
-    that emitted the event (the key declared by `KeyedMessage`, also sent in the `cqrs.message.key`
-    header), so the events of one aggregate stay ordered inside a partition. Consumers must still
+    gives the events bus with `cqrs.kafka.prefix=shop`. The record key is the logical name of the
+    event (the default `MESSAGE_NAME` partition keys; no Mercado event declares a key of its own with
+    `KeyedMessage`), so the events of one type stay ordered inside a partition. Consumers must
     tolerate out-of-order delivery across event types.
 
     ## RabbitMQ
@@ -68,7 +68,7 @@ components:
           examples: [shop.catalog.1.event.product.product-published]
         cqrs.message.key:
           type: string
-          description: Key declared by the message (the aggregate id); absent when it declares none or a blank one.
+          description: Key declared by the message with `KeyedMessage`; absent when it declares none or a blank one.
         cqrs.payload.type:
           type: string
           description: Java type of the payload.
@@ -116,7 +116,7 @@ components:
           description: ISO-8601 instant at which the message was dead-lettered.
   messageTraits:
     KafkaEvent:
-      description: An integration event published to Kafka, keyed by the id of its aggregate.
+      description: An integration event published to Kafka, keyed by its logical name.
       contentType: application/json
       headers:
         $ref: '#/components/schemas/CqrsKafkaHeaders'
@@ -124,7 +124,7 @@ components:
         kafka:
           key:
             type: string
-            description: Id of the aggregate that emitted the event.
+            description: Logical name of the event (`MESSAGE_NAME` partition keys), so the events of one type keep their order.
           bindingVersion: 0.5.0
     RabbitMqMessage:
       description: A command, query or reply sent over RabbitMQ; the routing key is its logical name.
