@@ -74,6 +74,16 @@ class LayoutRulesTest {
   }
 
   @Test
+  void domainExceptionsAreNamedExceptionAcceptsTheGoodFixture() {
+    assertAccepts(LayoutRules.DOMAIN_EXCEPTIONS_ARE_NAMED_EXCEPTION, GOOD);
+  }
+
+  @Test
+  void domainExceptionsAreNamedExceptionRejectsTheBadFixture() {
+    assertRejects(LayoutRules.DOMAIN_EXCEPTIONS_ARE_NAMED_EXCEPTION, BAD, "OrderNotFound");
+  }
+
+  @Test
   void unitTestsDoNotUseSpringAcceptsTheGoodFixture() {
     assertAccepts(LayoutRules.UNIT_TESTS_DO_NOT_USE_SPRING, GOOD_UNIT_TESTS);
   }
