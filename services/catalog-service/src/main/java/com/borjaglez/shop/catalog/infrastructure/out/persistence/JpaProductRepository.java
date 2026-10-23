@@ -9,15 +9,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
-import com.borjaglez.shop.catalog.domain.CategoryEntity;
-import com.borjaglez.shop.catalog.domain.CategoryJpaRepository;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.Product.ProductState;
-import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.catalog.domain.ProductId;
-import com.borjaglez.shop.catalog.domain.ProductJpaRepository;
 import com.borjaglez.shop.catalog.domain.ProductRepository;
-import com.borjaglez.shop.catalog.domain.SellerJpaRepository;
 import com.borjaglez.shop.catalog.domain.Sku;
 import com.borjaglez.shop.catalog.domain.event.ProductEvent;
 import com.borjaglez.shop.eskit.DomainEventStore;

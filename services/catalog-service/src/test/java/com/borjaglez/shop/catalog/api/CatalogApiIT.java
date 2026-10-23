@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
@@ -36,7 +38,11 @@ class CatalogApiIT {
   private static final ParameterizedTypeReference<Map<String, Object>> JSON =
       new ParameterizedTypeReference<>() {};
 
+  /** An instant in UTC as the API writes it: ISO 8601 with a Z and only the fraction it has. */
+  private static final String ISO_UTC = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d*[1-9])?Z";
+
   @LocalServerPort int port;
+  @Autowired FakeStockLevels inventory;
   RestClient http;
 
   @BeforeEach
@@ -250,6 +256,81 @@ class CatalogApiIT {
     var missing = get("/api/catalog/products/no-existe");
     assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(missing.getBody()).containsEntry("code", "product-not-found");
+  }
+
+  @Test
+  void facetsCannotBeSorted() {
+    var response = get("/api/catalog/products/facets?sort=name,asc");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody())
+        .containsEntry("code", "invalid-filter")
+        .containsEntry("field", "name");
+  }
+
+  @Test
+  void facetsRejectThePrivateFieldsTheSearchRejects() {
+    var response =
+        get("/api/catalog/products/facets?filter=seller.email:eq:ana@tostadores.example");
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody())
+        .containsEntry("code", "invalid-filter")
+        .containsEntry("field", "seller.email");
+  }
+
+  /** The product page of a seeded product after telling the inventory its stock. */
+  private Map<String, Object> pageWithStock(String slug, Integer units) {
+    UUID id = UUID.fromString((String) get("/api/catalog/products/" + slug).getBody().get("id"));
+    if (units == null) {
+      inventory.silentAbout(id);
+    } else {
+      inventory.stock(id, units);
+    }
+    return get("/api/catalog/products/" + slug).getBody();
+  }
+
+  @Test
+  void productPageShowsTheStockTheInventoryReports() {
+    Map<String, Object> page = pageWithStock("cafe-molido-natural-500-g-caf-002", 3);
+
+    assertThat(page)
+        .containsEntry("sku", "CAF-002")
+        .containsEntry("availability", Map.of("status", "LOW_STOCK", "units", 3));
+    assertThat((String) page.get("publishedAt")).matches(ISO_UTC);
+    assertThat((String) page.get("updatedAt")).matches(ISO_UTC);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void theProductPageIsShownWhenTheInventoryDoesNotAnswer() {
+    Map<String, Object> page = pageWithStock("te-verde-matcha-ceremonial-30-g-caf-005", null);
+
+    assertThat(page).containsEntry("sku", "CAF-005");
+    assertThat((Map<String, Object>) page.get("availability"))
+        .containsEntry("status", "UNKNOWN")
+        .containsEntry("units", null);
+  }
+
+  @Test
+  void productsNoLongerOnSaleHaveNoStock() {
+    assertThat(get("/api/catalog/products/rooibos-con-vainilla-caf-008").getBody())
+        .containsEntry("status", "DISCONTINUED")
+        .containsEntry("availability", null);
+  }
+
+  @Test
+  void theInventoryIsAskedOutsideAnyTransaction() {
+    pageWithStock("cafetera-italiana-de-aluminio-6-tazas-caf-003", 12);
+
+    assertThat(inventory.wasAskedInATransaction()).isFalse();
+  }
+
+  @Test
+  void searchCardsCarryUtcTimestamps() {
+    assertThat(content(get("/api/catalog/products?filter=sku:eq:CAF-001")))
+        .singleElement()
+        .satisfies(card -> assertThat((String) card.get("publishedAt")).matches(ISO_UTC));
   }
 
   @Test

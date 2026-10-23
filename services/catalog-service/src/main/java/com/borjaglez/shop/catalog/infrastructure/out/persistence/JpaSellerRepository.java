@@ -4,7 +4,6 @@ import java.util.Optional;
 
 import com.borjaglez.shop.catalog.domain.Seller;
 import com.borjaglez.shop.catalog.domain.SellerId;
-import com.borjaglez.shop.catalog.domain.SellerJpaRepository;
 import com.borjaglez.shop.catalog.domain.SellerRepository;
 import com.borjaglez.specrepository.core.Operators;
 

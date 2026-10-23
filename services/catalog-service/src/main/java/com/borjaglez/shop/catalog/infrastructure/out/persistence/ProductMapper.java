@@ -7,14 +7,10 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.borjaglez.shop.catalog.domain.CategoryEntity;
 import com.borjaglez.shop.catalog.domain.CategoryId;
 import com.borjaglez.shop.catalog.domain.Money;
-import com.borjaglez.shop.catalog.domain.MoneyEmbeddable;
 import com.borjaglez.shop.catalog.domain.Product.ProductState;
-import com.borjaglez.shop.catalog.domain.ProductEntity;
 import com.borjaglez.shop.catalog.domain.ProductId;
-import com.borjaglez.shop.catalog.domain.SellerEntity;
 import com.borjaglez.shop.catalog.domain.SellerId;
 import com.borjaglez.shop.catalog.domain.Sku;
 import com.borjaglez.shop.catalog.domain.Slug;

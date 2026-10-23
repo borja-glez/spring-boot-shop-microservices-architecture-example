@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.cqrs.query.QueryBus;
-import com.borjaglez.shop.catalog.application.query.ListCategoriesQuery;
-import com.borjaglez.shop.catalog.application.query.ProductViews.CategoryView;
+import com.borjaglez.shop.catalog.application.port.in.CategoryView;
+import com.borjaglez.shop.catalog.application.port.in.ListCategoriesQuery;
 
 /** Browsing categories with the number of products on sale in each. */
 @RestController
