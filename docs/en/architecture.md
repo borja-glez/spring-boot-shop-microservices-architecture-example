@@ -89,7 +89,7 @@ In every service, every read goes through the specification-repository DSL or a 
 
 | Module | Contents |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-core`; `ContractsConventionsTest` applies the boundary rules of spring-boot-cqrs (wire name, no-argument constructor, no framework types in messages) and a rule of the shop that keeps every class of the module free of Spring, Jackson, JPA and Hibernate types, so Boot 3 and Boot 4 services can share it. |
+| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-api`, the framework-free API of spring-boot-cqrs; `ContractsConventionsTest` applies the boundary rules of spring-boot-cqrs (wire name, no-argument constructor, no framework types in messages) and a rule of the shop that keeps every class of the module free of Spring, Jackson, JPA and Hibernate types, so Boot 3 and Boot 4 services can share it. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, consumer metrics, outbox metrics, native-image hints. |
 | [`platform/service-support`](../../platform/service-support) | RFC 9457 errors, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, OTLP export, chaos registry and endpoint, shared defaults. Auto-configured. |
 | [`platform/test-support`](../../platform/test-support) | Testcontainers configurations (PostgreSQL 17, Kafka, RabbitMQ) and the ArchUnit rules. |
