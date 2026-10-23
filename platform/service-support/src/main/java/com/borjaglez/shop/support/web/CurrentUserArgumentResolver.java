@@ -1,5 +1,6 @@
 package com.borjaglez.shop.support.web;
 
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import org.jspecify.annotations.Nullable;
@@ -32,10 +33,11 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
       @Nullable ModelAndViewContainer mavContainer,
       NativeWebRequest webRequest,
       @Nullable WebDataBinderFactory binderFactory) {
-    CurrentUser annotation = parameter.getParameterAnnotation(CurrentUser.class);
+    CurrentUser annotation =
+        Objects.requireNonNull(parameter.getParameterAnnotation(CurrentUser.class));
     String user = webRequest.getHeader(HEADER);
     if (user == null || user.isBlank()) {
-      if (annotation != null && annotation.required()) {
+      if (annotation.required()) {
         throw new MissingUserException();
       }
       return null;

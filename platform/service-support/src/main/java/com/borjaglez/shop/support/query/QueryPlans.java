@@ -72,14 +72,11 @@ public final class QueryPlans {
 
   private static void requireClientPlan(QueryPlan<?> plan) {
     boolean clientOnly =
-        plan.rootCondition().logicalOperator() == LogicalOperator.AND
-            && plan.serverCondition().conditions().isEmpty()
+        plan.serverCondition().conditions().isEmpty()
             && plan.joins().isEmpty()
             && plan.fetches().isEmpty()
             && plan.selections().isEmpty()
-            && plan.projectionType() == null
             && plan.groupBy().isEmpty()
-            && plan.having().isEmpty()
             && !plan.distinct()
             && !plan.lock().isLocked();
     if (!clientOnly) {

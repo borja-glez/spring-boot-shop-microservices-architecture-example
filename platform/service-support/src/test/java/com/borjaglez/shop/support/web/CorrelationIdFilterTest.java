@@ -7,11 +7,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.borjaglez.cqrs.context.MessageContext;
@@ -55,5 +60,27 @@ class CorrelationIdFilterTest {
     mvc.perform(get("/correlation").header(CorrelationIdFilter.HEADER, "abc-123"));
     assertThat(MDC.get(CorrelationIdFilter.MDC_KEY)).isNull();
     assertThat(MessageContext.current().isEmpty()).isTrue();
+  }
+
+  @Test
+  void asyncDispatchesAreFilteredToo() {
+    assertThat(new CorrelationIdFilter(List.of()).shouldNotFilterAsyncDispatch()).isFalse();
+  }
+
+  @Test
+  void aScopeThatFailsToCloseDoesNotFailTheRequest() throws Exception {
+    var filter =
+        new CorrelationIdFilter(
+            List.of(
+                id ->
+                    () -> {
+                      throw new IllegalStateException("cannot close");
+                    }));
+    var response = new MockHttpServletResponse();
+
+    filter.doFilter(new MockHttpServletRequest("GET", "/x"), response, new MockFilterChain());
+
+    assertThat(response.getHeader(CorrelationIdFilter.HEADER)).isNotBlank();
+    assertThat(MDC.get(CorrelationIdFilter.MDC_KEY)).isNull();
   }
 }

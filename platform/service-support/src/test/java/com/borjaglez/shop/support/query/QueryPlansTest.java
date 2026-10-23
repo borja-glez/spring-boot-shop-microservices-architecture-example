@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Sort;
@@ -12,9 +13,11 @@ import org.springframework.data.domain.Sort;
 import com.borjaglez.specrepository.core.AllowedFieldsPolicy;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.GroupCondition;
+import com.borjaglez.specrepository.core.LockMode;
 import com.borjaglez.specrepository.core.Operators;
 import com.borjaglez.specrepository.core.PredicateCondition;
 import com.borjaglez.specrepository.core.QueryPlan;
+import com.borjaglez.specrepository.core.QueryPlanBuilder;
 import com.borjaglez.specrepository.core.SpecificationQueryBuilder;
 
 class QueryPlansTest {
@@ -121,5 +124,23 @@ class QueryPlansTest {
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> QueryPlans.without(nested, "name"))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void withoutRejectsEveryExtensionOfAClientPlan() {
+    List<UnaryOperator<QueryPlanBuilder<Item>>> extensions =
+        List.of(
+            b -> b.leftJoin("seller"),
+            b -> b.select("name"),
+            b -> b.groupBy("name"),
+            b -> b.distinct(),
+            b -> b.lock(LockMode.PESSIMISTIC_WRITE));
+    for (var extension : extensions) {
+      QueryPlan<Item> plan = extension.apply(clientPlan().toBuilder()).build();
+
+      assertThatThrownBy(() -> QueryPlans.without(plan, "name"))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Only a client plan");
+    }
   }
 }

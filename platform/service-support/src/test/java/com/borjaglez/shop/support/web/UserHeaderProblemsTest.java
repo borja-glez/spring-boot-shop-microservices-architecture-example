@@ -61,4 +61,11 @@ class UserHeaderProblemsTest {
         .andExpect(jsonPath("$.errors.length()").value(1))
         .andExpect(jsonPath("$.errors[0].field").value("size"));
   }
+
+  @Test
+  void otherMissingHeadersStayBadRequests() throws Exception {
+    mvc.perform(get("/declared-other-header"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("bad-request"));
+  }
 }

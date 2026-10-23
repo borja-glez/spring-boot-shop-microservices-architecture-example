@@ -7,8 +7,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +21,7 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -177,10 +176,8 @@ public class ProblemDetailsExceptionHandler extends ResponseEntityExceptionHandl
       ProblemDetail body, String code, List<FieldViolation> errors, WebRequest request) {
     body.setType(URI.create(PROBLEM_TYPE_BASE + code));
     body.setProperty("code", code);
-    if (body.getInstance() == null
-        && request instanceof NativeWebRequest nativeRequest
-        && nativeRequest.getNativeRequest() instanceof HttpServletRequest servletRequest) {
-      body.setInstance(URI.create(servletRequest.getRequestURI()));
+    if (body.getInstance() == null && request instanceof ServletWebRequest servletRequest) {
+      body.setInstance(URI.create(servletRequest.getRequest().getRequestURI()));
     }
     Object correlationId = request.getAttribute(CorrelationIdFilter.ATTRIBUTE, 0);
     if (correlationId != null) {

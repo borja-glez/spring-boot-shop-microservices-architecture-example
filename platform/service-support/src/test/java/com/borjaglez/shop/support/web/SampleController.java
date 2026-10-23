@@ -158,6 +158,11 @@ class SampleController {
     return Map.of("size", size);
   }
 
+  @GetMapping("/declared-other-header")
+  Map<String, String> declaredOtherHeader(@RequestHeader("X-Other") String other) {
+    return Map.of("other", other);
+  }
+
   @GetMapping("/whoami-optional")
   Map<String, String> whoamiOptional(@CurrentUser(required = false) String user) {
     return Map.of("user", String.valueOf(user));

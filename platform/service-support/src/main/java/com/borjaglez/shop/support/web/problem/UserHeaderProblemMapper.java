@@ -1,5 +1,6 @@
 package com.borjaglez.shop.support.web.problem;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import org.jspecify.annotations.Nullable;
@@ -43,9 +44,9 @@ public class UserHeaderProblemMapper implements ProblemMapper {
         .findFirst()
         .map(
             result ->
-                result.getArgument() instanceof String value && !value.isBlank()
-                    ? invalidUser(CurrentUserArgumentResolver.INVALID_MESSAGE)
-                    : missingUser(CurrentUserArgumentResolver.MISSING_MESSAGE));
+                Objects.toString(result.getArgument(), "").isBlank()
+                    ? missingUser(CurrentUserArgumentResolver.MISSING_MESSAGE)
+                    : invalidUser(CurrentUserArgumentResolver.INVALID_MESSAGE));
   }
 
   private static boolean isUserHeader(@Nullable RequestHeader header) {
