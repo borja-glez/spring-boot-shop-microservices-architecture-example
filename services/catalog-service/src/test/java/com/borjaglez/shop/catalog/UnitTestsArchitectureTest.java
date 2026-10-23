@@ -14,7 +14,7 @@ import com.tngtech.archunit.junit.ArchTests;
 @AnalyzeClasses(
     packages = "com.borjaglez.shop.catalog",
     importOptions = ImportOption.OnlyIncludeTests.class)
-class UnitTestArchitectureTest {
+class UnitTestsArchitectureTest {
 
-  @ArchTest static final ArchTests unitTests = ShopArchitecture.unitTests();
+  @ArchTest static final ArchTests rules = ShopArchitecture.unitTests();
 }

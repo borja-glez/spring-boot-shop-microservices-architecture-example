@@ -26,7 +26,8 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
  * random port, with PostgreSQL, Kafka and RabbitMQ in containers. Nothing of the catalog is
  * replaced. Its neighbours are: {@link InventoryStandIn}, which answers the stock questions over
  * RabbitMQ as inventory-service does, and {@link EventsTopic}, which reads the events topic as the
- * other services do. {@link StockQuestions} watches the questions on their way out.
+ * other services do. {@link StockQuestions} watches the questions on their way out, and {@link
+ * CatalogMessageContract} checks the messages against the AsyncAPI document.
  *
  * <p>Every test class annotated with it shares one cached application context, and so one database
  * and one set of brokers: a test changes only the products it creates ({@link CatalogClient}) and
@@ -44,12 +45,18 @@ import com.borjaglez.shop.testsupport.RabbitTestConfiguration;
   RabbitTestConfiguration.class,
   CatalogComponentTest.Neighbours.class
 })
-public @interface CatalogComponentTest {
+@interface CatalogComponentTest {
 
   /** What the catalog meets around it in the platform, as the tests see it. */
   @TestConfiguration(proxyBeanMethods = false)
   @Import(InventoryStandIn.class)
   class Neighbours {
+
+    @Bean
+    CatalogMessageContract catalogMessageContract(
+        MessageSerializer serializer, MessageNamingStrategy naming) {
+      return new CatalogMessageContract(serializer, naming);
+    }
 
     @Bean
     EventsTopic eventsTopic(

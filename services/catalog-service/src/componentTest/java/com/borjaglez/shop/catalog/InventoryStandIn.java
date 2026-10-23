@@ -24,29 +24,30 @@ import com.borjaglez.shop.contracts.inventory.StockLevels;
  * with the correlation id it arrived with.
  *
  * <p>A {@link TestComponent}, so it is a bean only where {@link CatalogComponentTest} imports it.
+ * Its handler method is public, as spring-boot-cqrs calls it.
  */
 @TestComponent
 @QueryHandler
-public class InventoryStandIn {
+class InventoryStandIn {
 
   /** A question as it arrived from RabbitMQ. */
-  public record Question(List<UUID> productIds, String correlationId) {}
+  record Question(List<UUID> productIds, String correlationId) {}
 
   private final Map<UUID, Integer> units = new ConcurrentHashMap<>();
   private final Set<UUID> failing = ConcurrentHashMap.newKeySet();
   private final List<Question> questions = new CopyOnWriteArrayList<>();
 
-  public void stock(UUID productId, int available) {
+  void stock(UUID productId, int available) {
     units.put(productId, available);
   }
 
   /** The inventory answers with an error when asked about this product. */
-  public void failsFor(UUID productId) {
+  void failsFor(UUID productId) {
     failing.add(productId);
   }
 
   /** The questions received about the product, oldest first. */
-  public List<Question> questionsAbout(UUID productId) {
+  List<Question> questionsAbout(UUID productId) {
     return questions.stream()
         .filter(question -> question.productIds().contains(productId))
         .toList();

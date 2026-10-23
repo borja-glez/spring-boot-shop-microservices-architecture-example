@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -13,26 +12,29 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import com.borjaglez.cqrs.asyncapi.AsyncApiVerifier;
 import com.borjaglez.cqrs.introspection.CqrsIntrospection;
-import com.borjaglez.cqrs.naming.MessageNamingStrategy;
-import com.borjaglez.cqrs.serialization.MessageSerializer;
 import com.borjaglez.shop.catalog.EventsTopic.Received;
+import com.borjaglez.shop.catalog.infrastructure.in.messaging.CatalogEventsLogger;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.testsupport.contract.AsyncApiContracts;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
  * The messages of the catalog as the running application exchanges them, against {@code
- * catalog.yaml}: what it receives has a handler, and the seed products are announced on Kafka.
+ * catalog.yaml}: what it receives has a handler that reads it from Kafka, and the seed products are
+ * announced there.
  */
 @CatalogComponentTest
 class CatalogMessagesComponentTest {
-
-  private static final Path CONTRACT = Path.of("src/main/asyncapi/catalog.yaml");
 
   /** The correlation id the seed publications carry (V1002). */
   private static final String SEED = "catalog-seed";
@@ -40,19 +42,56 @@ class CatalogMessagesComponentTest {
   /** The seed products on sale (V2__catalog_seed.sql). */
   private static final int SEEDED_ON_SALE = 62;
 
+  @LocalServerPort int port;
   @Autowired CqrsIntrospection introspection;
-  @Autowired MessageSerializer serializer;
-  @Autowired MessageNamingStrategy naming;
+  @Autowired CatalogMessageContract contract;
   @Autowired EventsTopic kafka;
   @Autowired JdbcTemplate jdbc;
 
-  private AsyncApiVerifier verifier() {
-    return AsyncApiContracts.verifier(CONTRACT, serializer, naming);
+  CatalogClient catalog;
+
+  @BeforeEach
+  void client() {
+    catalog = new CatalogClient(port);
   }
 
   @Test
   void everyReceivedMessageHasAHandler() {
-    verifier().verifyHandlers(introspection);
+    contract.verifier().verifyHandlers(introspection);
+  }
+
+  /**
+   * The catalog reads its own events back ({@code receiveCatalogEvents}): its cqrs consumer takes
+   * them from Kafka and {@link CatalogEventsLogger} logs them.
+   */
+  @Test
+  void aPublishedProductIsReadBackFromKafkaByTheCatalog() {
+    Logger logger = (Logger) LoggerFactory.getLogger(CatalogEventsLogger.class);
+    ListAppender<ILoggingEvent> logged = new ListAppender<>();
+    logged.start();
+    logger.addAppender(logged);
+    try {
+      String sku = CatalogClient.uniqueSku();
+
+      catalog.onSale(sku, "Illas Cíes", "16.00");
+
+      await()
+          .atMost(Duration.ofSeconds(30))
+          .until(
+              () -> lines(logged),
+              lines -> lines.contains("Product " + sku + " published at 16.00 EUR"));
+    } finally {
+      logger.detachAppender(logged);
+    }
+  }
+
+  /**
+   * What the appender holds, read under its lock: Kafka's consumer thread writes to it meanwhile.
+   */
+  private static List<String> lines(ListAppender<ILoggingEvent> appender) {
+    synchronized (appender) {
+      return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
   }
 
   /**
@@ -89,7 +128,6 @@ class CatalogMessagesComponentTest {
             .map(received -> received.event().getProductId())
             .collect(Collectors.toSet());
     assertThat(products).isEqualTo(seededOnSale.keySet());
-    AsyncApiVerifier contract = verifier();
     for (Received<ProductPublished> received : announced) {
       ProductPublished event = received.event();
       Map<String, Object> product = seededOnSale.get(event.getProductId());
@@ -99,8 +137,7 @@ class CatalogMessagesComponentTest {
       assertThat(event.getCurrency()).isEqualTo(product.get("price_currency"));
       assertThat(event.getSellerId()).isEqualTo(product.get("seller_id"));
       assertThat(received.key()).isEqualTo(received.name());
-      contract.sample(received.name(), received.json());
     }
-    contract.verifyPayloads();
+    contract.assertPayloadsFollowIt(announced);
   }
 }

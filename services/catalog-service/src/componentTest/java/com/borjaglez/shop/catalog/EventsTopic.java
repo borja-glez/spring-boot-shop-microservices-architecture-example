@@ -25,10 +25,10 @@ import com.borjaglez.cqrs.serialization.MessageSerializer;
  * record from the beginning, so a test finds the events it caused, and the seed's, whatever ran
  * before it. The headers it reads are those of {@code platform/api-contracts/asyncapi/common.yaml}.
  */
-public class EventsTopic implements AutoCloseable {
+class EventsTopic implements AutoCloseable {
 
   /** The topic of the integration events ({@code cqrs.kafka.prefix=shop}). */
-  public static final String NAME = "shop.events";
+  static final String NAME = "shop.events";
 
   private static final Duration PATIENCE = Duration.ofSeconds(30);
 
@@ -36,7 +36,7 @@ public class EventsTopic implements AutoCloseable {
    * An event as it arrived: the record key, the logical name and the correlation id of its headers,
    * the payload as JSON and the event the application's serializer reads from it.
    */
-  public record Received<E extends Event>(
+  record Received<E extends Event>(
       String key, String name, String correlationId, Map<String, Object> json, E event) {}
 
   private record Raw(String key, String name, String correlationId, byte[] payload) {}
@@ -67,7 +67,7 @@ public class EventsTopic implements AutoCloseable {
   }
 
   /** The events of the type received so far. */
-  public synchronized <E extends Event> List<Received<E>> received(Class<E> type) {
+  synchronized <E extends Event> List<Received<E>> received(Class<E> type) {
     for (ConsumerRecord<String, byte[]> record : consumer.poll(Duration.ofMillis(200))) {
       records.add(
           new Raw(
@@ -84,7 +84,7 @@ public class EventsTopic implements AutoCloseable {
   }
 
   /** Waits for the events of the type that match, and returns those received by then. */
-  public <E extends Event> List<Received<E>> awaitReceived(Class<E> type, Predicate<E> matching) {
+  <E extends Event> List<Received<E>> awaitReceived(Class<E> type, Predicate<E> matching) {
     return await()
         .atMost(PATIENCE)
         .pollInSameThread()

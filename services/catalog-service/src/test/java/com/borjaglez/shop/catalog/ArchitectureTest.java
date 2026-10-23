@@ -20,7 +20,7 @@ import com.tngtech.archunit.lang.ArchRule;
     importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
-  @ArchTest static final ArchTests shop = ShopArchitecture.all();
+  @ArchTest static final ArchTests rules = ShopArchitecture.all();
 
   @ArchTest
   static final ArchRule handlersDoNotDependOnSpring =

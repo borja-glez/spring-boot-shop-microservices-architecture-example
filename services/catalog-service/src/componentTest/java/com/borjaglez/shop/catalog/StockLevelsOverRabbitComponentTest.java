@@ -78,7 +78,7 @@ class StockLevelsOverRabbitComponentTest {
     Map<String, Object> page = catalog.pageOf("rooibos-con-vainilla-caf-008");
 
     assertThat(page).containsEntry("status", "DISCONTINUED").containsEntry("availability", null);
-    assertThat(inventory.questionsAbout(UUID.fromString((String) page.get("id")))).isEmpty();
+    assertThat(questions.about(new ProductId(UUID.fromString((String) page.get("id"))))).isEmpty();
   }
 
   @Test

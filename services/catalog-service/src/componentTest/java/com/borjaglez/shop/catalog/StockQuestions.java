@@ -15,10 +15,10 @@ import com.borjaglez.shop.catalog.domain.ProductId;
  * them over RabbitMQ: which products each one is about and whether a transaction was open when it
  * was asked. A product page must not hold a database connection while it waits for the inventory.
  */
-public class StockQuestions implements StockLevels {
+class StockQuestions implements StockLevels {
 
   /** A question on its way to the inventory. */
-  public record Question(List<ProductId> products, boolean inTransaction) {}
+  record Question(List<ProductId> products, boolean inTransaction) {}
 
   private final StockLevels inventory;
   private final List<Question> asked = new CopyOnWriteArrayList<>();
@@ -36,7 +36,7 @@ public class StockQuestions implements StockLevels {
   }
 
   /** The questions asked about the product, oldest first. */
-  public List<Question> about(ProductId product) {
+  List<Question> about(ProductId product) {
     return asked.stream().filter(question -> question.products().contains(product)).toList();
   }
 }

@@ -3,7 +3,6 @@ package com.borjaglez.shop.catalog;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -15,14 +14,10 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import com.borjaglez.cqrs.asyncapi.AsyncApiVerifier;
-import com.borjaglez.cqrs.naming.MessageNamingStrategy;
-import com.borjaglez.cqrs.serialization.MessageSerializer;
 import com.borjaglez.shop.catalog.EventsTopic.Received;
 import com.borjaglez.shop.contracts.catalog.ProductDiscontinued;
 import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.testsupport.contract.AsyncApiContracts;
 
 /**
  * A seller's product from its creation to its withdrawal, over HTTP and through the real buses,
@@ -33,28 +28,16 @@ import com.borjaglez.shop.testsupport.contract.AsyncApiContracts;
 @CatalogComponentTest
 class ProductLifecycleComponentTest {
 
-  private static final Path CONTRACT = Path.of("src/main/asyncapi/catalog.yaml");
-
   @LocalServerPort int port;
   @Autowired EventsTopic kafka;
   @Autowired JdbcTemplate jdbc;
-  @Autowired MessageSerializer serializer;
-  @Autowired MessageNamingStrategy naming;
+  @Autowired CatalogMessageContract contract;
 
   CatalogClient catalog;
 
   @BeforeEach
   void client() {
     catalog = new CatalogClient(port);
-  }
-
-  /** Checks the payloads of events as they were on the wire against the AsyncAPI document. */
-  private void assertFollowTheContract(Received<?>... events) {
-    AsyncApiVerifier verifier = AsyncApiContracts.verifier(CONTRACT, serializer, naming);
-    for (Received<?> event : events) {
-      verifier.sample(event.name(), event.json());
-    }
-    verifier.verifyPayloads();
   }
 
   /** The events the event store keeps for the product, by type. */
@@ -110,7 +93,7 @@ class ProductLifecycleComponentTest {
         kafka
             .awaitReceived(ProductPublished.class, event -> event.getProductId().equals(id))
             .getFirst();
-    assertThat(published.key()).isEqualTo(naming.eventName(ProductPublished.class));
+    assertThat(published.key()).isEqualTo(published.name());
     assertThat(published.event())
         .satisfies(
             event -> {
@@ -121,7 +104,7 @@ class ProductLifecycleComponentTest {
               assertThat(event.getSellerId()).isEqualTo(CatalogClient.SELLER);
             });
     assertThat(storedEvents(id, "product-published.v1")).isOne();
-    assertFollowTheContract(published);
+    contract.assertPayloadsFollowIt(List.of(published));
   }
 
   @Test
@@ -162,7 +145,7 @@ class ProductLifecycleComponentTest {
                 changed.event().getEventId()))
         .as("relayed from the outbox")
         .isOne();
-    assertFollowTheContract(changed);
+    contract.assertPayloadsFollowIt(List.of(changed));
   }
 
   @Test
@@ -202,6 +185,6 @@ class ProductLifecycleComponentTest {
             .awaitReceived(ProductDiscontinued.class, event -> event.getProductId().equals(id))
             .getFirst();
     assertThat(discontinued.event().getReason()).isEqualTo("Out of print");
-    assertFollowTheContract(discontinued);
+    contract.assertPayloadsFollowIt(List.of(discontinued));
   }
 }
