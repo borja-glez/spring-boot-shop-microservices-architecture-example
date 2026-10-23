@@ -1,6 +1,6 @@
 # Observability
 
-Every service of Mercado produces traces, metrics and logs through OpenTelemetry, and a single environment variable, `OTEL_EXPORTER_OTLP_ENDPOINT`, sends all three to an OTLP collector. The demo stack is `grafana/otel-lgtm`: an OpenTelemetry Collector feeding Tempo (traces), Prometheus (metrics) and Loki (logs), with Grafana on top and two dashboards and five alert rules provisioned from the repository. One order is one trace, from the HTTP request at the gateway through the saga steps over RabbitMQ and the events relayed to Kafka, down to the last projection. Standard metrics describe HTTP, JVM, connection pools and brokers; custom metrics describe what the architecture is doing: the outbox backlog, the eventual-consistency window of every read model, and the outcome and duration of every checkout. Logs carry the correlation id and the trace id, and Grafana jumps between a log line and its trace.
+Every service of Mercado produces traces, metrics and logs through OpenTelemetry, and a single environment variable, `OTEL_EXPORTER_OTLP_ENDPOINT`, sends all three to an OTLP collector. The demo stack is `grafana/otel-lgtm`: an OpenTelemetry Collector feeding Tempo (traces), Prometheus (metrics) and Loki (logs), with Grafana on top and two dashboards and six alert rules provisioned from the repository. One order is one trace, from the HTTP request at the gateway through the saga steps over RabbitMQ and the events relayed to Kafka, down to the last projection. Standard metrics describe HTTP, JVM, connection pools and brokers; custom metrics describe what the architecture is doing: the outbox backlog, the eventual-consistency window of every read model, and the outcome and duration of every checkout. Logs carry the correlation id and the trace id, and Grafana jumps between a log line and its trace.
 
 <p align="center"><img src="../assets/diagrams/observability.svg" alt="Telemetry pipeline from the services through the OpenTelemetry Collector into Tempo, Prometheus, Loki and Grafana" width="100%"></p>
 
@@ -112,6 +112,11 @@ Spring Boot instruments only the Kafka factories it creates. [`KafkaClientMetric
 | `shop.outbox.published` | `shop_outbox_published_total` | counter | `event.type` | Events the relay published |
 | `shop.outbox.failures` | `shop_outbox_failures_total` | counter | `event.type` | Failed publication attempts |
 | `shop.outbox.delay` | `shop_outbox_delay_milliseconds_*` | timer | | From the business transaction to the broker's acknowledgement |
+| `cqrs.outbox.pending` | `cqrs_outbox_pending` | gauge | | Rows of `cqrs_outbox` the relay has not published yet (services on the cqrs outbox, such as the catalog) |
+| `cqrs.outbox.oldest.pending.age` | `cqrs_outbox_oldest_pending_age_milliseconds` | gauge | | How long the oldest pending row has waited; OTLP exports it in milliseconds, and the panels and the alert divide it by 1000 |
+| `cqrs.outbox.set.aside` | `cqrs_outbox_set_aside` | gauge | | Rows the relay could not read and set aside for good |
+| `cqrs.outbox.published` | `cqrs_outbox_published_total` | counter | | Rows the relay published; it has no event type tag |
+| `cqrs.outbox.publish.failures` | `cqrs_outbox_publish_failures_total` | counter | | Failed publication attempts |
 | `shop.consumer.events` | `shop_consumer_events_total` | counter | `consumer`, `outcome` = `applied` / `duplicate` | Events handled by each idempotent consumer (`@Idempotent` name) |
 | `shop.consumer.lag` | `shop_consumer_lag_milliseconds_*` | timer | `consumer` | From the event's time to its projection: the eventual-consistency window of that read model |
 | `shop.checkout.steps` | `shop_checkout_steps_total` | counter | `step`, `result` = `succeeded` / `declined` / `retrying` / `gave-up` | Attempts of each saga step |
@@ -119,6 +124,8 @@ Spring Boot instruments only the Kafka factories it creates. [`KafkaClientMetric
 | `shop.checkout.duration` | `shop_checkout_duration_milliseconds_*` | timer | `outcome` | From order placed to confirmed or rejected |
 | `shop.checkout.sagas` | `shop_checkout_sagas` | gauge | `state` = `running` / `stuck` | Sagas that still have work to do |
 | `shop.notifications.sse.connections` | `shop_notifications_sse_connections` | gauge | | Open SSE connections of notifications |
+
+The `shop.outbox.*` meters belong to the event store relay (orders, payments, inventory); the `cqrs.outbox.*` meters come from the relay of spring-boot-cqrs (catalog), and a service reports one family or the other, never both. The `service_name` label tells them apart, so the dashboards and the alerts read both families and show each service once. Only the event store relay times the delay between the transaction and the broker's acknowledgement.
 
 Sources: [`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java) and [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) (outbox), [`ConsumerMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/ConsumerMetrics.java) (consumers), [`CheckoutMetrics`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/checkout/CheckoutMetrics.java) (checkout), [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) (SSE). The gauges read the database when they are collected (the pending rows have their own partial index) and report `NaN` instead of failing the collection if the read fails. Counters and timers of the relay and the saga are recorded after their transaction commits, so rolled-back work is never counted.
 
@@ -144,7 +151,7 @@ Two dashboards are provisioned in the Grafana folder **Shop** from [`deploy/k8s/
 | Summary | Checkouts per minute, confirmation rate, p95 checkout time, sagas in progress, stuck sagas, technical rejections in the last hour |
 | Checkout saga | Outcomes per minute, rejection reasons, checkout duration (p50, p95), step results per second, sagas by state |
 | CQRS buses (spring-boot-cqrs) | Handled messages/s by kind and type, handler failures/s, p95 handling time |
-| Transactional outbox | Pending events, oldest pending event age, store-to-Kafka delay (p95), published events/s by type, publish failures/s |
+| Transactional outbox | Pending events and rows set aside by the cqrs outbox, oldest pending event age, store-to-Kafka delay (p95, event store relay only), published events/s by type (by service for the cqrs outbox), publish failures/s |
 | Kafka consumers and read models | Consumer lag in records, read-model delay (p95 of `shop.consumer.lag`), events applied/s, duplicates ignored/s |
 | RabbitMQ (saga commands) | Request/reply time (p95), messages published and consumed per second |
 | Service graph | Who calls whom over HTTP, RabbitMQ and Kafka, built by Tempo from the spans |
@@ -155,12 +162,13 @@ Both dashboards have a `service` variable to focus on one or several services.
 
 ## Alert rules
 
-Five rules are provisioned from [`shop-alerts.yaml`](../../deploy/k8s/components/observability/grafana/alerting/shop-alerts.yaml) into the Shop folder (Alerting > Alert rules). Each watches a failure mode the architecture is designed to absorb, so it fires when the safety net has been in use for too long rather than on every transient failure.
+Six rules are provisioned from [`shop-alerts.yaml`](../../deploy/k8s/components/observability/grafana/alerting/shop-alerts.yaml) into the Shop folder (Alerting > Alert rules). Each watches a failure mode the architecture is designed to absorb, so it fires when the safety net has been in use for too long rather than on every transient failure.
 
 | Rule | Condition | Severity | The safety net being used |
 |---|---|---|---|
 | Server errors above 5% | 5xx share of non-actuator requests per service > 5% for 2 min | critical | Retries and problem details hide single failures; a sustained 5xx rate is a real outage. 4xx are business answers and are not counted. |
-| Events are not reaching Kafka | `shop_outbox_oldest_age_seconds` > 60 for 1 min | warning | The outbox keeps every event safe in the database, but read models, reports and notices stop moving until Kafka or the relay is back. |
+| Events are not reaching Kafka | `shop_outbox_oldest_age_seconds` or `cqrs_outbox_oldest_pending_age_milliseconds` / 1000 > 60 for 1 min | warning | The outbox keeps every event safe in the database, but read models, reports and notices stop moving until Kafka or the relay is back. |
+| Events were set aside by the outbox relay | `cqrs_outbox_set_aside` > 0 for 1 min | critical | The cqrs outbox relay skips a row it cannot read (an event class it no longer knows, a payload that does not deserialize) so the rows behind it keep flowing; the skipped event never reaches Kafka until someone fixes and re-sends it. |
 | Checkout compensations are stuck | `shop_checkout_sagas{state="stuck"}` > 0 for 1 min | critical | A refund or stock release failed 20 times; the saga keeps retrying every 30 s, but money or stock is held meanwhile. |
 | Orders rejected because a service did not answer | any `shop_checkout_completed_total{outcome="rejected",reason=~".*-unavailable"}` in 10 min | warning | The saga gave up on inventory or payments after about two minutes of retries; the customer did nothing wrong. |
 | Read models are falling behind | `kafka_consumer_fetch_manager_records_lag_max` > 1000 for 5 min | warning | Idempotent consumers absorb redeliveries and lag, but projections are stale; look for failing handlers or scale out. |
