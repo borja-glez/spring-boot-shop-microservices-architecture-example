@@ -5,8 +5,9 @@ info:
   description: |
     Components shared by the Mercado AsyncAPI contracts: the brokers, the headers the spring-boot-cqrs
     adapters put on every record or message, and the Kafka and RabbitMQ bindings. This document
-    declares no channels; a service contract references what it needs with a relative `$ref`, for
-    example `$ref: '../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'`.
+    declares no channels; a service contract, `services/<service>/src/main/asyncapi/<service>.yaml`,
+    references what it needs with a relative `$ref`, for example
+    `$ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'`.
 
     ## Message names
 
