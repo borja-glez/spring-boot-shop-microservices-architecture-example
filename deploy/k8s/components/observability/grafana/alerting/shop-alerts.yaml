@@ -51,7 +51,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "The oldest unpublished event of {{ $labels.service_name }} has waited over a minute for the event store relay or the cqrs outbox relay"
+          summary: "The oldest unpublished event of {{ $labels.service_name }} has not been published for over a minute (event store relay or cqrs outbox relay)"
           description: >-
             The transactional outbox keeps every event safe in the service's database, but other
             services (read models, reports, notifications) stop seeing changes until Kafka is back.
