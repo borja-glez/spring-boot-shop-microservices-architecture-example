@@ -20,7 +20,7 @@ Examples: [`OrderTest`](../../services/orders-service/src/test/java/com/borjagle
 
 ## Architecture tests
 
-Each service has an `ArchitectureTest` that applies the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
+Each service has an `ArchitectureTest`. The layered services (all but the catalog) apply the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
 
 ```java
 class ArchitectureTest {
@@ -29,6 +29,24 @@ class ArchitectureTest {
   static final ArchRule layers = ShopArchitectureRules.layersOf("com.borjaglez.shop.orders");
 
   @ArchTest static final ArchRule constructorInjection = ShopArchitectureRules.noFieldInjection();
+}
+```
+
+The hexagonal catalog applies the rules of [`platform/architecture-rules`](../../platform/architecture-rules) instead. Its [`ArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/ArchitectureTest.java) imports the production classes and applies `ShopArchitecture.all()` (the hexagonal, DDD and layout rules) and three rules of `CqrsArchitectureRules` from spring-boot-cqrs for the code of a service (`handlersDoNotDependOnSpring`, `handlerMethodsAreInHandlerClasses`, `messagesDoNotDependOnFrameworks`). Its [`UnitTestsArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/UnitTestsArchitectureTest.java) imports the classes of the `test` suite and applies `ShopArchitecture.unitTests()`, so no unit test depends on Spring:
+
+```java
+@AnalyzeClasses(
+    packages = "com.borjaglez.shop.catalog",
+    importOptions = ImportOption.DoNotIncludeTests.class)
+class ArchitectureTest {
+
+  @ArchTest static final ArchTests rules = ShopArchitecture.all();
+
+  @ArchTest
+  static final ArchRule handlersDoNotDependOnSpring =
+      CqrsArchitectureRules.handlersDoNotDependOnSpring();
+
+  // ... handlerMethodsAreInHandlerClasses(), messagesDoNotDependOnFrameworks()
 }
 ```
 

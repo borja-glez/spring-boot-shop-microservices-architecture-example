@@ -20,7 +20,7 @@ Ejemplos: [`OrderTest`](../../services/orders-service/src/test/java/com/borjagle
 
 ## Tests de arquitectura
 
-Cada servicio tiene un `ArchitectureTest` que aplica las reglas compartidas de [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
+Cada servicio tiene un `ArchitectureTest`. Los servicios por capas (todos menos el catálogo) aplican las reglas compartidas de [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
 
 ```java
 class ArchitectureTest {
@@ -29,6 +29,24 @@ class ArchitectureTest {
   static final ArchRule layers = ShopArchitectureRules.layersOf("com.borjaglez.shop.orders");
 
   @ArchTest static final ArchRule constructorInjection = ShopArchitectureRules.noFieldInjection();
+}
+```
+
+El catálogo, hexagonal, aplica en su lugar las reglas de [`platform/architecture-rules`](../../platform/architecture-rules). Su [`ArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/ArchitectureTest.java) importa las clases de producción y aplica `ShopArchitecture.all()` (las reglas hexagonales, de DDD y de organización) y tres reglas de `CqrsArchitectureRules` de spring-boot-cqrs para el código de un servicio (`handlersDoNotDependOnSpring`, `handlerMethodsAreInHandlerClasses`, `messagesDoNotDependOnFrameworks`). Su [`UnitTestsArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/UnitTestsArchitectureTest.java) importa las clases de la suite `test` y aplica `ShopArchitecture.unitTests()`, de modo que ningún test unitario depende de Spring:
+
+```java
+@AnalyzeClasses(
+    packages = "com.borjaglez.shop.catalog",
+    importOptions = ImportOption.DoNotIncludeTests.class)
+class ArchitectureTest {
+
+  @ArchTest static final ArchTests rules = ShopArchitecture.all();
+
+  @ArchTest
+  static final ArchRule handlersDoNotDependOnSpring =
+      CqrsArchitectureRules.handlersDoNotDependOnSpring();
+
+  // ... handlerMethodsAreInHandlerClasses(), messagesDoNotDependOnFrameworks()
 }
 ```
 

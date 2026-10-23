@@ -8,7 +8,7 @@ Mercado es un marketplace dividido en seis servicios de negocio y un gateway, ca
 
 | Servicio | Puerto | Responsabilidad | Base de datos | Mensajería de entrada | Mensajería de salida | Spring Boot |
 |---|---|---|---|---|---|---|
-| `gateway-service` | 8080 | Punto de entrada público único; enruta `/api/v1/<service>/**` para todos los servicios, `/api/<service>/**` para los que aún lo tienen (todos menos el catálogo) y `/api/v1/chaos/<service>/**` para los endpoints de caos | ninguna | HTTP desde nginx | HTTP hacia los servicios | 4 (Jackson 3) |
+| `gateway-service` | 8080 | Punto de entrada público único; enruta `/api/v1/<service>/**` para todos los servicios, `/api/<service>/**` para los servicios cuya API no está versionada (todos menos el catálogo) y `/api/v1/chaos/<service>/**` para los endpoints de caos | ninguna | HTTP desde nginx | HTTP hacia los servicios | 4 (Jackson 3) |
 | `catalog-service` | 8081 | Los vendedores publican, cambian el precio y descatalogan productos; búsqueda pública y facetas; fichas de producto con stock en vivo | `catalog` | Kafka: sus propios eventos de catálogo (se registran en el log) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; consultas RabbitMQ: `GetStockLevels` | 4 (Jackson 3) |
 | `orders-service` | 8082 | Pedidos con event sourcing, orquestación de la saga de checkout, copia local del catálogo, modelo de lectura de pedidos, explorador del event store | `orders` | Kafka: eventos de catálogo, eventos de pedidos | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; peticiones RabbitMQ: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; consultas RabbitMQ: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
 | `inventory-service` | 8083 | Stock por producto, reservas de todo o nada, backoffice de stock | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
@@ -165,13 +165,22 @@ Los correlation ids identifican una petición de negocio; los trace ids identifi
 
 ## El usuario de demostración
 
-El ejemplo no tiene autenticación. La tienda permite al visitante elegir un cliente o vendedor de demostración y envía su id en la cabecera `X-Shop-User`. Los controladores lo reciben con [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
+El ejemplo no tiene autenticación. La tienda permite al visitante elegir un cliente o vendedor de demostración y envía su id en la cabecera `X-Shop-User`. Los controladores de los servicios por capas lo reciben con [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
 
 ```java
 @PostMapping
 @ResponseStatus(HttpStatus.CREATED)
 CreatedResponse place(@CurrentUser String customer, @Valid @RequestBody PlaceOrderRequest body) {
 ```
+
+En el catálogo la cabecera es un parámetro del contrato (`ShopUser` en `common.v1.yaml`), así que las interfaces generadas a partir de él la declaran como un argumento `@RequestHeader("X-Shop-User")` y el controlador recibe un `String` sin más:
+
+```java
+@Override
+public ResponseEntity<Void> publishProduct(String seller, UUID id) {
+```
+
+[`UserHeaderInterceptor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/UserHeaderInterceptor.java) comprueba esa cabecera antes de que Spring MVC lea las variables de la ruta y el cuerpo, y responde como `@CurrentUser`: 401 `missing-user` si falta, 400 `invalid-user` si el valor no es un id de usuario. Solo los rechazos que Spring MVC hace mientras elige el handler (405, 406 y 415) llegan antes.
 
 La propiedad se sigue comprobando en el servidor: los clientes solo ven sus propios pedidos, y un vendedor que toca el producto de otro vendedor recibe un 404, para no revelar que el producto existe. `notifications-service` lee la misma cabecera, y su stream SSE recibe el usuario como parámetro de consulta porque el `EventSource` del navegador no puede enviar cabeceras.
 

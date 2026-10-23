@@ -34,8 +34,8 @@ Todos los fallos empiezan desactivados. Los componentes registran sus fallos en 
 | `ReserveStock.fail` / `ReserveStock.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las reservas fallan o son lentas |
 | `ReleaseStock.fail` / `ReleaseStock.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las liberaciones fallan o son lentas |
 | `GetStockLevels.fail` / `GetStockLevels.delay-ms` | interruptor / retraso | inventory | `MessageChaosMiddleware` | Las lecturas de stock fallan o son lentas (por encima de 1 s la ficha y el carrito muestran el stock como desconocido) |
-| `relay.paused` | interruptor | catalog, orders, inventory, payments | `OutboxRelay` | El relay se detiene, como si Kafka estuviera caído |
-| `relay.duplicate` | interruptor | catalog, orders, inventory, payments | `OutboxRelay` | Cada evento se publica dos veces |
+| `relay.paused` | interruptor | catalog, orders, inventory, payments | `OutboxRelay`; en el catálogo, `ChaosEventBus` (mediante `RelayFaults`) | El relay se detiene, como si Kafka estuviera caído |
+| `relay.duplicate` | interruptor | catalog, orders, inventory, payments | `OutboxRelay`; en el catálogo, `ChaosEventBus` (mediante `RelayFaults`) | Cada evento se publica dos veces |
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) es un middleware de spring-boot-cqrs que registra un fallo `.delay-ms` y otro `.fail` por cada nombre simple de clase listado en `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` en inventory, `AuthorizePayment, RefundPayment` en payments). Se sitúa en los buses locales, así que también afecta a los comandos y consultas que llegan por RabbitMQ: quien llama ve un servicio lento o un error remoto, exactamente igual que en una caída real. Un fallo inyectado es una [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), que deliberadamente no se traduce a un 4xx.
 

@@ -8,7 +8,7 @@ Mercado is a marketplace split into six business services and a gateway, each an
 
 | Service | Port | Responsibility | Database | Messaging in | Messaging out | Spring Boot |
 |---|---|---|---|---|---|---|
-| `gateway-service` | 8080 | Single public entry point; routes `/api/v1/<service>/**` for every service, `/api/<service>/**` for those that still have it (all but the catalog) and `/api/v1/chaos/<service>/**` for the chaos endpoints | none | HTTP from nginx | HTTP to the services | 4 (Jackson 3) |
+| `gateway-service` | 8080 | Single public entry point; routes `/api/v1/<service>/**` for every service, `/api/<service>/**` for the services whose API is not versioned (all but the catalog) and `/api/v1/chaos/<service>/**` for the chaos endpoints | none | HTTP from nginx | HTTP to the services | 4 (Jackson 3) |
 | `catalog-service` | 8081 | Sellers publish, reprice and discontinue products; public search and facets; product pages with live stock | `catalog` | Kafka: its own catalog events (logged) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; RabbitMQ queries: `GetStockLevels` | 4 (Jackson 3) |
 | `orders-service` | 8082 | Event-sourced orders, checkout saga orchestration, local catalog copy, order read model, event store explorer | `orders` | Kafka: catalog events, order events | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; RabbitMQ requests: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; RabbitMQ queries: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
 | `inventory-service` | 8083 | Stock per product, all-or-nothing reservations, stock backoffice | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
@@ -165,13 +165,22 @@ Correlation ids identify a business request; trace ids identify a technical trac
 
 ## The demo user
 
-The example has no authentication. The shop lets the visitor pick a demo customer or seller and sends its id in the `X-Shop-User` header. Controllers receive it with [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
+The example has no authentication. The shop lets the visitor pick a demo customer or seller and sends its id in the `X-Shop-User` header. The controllers of the layered services receive it with [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
 
 ```java
 @PostMapping
 @ResponseStatus(HttpStatus.CREATED)
 CreatedResponse place(@CurrentUser String customer, @Valid @RequestBody PlaceOrderRequest body) {
 ```
+
+In the catalog the header is a parameter of the contract (`ShopUser` in `common.v1.yaml`), so the interfaces generated from it declare it as a `@RequestHeader("X-Shop-User")` argument and the controller receives a plain `String`:
+
+```java
+@Override
+public ResponseEntity<Void> publishProduct(String seller, UUID id) {
+```
+
+[`UserHeaderInterceptor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/UserHeaderInterceptor.java) checks that header before Spring MVC reads the path variables and the body, and answers as `@CurrentUser` does: 401 `missing-user` without it, 400 `invalid-user` for a value that is not a user id. Only the rejections Spring MVC makes while it picks the handler (405, 406 and 415) come before it.
 
 Ownership is still enforced on the server: customers only see their own orders, and a seller who touches another seller's product gets a 404, so the product's existence is not revealed. `notifications-service` reads the same header, and its SSE stream takes the user as a query parameter because the browser's `EventSource` cannot send headers.
 

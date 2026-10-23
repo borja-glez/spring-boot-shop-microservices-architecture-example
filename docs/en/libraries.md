@@ -136,10 +136,11 @@ Every message dispatched on a local bus, including commands received over Rabbit
 
 | Middleware | Source | Effect |
 |---|---|---|
-| `CommandValidationInterceptor` | spring-boot-cqrs (when a `Validator` exists) | Validates commands with Bean Validation before the handler runs; a violation becomes `ConstraintViolationException`, rendered as 400 `validation-failed` by `ValidationProblemMapper`. `CreateProductCommand` relies on it (`@NotBlank`, `@Size`, `@Positive`...). |
+| `CommandValidationInterceptor` | spring-boot-cqrs (when a `Validator` exists) | Validates commands with Bean Validation before the handler runs; a violation becomes `ConstraintViolationException`, rendered as 400 `validation-failed` by `ValidationProblemMapper`. `PlaceOrderCommand` (orders) relies on it (`@NotBlank`, `@NotEmpty`, `@Size`...). The catalog's commands carry no annotations: the models generated from its OpenAPI contract validate each request at the HTTP edge, and its value objects check the rest. |
 | `ContextPropagationMiddleware` | spring-boot-cqrs | Carries the `MessageContext` (correlation id and related entries) from the dispatcher to the handler and across brokers. `service-support` seeds it with the request's correlation id. |
 | `TracingMiddleware` | spring-boot-cqrs (when an `ObservationRegistry` exists) | Wraps each handling in the observation `cqrs.bus.handle` (span and timer), tagged `cqrs.message.kind` and `cqrs.message.type`. |
 | `MicrometerBusObservability` | spring-boot-cqrs (when a `MeterRegistry` exists) | Times each dispatch as `cqrs.bus.dispatch`, tagged `cqrs.type`, `cqrs.message` and `cqrs.outcome`. |
+| `TransactionMiddleware` | spring-boot-cqrs (opt-in with `cqrs.transactions.enabled=true`, with a single `PlatformTransactionManager`) | Runs each handler in a transaction, so handlers need no `@Transactional`. The catalog turns it on: its commands and events run in a transaction that the adapters join, and its queries in none (`cqrs.transactions.queries=none`), because its read model opens a read-only transaction of its own and `GetProductQuery` asks the inventory outside it. |
 | [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) | service-support (demo) | Delays or fails the message types listed in `shop.chaos.messages`, so the caller sees a slow or failing service. See [Resilience and scaling](resilience-and-scaling.md#chaos-panel). |
 
 A custom middleware is just a `BusMiddleware` bean:
