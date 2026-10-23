@@ -103,7 +103,11 @@ class AsyncApiContractsTest {
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("shop.repoRoot");
     } finally {
-      System.setProperty("shop.repoRoot", previous);
+      if (previous == null) {
+        System.clearProperty("shop.repoRoot");
+      } else {
+        System.setProperty("shop.repoRoot", previous);
+      }
     }
   }
 

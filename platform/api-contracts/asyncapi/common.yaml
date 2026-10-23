@@ -59,8 +59,8 @@ components:
       properties:
         cqrs.message.kind:
           type: string
-          enum: [command, event, query]
-          description: Kind of the message.
+          enum: [COMMAND, EVENT, QUERY]
+          description: Kind of the message, the name of the `KafkaMessageKind` constant.
         cqrs.message.name:
           type: string
           description: Logical name of the message.
@@ -79,7 +79,8 @@ components:
           description: Topic the reply must be sent to.
         cqrs.request.mode:
           type: string
-          description: How the sender waits for the message to be handled.
+          enum: [WAIT, REPLY]
+          description: How the sender waits for the message to be handled, the name of the `KafkaRequestMode` constant.
         cqrs.context.correlationId:
           type: string
           description: Correlation id of the request that caused the message.
@@ -95,8 +96,8 @@ components:
       type: object
       properties:
         cqrs.error:
-          type: string
-          description: Marks a reply as an error reply.
+          enum: ['true', true]
+          description: Present on an error reply. Kafka sends the string `true`, RabbitMQ the boolean `true`.
         cqrs.error.type:
           type: string
           description: Class name of the exception thrown by the handler.
@@ -105,9 +106,9 @@ components:
           maxLength: 1000
           description: Message of the exception, truncated to 1000 characters; only on dead-lettered messages.
         cqrs.error.attempts:
-          type: string
+          type: [string, integer]
           pattern: '^[0-9]+$'
-          description: Deliveries made before the message was dead-lettered, as a decimal string.
+          description: Deliveries made before the message was dead-lettered; a decimal string on Kafka, an integer on RabbitMQ.
         cqrs.error.timestamp:
           type: string
           format: date-time
