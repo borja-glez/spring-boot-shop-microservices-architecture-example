@@ -22,6 +22,8 @@ jacoco = "0.8.14"
 openapi-generator = "7.26.0"
 # Request and response validation against the OpenAPI contracts in MockMvc tests (Spring Framework 7).
 openapi-request-validator = "3.0.0"
+# Swagger UI served by the gateway from the webjar (the contracts page references this version).
+swagger-ui = "5.33.1"
 
 [libraries]
 # Platforms
@@ -116,6 +118,9 @@ awaitility = { module = "org.awaitility:awaitility" }
 # Jackson 3 (managed by the Boot 4 BOM), for the system tests' JSON.
 jackson-databind = { module = "tools.jackson.core:jackson-databind" }
 openapi-request-validator-mockmvc = { module = "com.atlassian.oai:openapi-request-validator-mockmvc", version.ref = "openapi-request-validator" }
+
+# Gateway contracts page
+webjars-swagger-ui = { module = "org.webjars:swagger-ui", version.ref = "swagger-ui" }
 
 # Build logic
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }

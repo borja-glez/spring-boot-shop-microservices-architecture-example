@@ -31,6 +31,27 @@ shop:
       - id: reporting
         path: /api/reporting/**
         uri: ${REPORTING_URI:http://localhost:8086}
+      - id: catalog-v1
+        path: /api/v1/catalog/**
+        uri: ${CATALOG_URI:http://localhost:8081}
+      - id: orders-v1
+        path: /api/v1/orders/**
+        uri: ${ORDERS_URI:http://localhost:8082}
+      - id: orders-v2
+        path: /api/v2/orders/**
+        uri: ${ORDERS_URI:http://localhost:8082}
+      - id: inventory-v1
+        path: /api/v1/inventory/**
+        uri: ${INVENTORY_URI:http://localhost:8083}
+      - id: payments-v1
+        path: /api/v1/payments/**
+        uri: ${PAYMENTS_URI:http://localhost:8084}
+      - id: notifications-v1
+        path: /api/v1/notifications/**
+        uri: ${NOTIFICATIONS_URI:http://localhost:8085}
+      - id: reporting-v1
+        path: /api/v1/reporting/**
+        uri: ${REPORTING_URI:http://localhost:8086}
 
 info:
   service:

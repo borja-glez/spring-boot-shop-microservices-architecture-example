@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mercado API contracts</title>
+    <link rel="stylesheet" href="/webjars/swagger-ui/5.33.1/swagger-ui.css" />
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      header { padding: 12px 16px; background: #1f2937; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      header h1 { font-size: 18px; margin: 0 12px 0 0; }
+      #contracts { display: flex; gap: 8px; flex-wrap: wrap; }
+      #contracts button { padding: 4px 10px; border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
+      #contracts button[aria-current="true"] { background: #2563eb; color: #fff; border-color: #2563eb; }
+      #viewer { padding: 0 16px 16px; }
+      #message { padding: 16px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Mercado API contracts</h1>
+      <nav id="contracts" aria-label="Contracts"></nav>
+    </header>
+    <p id="message">Select a contract.</p>
+    <div id="viewer"></div>
+
+    <script src="/webjars/swagger-ui/5.33.1/swagger-ui-bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@3.1.8/lib/asyncapi-web-component.js" defer></script>
+    <script>
+      const viewer = document.getElementById('viewer');
+      const message = document.getElementById('message');
+      const nav = document.getElementById('contracts');
+
+      function show(entry, button) {
+        nav.querySelectorAll('button').forEach((b) => b.removeAttribute('aria-current'));
+        button.setAttribute('aria-current', 'true');
+        message.textContent = '';
+        viewer.replaceChildren();
+        const url = new URL('/api/docs/contracts/' + entry.path, location.href).href;
+        if (entry.kind === 'openapi') {
+          const target = document.createElement('div');
+          target.id = 'swagger-ui';
+          viewer.append(target);
+          SwaggerUIBundle({ url, dom_id: '#swagger-ui' });
+        } else {
+          const component = document.createElement('asyncapi-component');
+          component.setAttribute('schemaUrl', url);
+          component.setAttribute(
+            'cssImportPath',
+            'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@3.1.8/styles/default.min.css'
+          );
+          viewer.append(component);
+        }
+      }
+
+      fetch('/api/docs/contracts/index.json')
+        .then((response) => response.json())
+        .then((entries) => {
+          if (entries.length === 0) {
+            message.textContent = 'No contracts published.';
+            return;
+          }
+          entries.forEach((entry) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = entry.path.split('/').pop() + ' (' + entry.kind + ')';
+            button.title = entry.path;
+            button.addEventListener('click', () => show(entry, button));
+            nav.append(button);
+          });
+        })
+        .catch(() => {
+          message.textContent = 'The contracts index could not be loaded.';
+        });
+    </script>
+  </body>
+</html>
