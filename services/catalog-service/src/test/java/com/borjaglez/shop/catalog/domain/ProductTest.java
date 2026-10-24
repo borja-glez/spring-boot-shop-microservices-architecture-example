@@ -4,38 +4,62 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.contracts.catalog.ProductDiscontinued;
-import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
-import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.catalog.domain.Product.ProductState;
+import com.borjaglez.shop.catalog.domain.event.ProductDiscontinued;
+import com.borjaglez.shop.catalog.domain.event.ProductPriceChanged;
+import com.borjaglez.shop.catalog.domain.event.ProductPublished;
+import com.borjaglez.shop.catalog.domain.exception.CurrencyMismatchException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidDescriptionException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidNameException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidTagException;
+import com.borjaglez.shop.catalog.domain.exception.ProductAlreadyPublishedException;
+import com.borjaglez.shop.catalog.domain.exception.ProductDiscontinuedException;
+import com.borjaglez.shop.catalog.domain.exception.TooManyTagsException;
 
 class ProductTest {
 
   private static final Instant NOW = Instant.parse("2026-09-24T10:00:00Z");
+  private static final Instant LATER = NOW.plus(Duration.ofHours(1));
   private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-  private final Seller seller =
-      new Seller("seller-ana", "Tostadores Ana", "ana@example.com", "Madrid");
-  private final Category coffee = new Category(UUID.randomUUID(), "cafe-e-infusiones", "Café");
+  private final Clock later = Clock.fixed(LATER, ZoneOffset.UTC);
+  private final SellerId seller = new SellerId("seller-ana");
+  private final CategoryId coffee = new CategoryId(UUID.randomUUID());
+
+  private ProductDraft draftOf(String name, String description, Set<String> tags) {
+    return new ProductDraft(
+        seller,
+        new Sku("caf-001"),
+        name,
+        description,
+        Money.of("18.90", "EUR"),
+        Set.of(coffee),
+        tags);
+  }
 
   private Product draft() {
     return Product.draft(
-        new ProductDraft(
-            seller,
-            "caf-001",
+        draftOf(
             "Café de Colombia en grano",
             "Tueste medio, 1 kg",
-            Money.of("18.90", "EUR"),
-            Set.of(coffee),
             Set.of(" Ecológico ", "comercio justo")),
         clock);
+  }
+
+  private static Set<String> tags(int count) {
+    Set<String> tags = new LinkedHashSet<>();
+    for (int i = 1; i <= count; i++) {
+      tags.add("a" + i);
+    }
+    return tags;
   }
 
   @Test
@@ -44,75 +68,128 @@ class ProductTest {
 
     assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
     assertThat(product.getPublishedAt()).isNull();
-    assertThat(product.getCreatedAt()).isEqualTo(OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+    assertThat(product.getCreatedAt()).isEqualTo(NOW);
+    assertThat(product.getUpdatedAt()).isEqualTo(NOW);
+    assertThat(product.getVersion()).isNull();
     assertThat(product.pullEvents()).isEmpty();
   }
 
   @Test
-  void draftNormalisesSkuSlugAndTags() {
+  void draftNormalisesSkuSlugNameAndTags() {
     Product product = draft();
 
-    assertThat(product.getSku()).isEqualTo("CAF-001");
-    assertThat(product.getSlug()).isEqualTo("cafe-de-colombia-en-grano-caf-001");
-    assertThat(product.getTags()).containsExactlyInAnyOrder("ecologico", "comercio-justo");
+    assertThat(product.getSku().value()).isEqualTo("CAF-001");
+    assertThat(product.getSlug().value()).isEqualTo("cafe-de-colombia-en-grano-caf-001");
+    assertThat(product.getName()).isEqualTo("Café de Colombia en grano");
+    assertThat(product.getSeller()).isEqualTo(seller);
+    assertThat(product.getCategories()).containsExactly(coffee);
+    assertThat(product.getTags())
+        .containsExactlyInAnyOrder(new Tag("ecologico"), new Tag("comercio-justo"));
   }
 
   @Test
-  void rejectsInvalidSku() {
-    assertThatThrownBy(
-            () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "a b", "Café", "", Money.of("1", "EUR"), Set.of(), Set.of()),
-                    clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
-        .hasFieldOrPropertyWithValue("code", "invalid-sku");
+  void draftStripsNameAndDescription() {
+    Product product = Product.draft(draftOf("  Café  ", "  d ", Set.of()), clock);
+
+    assertThat(product.getName()).isEqualTo("Café");
+    assertThat(product.getDescription()).isEqualTo("d");
   }
 
   @Test
-  void rejectsBlankName() {
-    assertThatThrownBy(
-            () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "SKU-1", "  ", "", Money.of("1", "EUR"), Set.of(), Set.of()),
-                    clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
-        .hasFieldOrPropertyWithValue("code", "invalid-name");
+  void draftWithoutDescriptionOrTagsOrCategoriesIsValid() {
+    Product product =
+        Product.draft(
+            new ProductDraft(
+                seller, new Sku("SKU-1"), "Café", null, Money.of("1", "EUR"), null, null),
+            clock);
+
+    assertThat(product.getDescription()).isEmpty();
+    assertThat(product.getCategories()).isEmpty();
+    assertThat(product.getTags()).isEmpty();
   }
 
   @Test
-  void rejectsMoreThanTenTags() {
-    Set<String> tags = Set.of("a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11");
-    assertThatThrownBy(
-            () ->
-                Product.draft(
-                    new ProductDraft(
-                        seller, "SKU-1", "Café", "", Money.of("1", "EUR"), Set.of(), tags),
-                    clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
+  void acceptsTheNameAndDescriptionLimits() {
+    Product product = Product.draft(draftOf("a".repeat(160), "d".repeat(4000), Set.of()), clock);
+
+    assertThat(product.getName()).hasSize(160);
+    assertThat(product.getDescription()).hasSize(4000);
+  }
+
+  @Test
+  void rejectsInvalidNames() {
+    for (String name : new String[] {null, "  ", "a".repeat(161)}) {
+      assertThatThrownBy(() -> Product.draft(draftOf(name, "", Set.of()), clock))
+          .isInstanceOf(InvalidNameException.class)
+          .hasFieldOrPropertyWithValue("code", "invalid-name");
+    }
+  }
+
+  @Test
+  void rejectsTooLongDescription() {
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "d".repeat(4001), Set.of()), clock))
+        .isInstanceOf(InvalidDescriptionException.class)
+        .hasFieldOrPropertyWithValue("code", "invalid-description");
+  }
+
+  @Test
+  void acceptsTenTagsAndRejectsMore() {
+    assertThat(Product.draft(draftOf("Café", "", tags(10)), clock).getTags()).hasSize(10);
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "", tags(11)), clock))
+        .isInstanceOf(TooManyTagsException.class)
         .hasFieldOrPropertyWithValue("code", "too-many-tags");
+  }
+
+  @Test
+  void rejectsInvalidTags() {
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "", Set.of("ok", "!!!")), clock))
+        .isInstanceOf(InvalidTagException.class)
+        .hasFieldOrPropertyWithValue("code", "invalid-tag");
+  }
+
+  @Test
+  void tagsThatSlugifyAlikeCountOnce() {
+    Set<String> raw = tags(9);
+    raw.add("Café");
+    raw.add(" cafe ");
+
+    assertThat(Product.draft(draftOf("Café", "", raw), clock).getTags())
+        .hasSize(10)
+        .contains(new Tag("cafe"));
+  }
+
+  @Test
+  void checksTheNameThenTheDescriptionThenTheTags() {
+    Set<String> badTags = tags(11);
+    badTags.add("!!!");
+    String longDescription = "d".repeat(4001);
+
+    assertThatThrownBy(() -> Product.draft(draftOf(" ", longDescription, badTags), clock))
+        .isInstanceOf(InvalidNameException.class);
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", longDescription, badTags), clock))
+        .isInstanceOf(InvalidDescriptionException.class);
+    assertThatThrownBy(() -> Product.draft(draftOf("Café", "", badTags), clock))
+        .isInstanceOf(InvalidTagException.class);
   }
 
   @Test
   void publishMakesTheProductActiveAndRecordsProductPublished() {
     Product product = draft();
 
-    product.publish(clock);
+    product.publish(later);
 
     assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
-    assertThat(product.getPublishedAt()).isEqualTo(OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+    assertThat(product.getPublishedAt()).isEqualTo(LATER);
+    assertThat(product.getUpdatedAt()).isEqualTo(LATER);
     assertThat(product.pullEvents())
-        .singleElement()
-        .isInstanceOfSatisfying(
-            ProductPublished.class,
-            event -> {
-              assertThat(event.getProductId()).isEqualTo(product.getId());
-              assertThat(event.getSku()).isEqualTo("CAF-001");
-              assertThat(event.getPrice()).isEqualByComparingTo("18.90");
-              assertThat(event.getCurrency()).isEqualTo("EUR");
-              assertThat(event.getSellerId()).isEqualTo("seller-ana");
-            });
+        .containsExactly(
+            new ProductPublished(
+                product.getId(),
+                new Sku("CAF-001"),
+                "Café de Colombia en grano",
+                Money.of("18.90", "EUR"),
+                seller,
+                LATER));
   }
 
   @Test
@@ -121,7 +198,7 @@ class ProductTest {
     product.publish(clock);
 
     assertThatThrownBy(() -> product.publish(clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(ProductAlreadyPublishedException.class)
         .hasFieldOrPropertyWithValue("code", "product-already-published");
   }
 
@@ -131,7 +208,7 @@ class ProductTest {
     product.discontinue("Sin proveedor", clock);
 
     assertThatThrownBy(() -> product.publish(clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(ProductDiscontinuedException.class)
         .hasFieldOrPropertyWithValue("code", "product-discontinued");
   }
 
@@ -141,26 +218,24 @@ class ProductTest {
     product.publish(clock);
     product.pullEvents();
 
-    product.changePrice(Money.of("16.50", "EUR"), clock);
+    product.changePrice(Money.of("16.50", "EUR"), later);
 
     assertThat(product.getPrice()).isEqualTo(Money.of("16.50", "EUR"));
+    assertThat(product.getUpdatedAt()).isEqualTo(LATER);
     assertThat(product.pullEvents())
-        .singleElement()
-        .isInstanceOfSatisfying(
-            ProductPriceChanged.class,
-            event -> {
-              assertThat(event.getOldPrice()).isEqualByComparingTo("18.90");
-              assertThat(event.getNewPrice()).isEqualByComparingTo("16.50");
-            });
+        .containsExactly(
+            new ProductPriceChanged(
+                product.getId(), Money.of("18.90", "EUR"), Money.of("16.50", "EUR"), LATER));
   }
 
   @Test
   void priceChangeOfDraftRecordsNothing() {
     Product product = draft();
 
-    product.changePrice(Money.of("20.00", "EUR"), clock);
+    product.changePrice(Money.of("20.00", "EUR"), later);
 
     assertThat(product.getPrice()).isEqualTo(Money.of("20.00", "EUR"));
+    assertThat(product.getUpdatedAt()).isEqualTo(LATER);
     assertThat(product.pullEvents()).isEmpty();
   }
 
@@ -170,8 +245,9 @@ class ProductTest {
     product.publish(clock);
     product.pullEvents();
 
-    product.changePrice(Money.of("18.9", "EUR"), clock);
+    product.changePrice(Money.of("18.9", "EUR"), later);
 
+    assertThat(product.getUpdatedAt()).isEqualTo(NOW);
     assertThat(product.pullEvents()).isEmpty();
   }
 
@@ -180,7 +256,7 @@ class ProductTest {
     Product product = draft();
 
     assertThatThrownBy(() -> product.changePrice(Money.of("20", "USD"), clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(CurrencyMismatchException.class)
         .hasFieldOrPropertyWithValue("code", "currency-mismatch");
   }
 
@@ -190,7 +266,7 @@ class ProductTest {
     product.discontinue("Sin proveedor", clock);
 
     assertThatThrownBy(() -> product.changePrice(Money.of("20", "EUR"), clock))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(ProductDiscontinuedException.class)
         .hasFieldOrPropertyWithValue("code", "product-discontinued");
   }
 
@@ -200,14 +276,12 @@ class ProductTest {
     product.publish(clock);
     product.pullEvents();
 
-    product.discontinue("Fin de temporada", clock);
+    product.discontinue("Fin de temporada", later);
 
     assertThat(product.getStatus()).isEqualTo(ProductStatus.DISCONTINUED);
+    assertThat(product.getUpdatedAt()).isEqualTo(LATER);
     assertThat(product.pullEvents())
-        .singleElement()
-        .isInstanceOfSatisfying(
-            ProductDiscontinued.class,
-            event -> assertThat(event.getReason()).isEqualTo("Fin de temporada"));
+        .containsExactly(new ProductDiscontinued(product.getId(), "Fin de temporada", LATER));
   }
 
   @Test
@@ -227,8 +301,9 @@ class ProductTest {
     product.discontinue("Fin de temporada", clock);
     product.pullEvents();
 
-    product.discontinue("Otra vez", clock);
+    product.discontinue("Otra vez", later);
 
+    assertThat(product.getUpdatedAt()).isEqualTo(NOW);
     assertThat(product.pullEvents()).isEmpty();
   }
 
@@ -239,5 +314,152 @@ class ProductTest {
 
     assertThat(product.pullEvents()).hasSize(1);
     assertThat(product.pullEvents()).isEmpty();
+  }
+
+  @Test
+  void belongsToItsSellerOnly() {
+    Product product = draft();
+
+    assertThat(product.belongsTo(seller)).isTrue();
+    assertThat(product.belongsTo(new SellerId("seller-bob"))).isFalse();
+  }
+
+  @Test
+  void collectionsAreNotModifiableFromOutside() {
+    Product product = draft();
+
+    assertThatThrownBy(() -> product.getTags().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(() -> product.getCategories().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void reconstituteRestoresTheState() {
+    ProductState state =
+        new ProductState(
+            ProductId.newId(),
+            new Sku("TEA-1"),
+            new Slug("te-verde-tea-1"),
+            "Té verde",
+            "Hojas enteras",
+            Money.of("4.50", "EUR"),
+            ProductStatus.ACTIVE,
+            seller,
+            Set.of(coffee),
+            Set.of(new Tag("te")),
+            NOW,
+            LATER,
+            LATER,
+            7L);
+
+    Product product = Product.reconstitute(state);
+
+    assertThat(product.state()).isEqualTo(state);
+    assertThat(product.getId()).isEqualTo(state.id());
+    assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+    assertThat(product.getVersion()).isEqualTo(7L);
+    assertThat(product.getPublishedAt()).isEqualTo(LATER);
+    assertThat(product.pullEvents()).isEmpty();
+  }
+
+  @Test
+  void reconstitutedProductContinuesItsLifecycle() {
+    Product product =
+        Product.reconstitute(
+            new ProductState(
+                ProductId.newId(),
+                new Sku("TEA-1"),
+                new Slug("te-verde-tea-1"),
+                "Té verde",
+                "",
+                Money.of("4.50", "EUR"),
+                ProductStatus.ACTIVE,
+                seller,
+                Set.of(),
+                Set.of(),
+                NOW,
+                NOW,
+                NOW,
+                1L));
+
+    product.changePrice(Money.of("5", "EUR"), later);
+
+    assertThat(product.pullEvents()).singleElement().isInstanceOf(ProductPriceChanged.class);
+  }
+
+  @Test
+  void stateRoundTrips() {
+    Product product = draft();
+    product.publish(later);
+
+    ProductState state = product.state();
+    Product restored = Product.reconstitute(state);
+
+    assertThat(restored.state()).isEqualTo(state);
+    assertThat(state.status()).isEqualTo(ProductStatus.ACTIVE);
+    assertThat(state.sku()).isEqualTo(new Sku("CAF-001"));
+    assertThat(state.publishedAt()).isEqualTo(LATER);
+  }
+
+  @Test
+  void stateSetsAreUnmodifiableCopies() {
+    Product product = draft();
+    ProductState state = product.state();
+
+    assertThatThrownBy(() -> state.tags().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(() -> state.categories().clear())
+        .isInstanceOf(UnsupportedOperationException.class);
+    assertThat(product.getTags()).hasSize(2);
+    assertThat(product.getCategories()).hasSize(1);
+  }
+
+  @Test
+  void reconstituteCopiesTheSetsItIsGiven() {
+    Set<Tag> tags = new LinkedHashSet<>(Set.of(new Tag("te")));
+    Product product =
+        Product.reconstitute(
+            new ProductState(
+                ProductId.newId(),
+                new Sku("TEA-1"),
+                new Slug("te-verde-tea-1"),
+                "Té verde",
+                "",
+                Money.of("4.50", "EUR"),
+                ProductStatus.DRAFT,
+                seller,
+                Set.of(),
+                tags,
+                NOW,
+                null,
+                NOW,
+                null));
+
+    tags.clear();
+
+    assertThat(product.getTags()).containsExactly(new Tag("te"));
+  }
+
+  @Test
+  void draftRequiresSellerSkuAndPrice() {
+    Money price = Money.of("1", "EUR");
+    Sku sku = new Sku("SKU-1");
+    assertThatThrownBy(
+            () -> Product.draft(new ProductDraft(null, sku, "Café", "", price, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(
+            () ->
+                Product.draft(new ProductDraft(seller, null, "Café", "", price, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(
+            () -> Product.draft(new ProductDraft(seller, sku, "Café", "", null, null, null), clock))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void changePriceRequiresAPrice() {
+    assertThatThrownBy(() -> draft().changePrice(null, clock))
+        .isInstanceOf(NullPointerException.class);
   }
 }

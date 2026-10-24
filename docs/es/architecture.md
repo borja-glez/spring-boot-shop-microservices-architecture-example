@@ -8,7 +8,7 @@ Mercado es un marketplace dividido en seis servicios de negocio y un gateway, ca
 
 | Servicio | Puerto | Responsabilidad | Base de datos | Mensajería de entrada | Mensajería de salida | Spring Boot |
 |---|---|---|---|---|---|---|
-| `gateway-service` | 8080 | Punto de entrada público único; enruta `/api/<service>/**` | ninguna | HTTP desde nginx | HTTP hacia los servicios | 4 (Jackson 3) |
+| `gateway-service` | 8080 | Punto de entrada público único; enruta `/api/v1/<service>/**` para todos los servicios, `/api/<service>/**` para los servicios cuya API no está versionada (todos menos el catálogo) y `/api/v1/chaos/<service>/**` para los endpoints de caos | ninguna | HTTP desde nginx | HTTP hacia los servicios | 4 (Jackson 3) |
 | `catalog-service` | 8081 | Los vendedores publican, cambian el precio y descatalogan productos; búsqueda pública y facetas; fichas de producto con stock en vivo | `catalog` | Kafka: sus propios eventos de catálogo (se registran en el log) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; consultas RabbitMQ: `GetStockLevels` | 4 (Jackson 3) |
 | `orders-service` | 8082 | Pedidos con event sourcing, orquestación de la saga de checkout, copia local del catálogo, modelo de lectura de pedidos, explorador del event store | `orders` | Kafka: eventos de catálogo, eventos de pedidos | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; peticiones RabbitMQ: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; consultas RabbitMQ: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
 | `inventory-service` | 8083 | Stock por producto, reservas de todo o nada, backoffice de stock | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
@@ -47,7 +47,7 @@ Un interceptor HTTP ([`shop-headers.interceptor.ts`](../../frontend/src/app/core
 
 ## Capas dentro de un servicio
 
-Todos los servicios usan el paquete `com.borjaglez.shop.<service>` con cuatro capas:
+Todos los servicios usan el paquete `com.borjaglez.shop.<service>`. Los servicios distintos del catálogo tienen cuatro capas:
 
 ```
 com.borjaglez.shop.<service>
@@ -57,20 +57,39 @@ com.borjaglez.shop.<service>
 └── api/             REST controllers and DTOs
 ```
 
-[`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java) codifica las reglas y cada servicio las comprueba en su propio `ArchitectureTest`:
+[`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java) codifica las reglas y cada uno de ellos las comprueba en su propio `ArchitectureTest`:
 
 - `domain` no depende de ninguna otra capa.
 - `application` solo la usan `api` e `infrastructure`.
 - `api` e `infrastructure` son hojas: nada depende de ellas.
 - Las dependencias se inyectan por constructor, nunca con campos `@Autowired`.
 
-Los controladores no contienen lógica: traducen HTTP a un comando o a una consulta y lo envían a través de los buses de spring-boot-cqrs. Los repositorios viven en `domain` y extienden `SpecificationRepository`; toda lectura pasa por el DSL de specification-repository o por un `QueryPlan`. Consulta [Las librerías en la práctica](libraries.md).
+Sus controladores no contienen lógica: traducen HTTP a un comando o a una consulta y lo envían a través de los buses de spring-boot-cqrs. Sus repositorios viven en `domain` y extienden `SpecificationRepository`.
+
+El [catálogo](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog) es hexagonal:
+
+```
+com.borjaglez.shop.catalog
+├── domain/                  aggregate, value objects, eventos de dominio, el repositorio de productos
+├── application/
+│   ├── port/in/             comandos, consultas y las vistas que responden
+│   ├── port/out/            lo que los casos de uso necesitan del exterior (modelo de lectura, stock, vendedores, categorías)
+│   └── service/             un handler por caso de uso
+└── infrastructure/
+    ├── in/                  adaptadores de entrada: REST (generado desde el contrato), mensajería
+    ├── out/                 adaptadores de salida: persistencia, mensajería
+    └── config/              raíz de composición
+```
+
+Su núcleo, `domain` y `application`, no depende de ningún framework (ni Spring, ni JPA, ni Jackson, ni specification-repository); los puertos de `application.port` son la única vía de entrada y salida, y los adaptadores de `infrastructure` los implementan. Las reglas compartidas de [`platform/architecture-rules`](../../platform/architecture-rules) (`ShopArchitecture`) lo comprueban en el `ArchitectureTest` del catálogo. Sus adaptadores REST solo traducen HTTP a un comando o a una consulta y lo envían por los buses, como los controladores de los demás servicios. La interfaz de repositorio del dominio es un puerto; `infrastructure.out.persistence` la implementa sobre un `SpecificationRepository`.
+
+En todos los servicios, toda lectura pasa por el DSL de specification-repository o por un `QueryPlan`. Consulta [Las librerías en la práctica](libraries.md).
 
 ## Módulos de plataforma
 
 | Módulo | Contenido |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-api`, la API sin framework de spring-boot-cqrs; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-api`, la API sin framework de spring-boot-cqrs; `ContractsConventionsTest` aplica las reglas de frontera de spring-boot-cqrs (nombre en el cable, constructor sin argumentos, sin tipos de framework en los mensajes) y una regla de la tienda que mantiene toda clase del módulo libre de tipos de Spring, Jackson, JPA y Hibernate, de modo que los servicios Boot 3 y Boot 4 pueden compartirlo. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store que hace también de outbox transaccional, clase base de agregado con event sourcing, relay del outbox, destino Kafka, métricas de consumidores, métricas del outbox, hints para imagen nativa. |
 | [`platform/service-support`](../../platform/service-support) | Errores RFC 9457, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, exportación OTLP, registro y endpoint de caos, valores por defecto compartidos. Autoconfigurado. |
 | [`platform/test-support`](../../platform/test-support) | Configuraciones de Testcontainers (PostgreSQL 17, Kafka, RabbitMQ) y las reglas de ArchUnit. |
@@ -110,7 +129,7 @@ Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 
   "title": "Conflict",
   "status": 409,
   "detail": "Another product already uses SKU CAF-001",
-  "instance": "/api/catalog/products",
+  "instance": "/api/v1/catalog/products",
   "code": "duplicate-sku",
   "correlationId": "3f0c9a52-5d1e-4a57-9b43-2f0d5c6b7e11"
 }
@@ -146,13 +165,22 @@ Los correlation ids identifican una petición de negocio; los trace ids identifi
 
 ## El usuario de demostración
 
-El ejemplo no tiene autenticación. La tienda permite al visitante elegir un cliente o vendedor de demostración y envía su id en la cabecera `X-Shop-User`. Los controladores lo reciben con [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
+El ejemplo no tiene autenticación. La tienda permite al visitante elegir un cliente o vendedor de demostración y envía su id en la cabecera `X-Shop-User`. Los controladores de los servicios por capas lo reciben con [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
 
 ```java
 @PostMapping
 @ResponseStatus(HttpStatus.CREATED)
 CreatedResponse place(@CurrentUser String customer, @Valid @RequestBody PlaceOrderRequest body) {
 ```
+
+En el catálogo la cabecera es un parámetro del contrato (`ShopUser` en `common.v1.yaml`), así que las interfaces generadas a partir de él la declaran como un argumento `@RequestHeader("X-Shop-User")` y el controlador recibe un `String` sin más:
+
+```java
+@Override
+public ResponseEntity<Void> publishProduct(String seller, UUID id) {
+```
+
+[`UserHeaderInterceptor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/UserHeaderInterceptor.java) comprueba esa cabecera antes de que Spring MVC lea las variables de la ruta y el cuerpo, y responde como `@CurrentUser`: 401 `missing-user` si falta, 400 `invalid-user` si el valor no es un id de usuario. Solo los rechazos que Spring MVC hace mientras elige el handler (405, 406 y 415) llegan antes.
 
 La propiedad se sigue comprobando en el servidor: los clientes solo ven sus propios pedidos, y un vendedor que toca el producto de otro vendedor recibe un 404, para no revelar que el producto existe. `notifications-service` lee la misma cabecera, y su stream SSE recibe el usuario como parámetro de consulta porque el `EventSource` del navegador no puede enviar cabeceras.
 

@@ -49,6 +49,12 @@ val jacocoMergedVerification = tasks.register<JacocoCoverageVerification>("jacoc
     sourceDirectories.setFrom(mainOutput.allSource.sourceDirectories)
     violationRules {
         rule {
+            // Checked method by method, which leaves out the methods Hibernate's bytecode enhancement
+            // writes into the entities (shop.hibernate-enhancement-conventions): they are named
+            // $$_hibernate_*, have no source line and are run by Hibernate, not by the service. The
+            // pattern spells each $ as ?, because the Ant task behind the check reads $$ as $.
+            element = "METHOD"
+            excludes = listOf("*.??_hibernate_*")
             limit {
                 counter = "LINE"
                 value = "COVEREDRATIO"

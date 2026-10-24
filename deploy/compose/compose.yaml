@@ -2,7 +2,7 @@
 #   ./gradlew buildImages                      # JVM images (add -Pnative for native ones)
 #   docker compose -f deploy/compose/compose.yaml up -d
 # Shop:      http://localhost:4200
-# Gateway:   http://localhost:8080/api/catalog/products, http://localhost:8080/api/orders
+# Gateway:   http://localhost:8080/api/v1/catalog/products, http://localhost:8080/api/orders
 # RabbitMQ:  http://localhost:15672 (shop / shop-dev)
 # Kafka UI:  http://localhost:8090
 # Traces and metrics: add -f compose.observability.yaml (Grafana at http://localhost:3000)

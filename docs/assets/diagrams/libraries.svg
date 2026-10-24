@@ -43,8 +43,8 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <circle r="4.5" fill="#58a6ff" filter="url(#gl)" opacity="0"><animateMotion dur="9s" begin="0s" repeatCount="indefinite" path="M885.0,140 L885.0,270 L600,270 L600,180 L315.0,180 L315.0,582 L600,582 L600,480 L885.0,480 L885.0,596" keyPoints="0;1;1" keyTimes="0;0.900;1" calcMode="linear"/><animate attributeName="opacity" dur="9s" begin="0s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.860;0.900;1"/></circle>
 <circle r="3" fill="#a5d6ff" filter="url(#gl)" opacity="0"><animateMotion dur="9s" begin="-4.5s" repeatCount="indefinite" path="M885.0,140 L885.0,270 L600,270 L600,180 L315.0,180 L315.0,582 L600,582 L600,480 L885.0,480 L885.0,596" keyPoints="0;1;1" keyTimes="0;0.900;1" calcMode="linear"/><animate attributeName="opacity" dur="9s" begin="-4.5s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.860;0.900;1"/></circle>
 <rect x="70" y="150" width="490" height="60" rx="12" fill="#161b22" stroke="#3fb950" stroke-width="1.2" filter="url(#sh)" />
-<text x="86" y="175" font-size="14" fill="#e6edf3" font-weight="600">ProductController</text>
-<text x="86" y="195" font-size="11.5" class="mono" fill="#8b949e">queries.ask(new SearchProductsQuery(plan, page))</text>
+<text x="86" y="175" font-size="14" fill="#e6edf3" font-weight="600">ProductsController</text>
+<text x="86" y="195" font-size="11.5" class="mono" fill="#8b949e">queries.ask(new SearchProductsQuery(filter, page))</text>
 <text x="544" y="175" font-size="11.5" class="mono" fill="#3fb950" text-anchor="end">@RestController</text>
 <rect x="70" y="240" width="490" height="60" rx="12" fill="#161b22" stroke="#3fb950" stroke-width="1.2" filter="url(#sh)" />
 <text x="86" y="265" font-size="14" fill="#e6edf3" font-weight="600">CommandBus · QueryBus · EventBus</text>
@@ -63,16 +63,16 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <rect x="426" y="484" width="120" height="22" rx="5" fill="#f0883e" fill-opacity="0.10" stroke="#f0883e" stroke-opacity="0.55"/><text x="486.0" y="498.78" font-size="10.5" class="mono" fill="#f0883e" text-anchor="middle">Kafka · events</text>
 <text x="544" y="465" font-size="11" class="mono" fill="#8b949e" text-anchor="end">chosen per message type</text>
 <rect x="70" y="550" width="490" height="64" rx="12" fill="#161b22" stroke="#3fb950" stroke-width="1.2" filter="url(#sh)" />
-<text x="86" y="575" font-size="14" fill="#e6edf3" font-weight="600">CatalogQueryHandler</text>
-<text x="86" y="595" font-size="11.5" class="mono" fill="#8b949e">@HandleQuery search(SearchProductsQuery)</text>
+<text x="86" y="575" font-size="14" fill="#e6edf3" font-weight="600">SearchProductsHandler</text>
+<text x="86" y="595" font-size="11.5" class="mono" fill="#8b949e">@HandleQuery handle(SearchProductsQuery)</text>
 <text x="544" y="575" font-size="11.5" class="mono" fill="#3fb950" text-anchor="end">@QueryHandler</text>
 <text x="70" y="640" font-size="11" class="mono" fill="#8b949e">messages are @CqrsMessage classes in the shared contracts module</text>
 <rect x="640" y="150" width="490" height="60" rx="12" fill="#161b22" stroke="#db61a2" stroke-width="1.2" filter="url(#sh)" />
-<text x="656" y="173" font-size="11.5" class="mono" fill="#e6edf3">GET /api/products?filter=price.amount:between:5|20</text>
+<text x="656" y="173" font-size="11.5" class="mono" fill="#e6edf3">GET /api/v1/catalog/products?filter=price.amount:between:5|20</text>
 <text x="656" y="194" font-size="10.6" class="mono" fill="#8b949e">&amp;orFilter=name:contains:cafe;tags:eq:ecologico&amp;sort=price.amount,desc</text>
 <rect x="640" y="240" width="490" height="60" rx="12" fill="#161b22" stroke="#db61a2" stroke-width="1.2" filter="url(#sh)" />
-<text x="656" y="265" font-size="14" fill="#e6edf3" font-weight="600">@FilterableQuery  →  QueryPlan&lt;Product&gt;</text>
-<text x="656" y="285" font-size="11.5" class="mono" fill="#8b949e">field whitelist · filterableFields · sortableFields</text>
+<text x="656" y="265" font-size="14" fill="#e6edf3" font-weight="600">HttpFilterParser  →  QueryPlan&lt;ProductEntity&gt;</text>
+<text x="656" y="285" font-size="11.5" class="mono" fill="#8b949e">field whitelist · filterable · sortable fields</text>
 <rect x="640" y="330" width="490" height="80" rx="12" fill="#161b22" stroke="#db61a2" stroke-width="1.2" filter="url(#sh)" />
 <text x="656" y="355" font-size="14" fill="#e6edf3" font-weight="600">Server-side conditions</text>
 <rect x="654" y="366" width="214" height="18" rx="5" fill="#db61a2" fill-opacity="0.10" stroke="#db61a2" stroke-opacity="0.55"/><text x="761.0" y="378.78" font-size="10.5" class="mono" fill="#db61a2" text-anchor="middle">query(plan).where(ACTIVE)</text>
@@ -81,7 +81,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <rect x="758" y="387" width="280" height="18" rx="5" fill="#db61a2" fill-opacity="0.10" stroke="#db61a2" stroke-opacity="0.55"/><text x="898.0" y="399.78" font-size="10.5" class="mono" fill="#db61a2" text-anchor="middle">grouping · aggregates (reports, facets)</text>
 <text x="1114" y="355" font-size="11" class="mono" fill="#8b949e" text-anchor="end">the client cannot remove them</text>
 <rect x="640" y="440" width="490" height="80" rx="12" fill="#161b22" stroke="#db61a2" stroke-width="1.2" filter="url(#sh)" />
-<text x="656" y="465" font-size="14" fill="#e6edf3" font-weight="600">SpecificationRepository&lt;Product, UUID&gt;</text>
+<text x="656" y="465" font-size="14" fill="#e6edf3" font-weight="600">SpecificationRepository&lt;ProductEntity, UUID&gt;</text>
 <text x="656" y="485" font-size="11.5" class="mono" fill="#8b949e">products.findAll(plan, pageable) · count(plan) · grouped selections</text>
 <text x="656" y="506" font-size="11.5" fill="#8b949e">executes the plan as a JPA Criteria query</text>
 <rect x="640" y="550" width="490" height="90" rx="12" fill="#161b22" stroke="#39c5bb" stroke-width="1.2" filter="url(#sh)" />
@@ -94,7 +94,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <rect x="578" y="214" width="44" height="18" rx="9" fill="#0d1117" stroke="#db61a2" stroke-width="1.2" />
 <text x="600" y="227" font-size="10.5" class="mono" fill="#db61a2" text-anchor="middle">plan</text>
 <text x="600" y="146" font-size="1" fill="#e6edf3"></text>
-<rect x="530" y="522" width="140" height="22" rx="11" fill="#0d1117" stroke="#58a6ff" stroke-width="1.2" />
-<text x="600" y="537" font-size="10.5" class="mono" fill="#58a6ff" text-anchor="middle">handler → repository</text>
+<rect x="520" y="522" width="160" height="22" rx="11" fill="#0d1117" stroke="#58a6ff" stroke-width="1.2" />
+<text x="600" y="537" font-size="10.5" class="mono" fill="#58a6ff" text-anchor="middle">read model → repository</text>
 <text x="600" y="690" font-size="12" class="mu" text-anchor="middle">every database read in Mercado goes through a SpecificationRepository · every command, query and event goes through a bus</text>
 </svg>

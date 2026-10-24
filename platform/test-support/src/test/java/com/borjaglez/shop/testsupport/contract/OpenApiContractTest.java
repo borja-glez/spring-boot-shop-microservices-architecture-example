@@ -40,10 +40,10 @@ import com.borjaglez.shop.support.web.problem.DomainProblemMapper;
 import com.borjaglez.shop.support.web.problem.SpecificationProblemMapper;
 import com.borjaglez.shop.support.web.problem.UserHeaderProblemMapper;
 import com.borjaglez.shop.testsupport.contract.rest.v1.api.WidgetsApi;
-import com.borjaglez.shop.testsupport.contract.rest.v1.model.NewWidget;
-import com.borjaglez.shop.testsupport.contract.rest.v1.model.Widget;
-import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetPage;
-import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetStatus;
+import com.borjaglez.shop.testsupport.contract.rest.v1.model.NewWidgetDto;
+import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetDto;
+import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetPageDto;
+import com.borjaglez.shop.testsupport.contract.rest.v1.model.WidgetStatusDto;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -149,7 +149,7 @@ class OpenApiContractTest {
     // The implementation declares no annotation: the header and its pattern come from WidgetsApi.
     assertThat(
             WidgetsController.class
-                .getMethod("createWidget", String.class, NewWidget.class)
+                .getMethod("createWidget", String.class, NewWidgetDto.class)
                 .getParameters()[0]
                 .getAnnotations())
         .isEmpty();
@@ -274,14 +274,14 @@ class OpenApiContractTest {
         .run(
             context -> {
               JsonMapper mapper = context.getBean(JsonMapper.class);
-              Widget widget = lamp().color("green").owner("seller-ana");
+              WidgetDto widget = lamp().color("green").owner("seller-ana");
 
               String json = mapper.writeValueAsString(widget);
 
               assertThat(mapper.readTree(json).propertyNames())
                   .containsExactlyInAnyOrder(
                       "id", "name", "price", "status", "tags", "createdAt", "color", "owner");
-              assertThat(mapper.readValue(json, Widget.class)).isEqualTo(widget);
+              assertThat(mapper.readValue(json, WidgetDto.class)).isEqualTo(widget);
             });
   }
 
@@ -294,12 +294,12 @@ class OpenApiContractTest {
         .hasMessageContaining(missing.toAbsolutePath().normalize().toString());
   }
 
-  private static Widget lamp() {
-    return new Widget(
+  private static WidgetDto lamp() {
+    return new WidgetDto(
         "w-1",
         "Lamp",
         new BigDecimal("24.90"),
-        WidgetStatus.ACTIVE,
+        WidgetStatusDto.ACTIVE,
         List.of("light", "desk"),
         CREATED_AT);
   }
@@ -310,7 +310,7 @@ class OpenApiContractTest {
     private static final Set<String> FILTERABLE = Set.of("name", "status");
 
     @Override
-    public ResponseEntity<WidgetPage> listWidgets(
+    public ResponseEntity<WidgetPageDto> listWidgets(
         Integer page, Integer size, List<String> filter, List<String> orFilter, List<String> sort) {
       // The allow-list the persistence adapter enforces, declared as x-specrepo-filterable-fields.
       for (String condition : filter == null ? List.<String>of() : filter) {
@@ -319,17 +319,17 @@ class OpenApiContractTest {
           throw new DisallowedFieldException(field, "filter");
         }
       }
-      return ResponseEntity.ok(new WidgetPage(page, size, 1L, 1, List.of(lamp())));
+      return ResponseEntity.ok(new WidgetPageDto(page, size, 1L, 1, List.of(lamp())));
     }
 
     @Override
-    public ResponseEntity<Widget> createWidget(String user, NewWidget newWidget) {
-      Widget created =
-          new Widget(
+    public ResponseEntity<WidgetDto> createWidget(String user, NewWidgetDto newWidget) {
+      WidgetDto created =
+          new WidgetDto(
                   "w-2",
                   newWidget.getName(),
                   newWidget.getPrice(),
-                  WidgetStatus.ACTIVE,
+                  WidgetStatusDto.ACTIVE,
                   List.of(),
                   CREATED_AT)
               .color(newWidget.getColor())
@@ -338,7 +338,7 @@ class OpenApiContractTest {
     }
 
     @Override
-    public ResponseEntity<Widget> getWidget(String id) {
+    public ResponseEntity<WidgetDto> getWidget(String id) {
       if (!id.equals("w-1")) {
         throw new NotFoundException("widget-not-found", "Widget " + id + " does not exist.");
       }
@@ -350,11 +350,11 @@ class OpenApiContractTest {
   static class OffContractController {
 
     @GetMapping("/api/v1/widgets/{id}")
-    ResponseEntity<Widget> widget(@PathVariable String id) {
+    ResponseEntity<WidgetDto> widget(@PathVariable String id) {
       if (id.equals("w-pending")) {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(lamp());
       }
-      Widget withoutName = lamp().name(null);
+      WidgetDto withoutName = lamp().name(null);
       return ResponseEntity.ok(withoutName);
     }
 

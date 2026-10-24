@@ -34,8 +34,8 @@ Every fault starts off. Components register their faults in the [`Chaos`](../../
 | `ReserveStock.fail` / `ReserveStock.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Reservations fail or are slow |
 | `ReleaseStock.fail` / `ReleaseStock.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Releases fail or are slow |
 | `GetStockLevels.fail` / `GetStockLevels.delay-ms` | switch / delay | inventory | `MessageChaosMiddleware` | Stock reads fail or are slow (above 1 s the product page and the cart show the stock as unknown) |
-| `relay.paused` | switch | catalog, orders, inventory, payments | `OutboxRelay` | The relay stops, as if Kafka were down |
-| `relay.duplicate` | switch | catalog, orders, inventory, payments | `OutboxRelay` | Every event is published twice |
+| `relay.paused` | switch | catalog, orders, inventory, payments | `OutboxRelay`; in the catalog, `ChaosEventBus` (through `RelayFaults`) | The relay stops, as if Kafka were down |
+| `relay.duplicate` | switch | catalog, orders, inventory, payments | `OutboxRelay`; in the catalog, `ChaosEventBus` (through `RelayFaults`) | Every event is published twice |
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) is a spring-boot-cqrs middleware registering a `.delay-ms` and a `.fail` fault for each simple class name listed in `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` in inventory, `AuthorizePayment, RefundPayment` in payments). It sits on the local buses, so it also affects the commands and queries that arrive over RabbitMQ: the caller sees a slow service or a remote error, exactly as in a real outage. An injected failure is a [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), deliberately not mapped to a 4xx.
 

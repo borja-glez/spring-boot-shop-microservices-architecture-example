@@ -7,7 +7,8 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 
-import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidCurrencyException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidPriceException;
 
 class MoneyTest {
 
@@ -23,28 +24,45 @@ class MoneyTest {
   @Test
   void rejectsZeroAndNegativeAmounts() {
     assertThatThrownBy(() -> Money.of("0", "EUR"))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(InvalidPriceException.class)
         .hasFieldOrPropertyWithValue("code", "invalid-price");
-    assertThatThrownBy(() -> Money.of("-1.50", "EUR"))
-        .isInstanceOf(BusinessRuleViolationException.class);
+    assertThatThrownBy(() -> Money.of("-1.50", "EUR")).isInstanceOf(InvalidPriceException.class);
   }
 
   @Test
   void rejectsMoreThanTwoDecimals() {
     assertThatThrownBy(() -> Money.of("1.999", "EUR"))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(InvalidPriceException.class)
         .hasFieldOrPropertyWithValue("code", "invalid-price");
+  }
+
+  @Test
+  void acceptsTrailingZerosBeyondTwoDecimals() {
+    assertThat(Money.of("1.5000", "EUR").amount()).isEqualByComparingTo("1.50");
   }
 
   @Test
   void rejectsUnknownCurrencyCodes() {
     assertThatThrownBy(() -> Money.of("10", "EURO"))
-        .isInstanceOf(BusinessRuleViolationException.class)
+        .isInstanceOf(InvalidCurrencyException.class)
         .hasFieldOrPropertyWithValue("code", "invalid-currency");
+  }
+
+  @Test
+  void rejectsNullParts() {
+    assertThatThrownBy(() -> new Money(null, "EUR")).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new Money(BigDecimal.ONE, null))
+        .isInstanceOf(NullPointerException.class);
   }
 
   @Test
   void equalityIgnoresTrailingZeros() {
     assertThat(new Money(new BigDecimal("5.0"), "EUR")).isEqualTo(Money.of("5.00", "EUR"));
+  }
+
+  @Test
+  void comparesCurrencies() {
+    assertThat(Money.of("1", "EUR").sameCurrencyAs(Money.of("2", "eur"))).isTrue();
+    assertThat(Money.of("1", "EUR").sameCurrencyAs(Money.of("1", "USD"))).isFalse();
   }
 }

@@ -1,6 +1,6 @@
 # Observabilidad
 
-Todos los servicios de Mercado generan trazas, métricas y logs mediante OpenTelemetry, y una única variable de entorno, `OTEL_EXPORTER_OTLP_ENDPOINT`, envía las tres señales a un colector OTLP. El stack de la demo es `grafana/otel-lgtm`: un OpenTelemetry Collector que alimenta Tempo (trazas), Prometheus (métricas) y Loki (logs), con Grafana por encima y dos dashboards y cinco reglas de alerta aprovisionados desde el repositorio. Un pedido es una traza, desde la petición HTTP en el gateway, pasando por los pasos de la saga sobre RabbitMQ y los eventos retransmitidos a Kafka, hasta la última proyección. Las métricas estándar describen HTTP, la JVM, los pools de conexiones y los brokers; las métricas propias describen lo que está haciendo la arquitectura: el backlog del outbox, la ventana de consistencia eventual de cada modelo de lectura y el resultado y la duración de cada checkout. Los logs llevan el correlation id y el trace id, y Grafana salta entre una línea de log y su traza.
+Todos los servicios de Mercado generan trazas, métricas y logs mediante OpenTelemetry, y una única variable de entorno, `OTEL_EXPORTER_OTLP_ENDPOINT`, envía las tres señales a un colector OTLP. El stack de la demo es `grafana/otel-lgtm`: un OpenTelemetry Collector que alimenta Tempo (trazas), Prometheus (métricas) y Loki (logs), con Grafana por encima y dos dashboards y seis reglas de alerta aprovisionados desde el repositorio. Un pedido es una traza, desde la petición HTTP en el gateway, pasando por los pasos de la saga sobre RabbitMQ y los eventos retransmitidos a Kafka, hasta la última proyección. Las métricas estándar describen HTTP, la JVM, los pools de conexiones y los brokers; las métricas propias describen lo que está haciendo la arquitectura: el backlog del outbox, la ventana de consistencia eventual de cada modelo de lectura y el resultado y la duración de cada checkout. Los logs llevan el correlation id y el trace id, y Grafana salta entre una línea de log y su traza.
 
 <p align="center"><img src="../assets/diagrams/observability.svg" alt="Pipeline de telemetría desde los servicios, a través del OpenTelemetry Collector, hacia Tempo, Prometheus, Loki y Grafana" width="100%"></p>
 
@@ -112,6 +112,11 @@ Spring Boot solo instrumenta las factorías de Kafka que crea él mismo. [`Kafka
 | `shop.outbox.published` | `shop_outbox_published_total` | counter | `event.type` | Eventos publicados por el relay |
 | `shop.outbox.failures` | `shop_outbox_failures_total` | counter | `event.type` | Intentos de publicación fallidos |
 | `shop.outbox.delay` | `shop_outbox_delay_milliseconds_*` | timer | | Desde la transacción de negocio hasta la confirmación del broker |
+| `cqrs.outbox.pending` | `cqrs_outbox_pending` | gauge | | Filas de `cqrs_outbox` que el relay aún no ha publicado (servicios con el outbox de cqrs, como el catálogo) |
+| `cqrs.outbox.oldest.pending.age` | `cqrs_outbox_oldest_pending_age_milliseconds` | gauge | | Cuánto lleva esperando la fila pendiente más antigua; OTLP la exporta en milisegundos, y los paneles y la alerta la dividen entre 1000 |
+| `cqrs.outbox.set.aside` | `cqrs_outbox_set_aside` | gauge | | Filas que el relay no pudo leer y apartó definitivamente |
+| `cqrs.outbox.published` | `cqrs_outbox_published_total` | counter | | Filas publicadas por el relay; no lleva etiqueta de tipo de evento |
+| `cqrs.outbox.publish.failures` | `cqrs_outbox_publish_failures_total` | counter | | Intentos de publicación fallidos |
 | `shop.consumer.events` | `shop_consumer_events_total` | counter | `consumer`, `outcome` = `applied` / `duplicate` | Eventos tratados por cada consumidor idempotente (nombre de `@Idempotent`) |
 | `shop.consumer.lag` | `shop_consumer_lag_milliseconds_*` | timer | `consumer` | Desde el momento del evento hasta su proyección: la ventana de consistencia eventual de ese modelo de lectura |
 | `shop.checkout.steps` | `shop_checkout_steps_total` | counter | `step`, `result` = `succeeded` / `declined` / `retrying` / `gave-up` | Intentos de cada paso de la saga |
@@ -119,6 +124,8 @@ Spring Boot solo instrumenta las factorías de Kafka que crea él mismo. [`Kafka
 | `shop.checkout.duration` | `shop_checkout_duration_milliseconds_*` | timer | `outcome` | Desde que se realiza el pedido hasta que se confirma o se rechaza |
 | `shop.checkout.sagas` | `shop_checkout_sagas` | gauge | `state` = `running` / `stuck` | Sagas que aún tienen trabajo pendiente |
 | `shop.notifications.sse.connections` | `shop_notifications_sse_connections` | gauge | | Conexiones SSE abiertas de notifications |
+
+Los medidores `shop.outbox.*` son del relay del event store (orders, payments, inventory); los `cqrs.outbox.*` vienen del relay de spring-boot-cqrs (catalog), y un servicio reporta una familia o la otra, nunca las dos. La etiqueta `service_name` las distingue, así que los dashboards y las alertas leen ambas familias y muestran cada servicio una sola vez. Solo el relay del event store mide el retraso entre la transacción y la confirmación del broker.
 
 Orígenes: [`OutboxMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxMetrics.java) y [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) (outbox), [`ConsumerMetrics`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/ConsumerMetrics.java) (consumidores), [`CheckoutMetrics`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/application/checkout/CheckoutMetrics.java) (checkout), [`SseNotificationHub`](../../services/notifications-service/src/main/java/com/borjaglez/shop/notifications/api/SseNotificationHub.java) (SSE). Los gauges leen la base de datos cuando se recogen (las filas pendientes tienen su propio índice parcial) y devuelven `NaN` en lugar de hacer fallar la recogida si la lectura falla. Los counters y timers del relay y de la saga se registran después del commit de su transacción, así que el trabajo revertido nunca se contabiliza.
 
@@ -144,7 +151,7 @@ Se aprovisionan dos dashboards en la carpeta **Shop** de Grafana desde [`deploy/
 | Summary | Checkouts por minuto, tasa de confirmación, tiempo de checkout p95, sagas en curso, sagas atascadas, rechazos técnicos en la última hora |
 | Checkout saga | Resultados por minuto, motivos de rechazo, duración del checkout (p50, p95), resultados de pasos por segundo, sagas por estado |
 | CQRS buses (spring-boot-cqrs) | Mensajes tratados/s por tipo y clase, fallos de handlers/s, tiempo de tratamiento p95 |
-| Transactional outbox | Eventos pendientes, antigüedad del evento pendiente más antiguo, retraso del store a Kafka (p95), eventos publicados/s por tipo, fallos de publicación/s |
+| Transactional outbox | Eventos pendientes y filas apartadas del outbox de cqrs, antigüedad del evento pendiente más antiguo, retraso del store a Kafka (p95, solo el relay del event store), eventos publicados/s por tipo (por servicio en el outbox de cqrs), fallos de publicación/s |
 | Kafka consumers and read models | Consumer lag en registros, retraso de los modelos de lectura (p95 de `shop.consumer.lag`), eventos aplicados/s, duplicados ignorados/s |
 | RabbitMQ (saga commands) | Tiempo de petición/respuesta (p95), mensajes publicados y consumidos por segundo |
 | Service graph | Quién llama a quién por HTTP, RabbitMQ y Kafka, construido por Tempo a partir de los spans |
@@ -155,12 +162,13 @@ Ambos dashboards tienen una variable `service` para centrarse en uno o varios se
 
 ## Reglas de alerta
 
-Se aprovisionan cinco reglas desde [`shop-alerts.yaml`](../../deploy/k8s/components/observability/grafana/alerting/shop-alerts.yaml) en la carpeta Shop (Alerting > Alert rules). Cada una vigila un modo de fallo que la arquitectura está diseñada para absorber, así que salta cuando la red de seguridad lleva demasiado tiempo en uso, no con cada fallo transitorio.
+Se aprovisionan seis reglas desde [`shop-alerts.yaml`](../../deploy/k8s/components/observability/grafana/alerting/shop-alerts.yaml) en la carpeta Shop (Alerting > Alert rules). Cada una vigila un modo de fallo que la arquitectura está diseñada para absorber, así que salta cuando la red de seguridad lleva demasiado tiempo en uso, no con cada fallo transitorio.
 
 | Regla | Condición | Severidad | La red de seguridad que se está usando |
 |---|---|---|---|
 | Server errors above 5% | proporción de 5xx de las peticiones que no son de Actuator, por servicio, > 5% durante 2 min | critical | Los reintentos y los problem details ocultan los fallos aislados; una tasa de 5xx sostenida es una caída real. Los 4xx son respuestas de negocio y no se cuentan. |
-| Events are not reaching Kafka | `shop_outbox_oldest_age_seconds` > 60 durante 1 min | warning | El outbox mantiene cada evento a salvo en la base de datos, pero los modelos de lectura, los informes y los avisos dejan de avanzar hasta que vuelven Kafka o el relay. |
+| Events are not reaching Kafka | `shop_outbox_oldest_age_seconds` o `cqrs_outbox_oldest_pending_age_milliseconds` / 1000 > 60 durante 1 min | warning | El outbox mantiene cada evento a salvo en la base de datos, pero los modelos de lectura, los informes y los avisos dejan de avanzar hasta que vuelven Kafka o el relay. |
+| Events were set aside by the outbox relay | `cqrs_outbox_set_aside` > 0 durante 1 min | critical | El relay del outbox de cqrs omite una fila que no puede leer (una clase de evento que ya no conoce, un payload que no se deserializa) para que las filas siguientes sigan fluyendo; el evento omitido no llega a Kafka hasta que alguien lo arregle y lo reenvíe. |
 | Checkout compensations are stuck | `shop_checkout_sagas{state="stuck"}` > 0 durante 1 min | critical | Un reembolso o una liberación de stock ha fallado 20 veces; la saga sigue reintentando cada 30 s, pero mientras tanto se retiene dinero o stock. |
 | Orders rejected because a service did not answer | cualquier `shop_checkout_completed_total{outcome="rejected",reason=~".*-unavailable"}` en 10 min | warning | La saga se rindió con inventory o payments tras unos dos minutos de reintentos; el cliente no hizo nada mal. |
 | Read models are falling behind | `kafka_consumer_fetch_manager_records_lag_max` > 1000 durante 5 min | warning | Los consumidores idempotentes absorben las nuevas entregas y el retraso, pero las proyecciones están desactualizadas; busca handlers que fallan o escala horizontalmente. |

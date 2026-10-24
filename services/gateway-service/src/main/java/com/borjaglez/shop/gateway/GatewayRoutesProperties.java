@@ -16,8 +16,8 @@ import org.springframework.validation.annotation.Validated;
  * Public routes of the platform, one per service.
  *
  * <pre>
- * shop.gateway.routes[0].id=catalog
- * shop.gateway.routes[0].path=/api/catalog/**
+ * shop.gateway.routes[0].id=catalog-v1
+ * shop.gateway.routes[0].path=/api/v1/catalog/**
  * shop.gateway.routes[0].uri=http://catalog-service:8081
  * </pre>
  *

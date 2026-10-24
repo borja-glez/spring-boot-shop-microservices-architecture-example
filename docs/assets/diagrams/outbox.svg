@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="632" viewBox="0 0 1200 632" role="img" aria-labelledby="title desc">
 <title id="title">Transactional outbox and idempotent consumers</title>
-<desc id="desc">A command handler writes state and an event_store row with published_at null in one transaction. OutboxRelay selects unpublished rows ordered by global_position with FOR UPDATE SKIP LOCKED, publishes them to Kafka shop.events, waits for the broker ack and marks published_at. Delivery is at-least-once, so @Idempotent handlers record (handler, eventId) in cqrs_processed_message in the same transaction as the projection update and drop duplicates: an exactly-once effect.</desc>
+<desc id="desc">A command handler writes state and an event_store row with published_at null in one transaction. OutboxRelay selects unpublished rows ordered by global_position with FOR UPDATE SKIP LOCKED, publishes them to Kafka shop.events, waits for the broker ack and marks published_at. Delivery is at-least-once, so @Idempotent handlers record (handler, eventId) in cqrs_processed_message in the same transaction as the projection update and drop duplicates: an exactly-once effect. The catalog, also state-based, keeps its domain events in event_store and writes its integration events to the cqrs_outbox table of spring-boot-cqrs in the same transaction; the cqrs outbox relay publishes them to Kafka in the same way.</desc>
 <defs>
 <filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.45"/></filter>
 <filter id="gl" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -20,7 +20,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 .pulse{animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.15}50%{opacity:.75}}
 </style>
-<rect x="0.5" y="0.5" width="1199" height="609" rx="16" fill="url(#panel)" stroke="#30363d"/>
+<rect x="0.5" y="0.5" width="1199" height="631" rx="16" fill="url(#panel)" stroke="#30363d"/>
 
 <text x="40" y="48" font-size="24" fill="#e6edf3" font-weight="700">Transactional outbox + idempotent consumers</text>
 <text x="40" y="72" font-size="13" class="mu">state and event are committed together; the relay publishes later; consumers make redelivery harmless</text>
@@ -42,7 +42,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <text x="250" y="168" font-size="13" fill="#e6edf3" font-weight="600">aggregate</text>
 <text x="250" y="190" font-size="10.6" class="mono" fill="#e6edf3">event-sourced (orders, payments):</text>
 <text x="250" y="207" font-size="10.6" class="mono" fill="#8b949e">  the events are the state</text>
-<text x="250" y="224" font-size="10.6" class="mono" fill="#e6edf3">state-based (catalog, inventory):</text>
+<text x="250" y="224" font-size="10.6" class="mono" fill="#e6edf3">state-based (inventory):</text>
 <text x="250" y="241" font-size="10.6" class="mono" fill="#8b949e">  rows + events kept as outbox</text>
 <rect x="236" y="272" width="248" height="184" rx="12" fill="#161b22" stroke="#39c5bb" stroke-width="1.2" filter="url(#sh)" />
 <text x="250" y="294" font-size="13" class="mono" fill="#39c5bb" font-weight="600">event_store</text>
@@ -52,7 +52,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <text x="406" y="324" font-size="10" class="mono" fill="#8b949e">published_at</text>
 <path d="M244,332 H476" stroke="#30363d" opacity=".6"/>
 <text x="250" y="348" font-size="10.5" class="mono" fill="#e6edf3">40</text>
-<text x="294" y="348" font-size="10.5" class="mono" fill="#e6edf3">ProductCreated</text>
+<text x="294" y="348" font-size="10.5" class="mono" fill="#e6edf3">OrderCancelled</text>
 <text x="406" y="348" font-size="10.5" class="mono" fill="#3fb950">10:02:07</text>
 <path d="M244,356 H476" stroke="#30363d" opacity=".6"/>
 <text x="250" y="372" font-size="10.5" class="mono" fill="#e6edf3">41</text>
@@ -115,6 +115,7 @@ text{font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif}
 <text x="1045.0" y="522" font-size="14" fill="#3fb950" font-weight="600" text-anchor="middle">exactly-once effect</text>
 <text x="1045.0" y="540" font-size="11" fill="#8b949e" text-anchor="middle">duplicates are detected and dropped</text>
 <text x="600" y="580" font-size="11.5" fill="#8b949e" text-anchor="middle">the relay only marks published_at after the broker ack · SKIP LOCKED lets several relay instances share the table without double work</text>
+<text x="600" y="604" font-size="11.5" fill="#8b949e" text-anchor="middle">the catalog writes its integration events to <tspan class="mono" fill="#39c5bb">cqrs_outbox</tspan> in the same transaction · the relay of spring-boot-cqrs publishes them the same way</text>
 <circle r="4" fill="#3fb950" filter="url(#gl)" opacity="0"><animateMotion dur="10.0s" repeatCount="indefinite" path="M115,286 L190,286 L236,286" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.020;0.100;1"/><animate attributeName="opacity" dur="10.0s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.020;0.032;0.088;0.100;1"/></circle>
 <circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="10.0s" repeatCount="indefinite" path="M484,360 L512,360 L512,300 L538,300" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.180;0.300;1"/><animate attributeName="opacity" dur="10.0s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.180;0.192;0.288;0.300;1"/></circle>
 <circle r="4" fill="#f0883e" filter="url(#gl)" opacity="0"><animateMotion dur="10.0s" repeatCount="indefinite" path="M760,280 L835,280" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.360;0.440;1"/><animate attributeName="opacity" dur="10.0s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.360;0.372;0.428;0.440;1"/></circle>

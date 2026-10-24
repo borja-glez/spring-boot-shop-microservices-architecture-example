@@ -106,7 +106,7 @@ Consulta [cómo se integran las librerías](docs/es/libraries.md) para ver el c�
 | **Diseño de servicios** | Base de datos por servicio, capas hexagonales verificadas con ArchUnit, errores RFC 9457 con códigos estables | [Arquitectura](docs/es/architecture.md) |
 | **CQRS** | Los controladores despachan comandos y queries; modelos de escritura y de lectura separados | [Librerías](docs/es/libraries.md) |
 | **Event sourcing** | Pedidos y pagos guardados como streams de eventos con concurrencia optimista; historia completa de cada pedido | [Event sourcing y outbox](docs/es/event-sourcing-and-outbox.md) |
-| **Mensajería fiable** | Outbox transaccional (el propio event store), relay con `SKIP LOCKED`, entrega al menos una vez, consumidores idempotentes | [Event sourcing y outbox](docs/es/event-sourcing-and-outbox.md) |
+| **Mensajería fiable** | Outbox transaccional de dos formas, el propio event store (pedidos, pagos, inventario) y la tabla de outbox de spring-boot-cqrs (catálogo), relays con `SKIP LOCKED`, entrega al menos una vez, consumidores idempotentes | [Event sourcing y outbox](docs/es/event-sourcing-and-outbox.md) |
 | **Transacciones distribuidas** | Saga de checkout orquestada y persistida sobre RabbitMQ, con reintentos, backoff y compensaciones | [Saga de checkout](docs/es/checkout-saga.md) |
 | **Modelos de lectura** | Proyecciones que toleran eventos desordenados, informes reconstruidos releyendo Kafka desde el offset 0, avisos en vivo por SSE | [Modelos de lectura](docs/es/read-models.md) |
 | **Consultas** | Filtros HTTP, listas blancas, condiciones del servidor, facetas e informes agregados | [Consultas](docs/es/querying.md) |
@@ -137,7 +137,7 @@ La primera vez descarga las imágenes base y tarda unos minutos. Después abre:
 |---|---|
 | <http://localhost:4200> | **La tienda**: catálogo, carrito, pedidos con la saga en vivo, avisos, backoffice, laboratorio de filtros, panel de caos |
 | <http://localhost:3000> | **Grafana**: *Dashboards > Shop*, trazas en Tempo, logs en Loki, reglas de alerta |
-| <http://localhost:8080/api/catalog/products> | La API pública, a través del gateway |
+| <http://localhost:8080/api/v1/catalog/products> | La API pública, a través del gateway |
 | <http://localhost:15672> | Consola de RabbitMQ (`shop` / `shop-dev`) |
 | <http://localhost:8090> | Kafka UI: el topic `shop.events` |
 

@@ -1,0 +1,789 @@
+openapi: 3.0.3
+info:
+  title: Mercado catalog API
+  version: 1.0.0
+  description: |
+    The product catalog: public search, facets and product pages for shoppers, and the drafts,
+    publication, prices and withdrawal of the products of a seller.
+
+    The search and its facets take the filter syntax of specification-repository (`filter`,
+    `orFilter` and `sort`, described in `platform/api-contracts/openapi/specrepo-filters.yaml`),
+    restricted to the public fields of a product. The fields each operation accepts are listed in
+    its `x-specrepo-filterable-fields` and `x-specrepo-sortable-fields`, and the patterns of its
+    parameters admit only them. The server enforces the same lists: a filter or sort on any other
+    field, a malformed one, an operator the catalog does not offer or a value above the limits is
+    answered with 400 `invalid-filter`, with `field` when the problem names one. Text filters on
+    `name` and `description` ignore case and accents.
+
+    The write operations act on the products of the seller named in `X-Shop-User`. A product of
+    another seller is answered as if it did not exist (404 `product-not-found`). A text that must
+    not be blank has a character other than whitespace, as Java's `Character.isWhitespace` defines
+    it; its pattern says so.
+
+    The extensions `x-spring-paginated`, `x-spring-provide-args`, `x-field-extra-annotation` and
+    `x-pattern-message` steer the generation of the server's interfaces and models; other tools
+    ignore them.
+servers:
+  - url: /
+tags:
+  - name: products
+    description: Search, pages and lifecycle of the products.
+  - name: categories
+    description: The categories of the catalog.
+paths:
+  /api/v1/catalog/products:
+    get:
+      tags:
+        - products
+      operationId: searchProducts
+      summary: Searches the products on sale.
+      description: |
+        A page of the products on sale that match the filters, newest first unless `sort` says
+        otherwise. A `size` above 100 is read as 100.
+
+        Problem codes: `invalid-filter` (400).
+      x-spring-paginated: true
+      x-spring-provide-args:
+        - 'jakarta.servlet.http.HttpServletRequest request'
+      x-specrepo-filterable-fields:
+        - name
+        - description
+        - sku
+        - price.amount
+        - status
+        - categories.slug
+        - tags
+        - seller.id
+        - seller.city
+        - publishedAt
+      x-specrepo-sortable-fields:
+        - name
+        - sku
+        - price.amount
+        - publishedAt
+      parameters:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/Page'
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/Size'
+        - $ref: '#/components/parameters/ProductFilter'
+        - $ref: '#/components/parameters/ProductOrFilter'
+        - $ref: '#/components/parameters/ProductSort'
+      responses:
+        '200':
+          description: A page of products.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+    post:
+      tags:
+        - products
+      operationId: createProduct
+      summary: Registers a product as a draft.
+      description: |
+        Registers a new product of the seller as a draft, not visible to shoppers until it is
+        published. The SKU is stored in upper case and must be unique.
+
+        Problem codes: `validation-failed`, `invalid-user`, `bad-request` (400); `missing-user`
+        (401); `seller-not-found` (404); `duplicate-sku`, or `data-integrity-violation` when
+        another request registers the same SKU at the same time (409); `invalid-price`,
+        `invalid-currency`, `unknown-category`, `invalid-sku`, `invalid-name`,
+        `invalid-description`, `invalid-tag`, `too-many-tags` (422).
+      parameters:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: The draft was created.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedProduct'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+        '404':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Conflict'
+        '422':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/UnprocessableContent'
+  /api/v1/catalog/products/facets:
+    get:
+      tags:
+        - products
+      operationId: getCatalogFacets
+      summary: Counts the refinements of a search.
+      description: |
+        For the products on sale that match the filters, the commonest categories, sellers and tags
+        (up to 20 of each, by count and then by label) and the price range. Each facet ignores the
+        client's own filter on its field, so a shopper can pick several values and see what each
+        extra choice would add. The facets take the filters of the search and no sort: a `sort`
+        is answered with 400 `invalid-filter`.
+
+        Problem codes: `invalid-filter` (400).
+      x-spring-provide-args:
+        - 'jakarta.servlet.http.HttpServletRequest request'
+      x-specrepo-filterable-fields:
+        - name
+        - description
+        - sku
+        - price.amount
+        - status
+        - categories.slug
+        - tags
+        - seller.id
+        - seller.city
+        - publishedAt
+      x-specrepo-sortable-fields: []
+      parameters:
+        - $ref: '#/components/parameters/ProductFilter'
+        - $ref: '#/components/parameters/ProductOrFilter'
+      responses:
+        '200':
+          description: The facets of the search.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogFacets'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+  /api/v1/catalog/products/{slug}:
+    get:
+      tags:
+        - products
+      operationId: getProduct
+      summary: Returns the page of a product.
+      description: |
+        The page of a product on sale or no longer on sale, with the stock the inventory reports
+        for a product on sale. Drafts have no page. When the inventory does not answer in time the
+        page is returned with the stock `UNKNOWN`.
+
+        Problem codes: `product-not-found` (404).
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Slug of the product, such as `cafe-de-colombia-en-grano-1-kg-caf-001`.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The page of the product.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '404':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+  /api/v1/catalog/products/{id}/publish:
+    post:
+      tags:
+        - products
+      operationId: publishProduct
+      summary: Puts a draft on sale.
+      description: |
+        Publishes a draft of the seller: it becomes visible to shoppers and its stock starts in
+        the inventory.
+
+        Problem codes: `invalid-user`, `bad-request` (400); `missing-user` (401);
+        `product-not-found` (404); `concurrent-modification` (409); `product-already-published`,
+        `product-discontinued` (422).
+      parameters:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: The product is on sale.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+        '404':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Conflict'
+        '422':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/UnprocessableContent'
+  /api/v1/catalog/products/{id}/price:
+    put:
+      tags:
+        - products
+      operationId: changeProductPrice
+      summary: Changes the price of a product.
+      description: |
+        Changes the selling price of a draft or of a product on sale of the seller, in the
+        currency it is priced in.
+
+        Problem codes: `validation-failed`, `invalid-user`, `bad-request` (400); `missing-user`
+        (401); `product-not-found` (404); `concurrent-modification` (409); `invalid-price`,
+        `invalid-currency`, `currency-mismatch`, `product-discontinued` (422).
+      parameters:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePriceRequest'
+      responses:
+        '204':
+          description: The price is changed.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+        '404':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Conflict'
+        '422':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/UnprocessableContent'
+  /api/v1/catalog/products/{id}/discontinue:
+    post:
+      tags:
+        - products
+      operationId: discontinueProduct
+      summary: Withdraws a product for good.
+      description: |
+        Withdraws a product of the seller: a product on sale disappears from the search and its
+        page shows it is no longer on sale. Withdrawing a product twice has no effect.
+
+        Problem codes: `validation-failed`, `invalid-user`, `bad-request` (400); `missing-user`
+        (401); `product-not-found` (404); `concurrent-modification` (409).
+      parameters:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscontinueRequest'
+      responses:
+        '204':
+          description: The product is withdrawn.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+        '400':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+        '404':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+        '409':
+          $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/Conflict'
+  /api/v1/catalog/categories:
+    get:
+      tags:
+        - categories
+      operationId: listCategories
+      summary: Lists the categories.
+      description: Every category, by name, with the number of products on sale in it.
+      responses:
+        '200':
+          description: The categories.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+components:
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      description: Id of the product.
+      schema:
+        type: string
+        format: uuid
+    ProductFilter:
+      name: filter
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Conditions combined with AND, `field:operator[:value]`, on the public fields of a product.
+        The syntax of `SpecrepoFilter` in `specrepo-filters.yaml`, restricted to the fields of
+        `x-specrepo-filterable-fields`: `filter=name:contains:cafe&filter=price.amount:lte:20`.
+        The catalog offers every built-in operator; a value has at most 100 characters, and the
+        list of `in` or `notin` at most 50 values.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^(name|description|sku|price\.amount|status|categories\.slug|tags|seller\.id|seller\.city|publishedAt):[A-Za-z][A-Za-z0-9_]*(:.*)?$'
+      example:
+        - 'name:contains:cafe'
+        - 'price.amount:between:5|20'
+    ProductOrFilter:
+      name: orFilter
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Groups of alternative conditions, separated by `;` and combined with OR; each group is
+        ANDed with `filter` and with the other groups. The syntax of `SpecrepoOrFilter` in
+        `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-filterable-fields`:
+        `orFilter=seller.city:eq:Madrid;tags:eq:ecologico`. Its conditions take the operators and
+        the limits of `filter`.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^(name|description|sku|price\.amount|status|categories\.slug|tags|seller\.id|seller\.city|publishedAt):[A-Za-z][A-Za-z0-9_]*(:[^;]*)?(;(name|description|sku|price\.amount|status|categories\.slug|tags|seller\.id|seller\.city|publishedAt):[A-Za-z][A-Za-z0-9_]*(:[^;]*)?)*$'
+      example:
+        - 'seller.city:eq:Madrid;tags:eq:ecologico'
+    ProductSort:
+      name: sort
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: |
+        Sort order, `field[,asc|desc]`, ascending by default. The syntax of `SpecrepoSort` in
+        `specrepo-filters.yaml`, restricted to the fields of `x-specrepo-sortable-fields`:
+        `sort=price.amount,desc&sort=name`.
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: '^(name|sku|price\.amount|publishedAt)(,(asc|desc))?$'
+      example:
+        - 'price.amount,desc'
+        - 'name'
+  schemas:
+    ProductStatus:
+      type: string
+      description: |
+        Lifecycle of a product: a `DRAFT` is not on sale yet and has no public page, an `ACTIVE`
+        product is on sale, a `DISCONTINUED` one is no longer on sale.
+      enum:
+        - DRAFT
+        - ACTIVE
+        - DISCONTINUED
+    StockStatus:
+      type: string
+      description: |
+        How much of a product is left: `LOW_STOCK` up to 5 free units, `UNKNOWN` when the
+        inventory did not answer in time.
+      enum:
+        - IN_STOCK
+        - LOW_STOCK
+        - OUT_OF_STOCK
+        - UNKNOWN
+    SellerSummary:
+      type: object
+      description: Public data of a seller.
+      required:
+        - id
+        - displayName
+        - city
+      properties:
+        id:
+          type: string
+          description: Id of the seller.
+          example: seller-ana
+        displayName:
+          type: string
+          description: Name the shoppers see.
+          example: Tostadores Ana
+        city:
+          type: string
+          description: City the seller ships from.
+          example: Madrid
+    CategoryRef:
+      type: object
+      description: A category a product belongs to.
+      required:
+        - slug
+        - name
+      properties:
+        slug:
+          type: string
+          description: Slug of the category.
+          example: cafe-e-infusiones
+        name:
+          type: string
+          description: Name of the category.
+          example: Café e infusiones
+    ProductCard:
+      type: object
+      description: A product in a search result.
+      required:
+        - id
+        - slug
+        - sku
+        - name
+        - price
+        - currency
+        - status
+        - seller
+        - categories
+        - tags
+        - publishedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the product.
+        slug:
+          type: string
+          description: Slug of the product page.
+          example: cafe-de-colombia-en-grano-1-kg-caf-001
+        sku:
+          type: string
+          description: Stock keeping unit, in upper case.
+          example: CAF-001
+        name:
+          type: string
+          description: Name of the product.
+        price:
+          type: number
+          description: Selling price.
+          example: 18.9
+        currency:
+          type: string
+          description: ISO 4217 code of the currency of the price.
+          example: EUR
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        seller:
+          $ref: '#/components/schemas/SellerSummary'
+        categories:
+          type: array
+          description: Slugs of its categories, in alphabetical order.
+          items:
+            type: string
+        tags:
+          type: array
+          description: Its tags, in alphabetical order.
+          items:
+            type: string
+        publishedAt:
+          type: string
+          format: date-time
+          description: When it went on sale, in UTC.
+    ProductPage:
+      description: A page of products.
+      allOf:
+        - $ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/schemas/PageMetadata'
+        - type: object
+          description: The products of the page.
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              description: Products of this page.
+              items:
+                $ref: '#/components/schemas/ProductCard'
+    Availability:
+      type: object
+      nullable: true
+      description: |
+        Stock of a product on sale; null on the page of a product that is no longer on sale.
+      required:
+        - status
+        - units
+      properties:
+        status:
+          $ref: '#/components/schemas/StockStatus'
+        units:
+          type: integer
+          format: int32
+          nullable: true
+          description: Free units; null when the inventory did not answer.
+    ProductDetail:
+      type: object
+      description: The page of a product.
+      required:
+        - id
+        - slug
+        - sku
+        - name
+        - description
+        - price
+        - currency
+        - status
+        - seller
+        - categories
+        - tags
+        - publishedAt
+        - updatedAt
+        - version
+        - availability
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the product.
+        slug:
+          type: string
+          description: Slug of the product page.
+        sku:
+          type: string
+          description: Stock keeping unit, in upper case.
+        name:
+          type: string
+          description: Name of the product.
+        description:
+          type: string
+          description: Description of the product, empty when the seller gave none.
+        price:
+          type: number
+          description: Selling price.
+        currency:
+          type: string
+          description: ISO 4217 code of the currency of the price.
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        seller:
+          $ref: '#/components/schemas/SellerSummary'
+        categories:
+          type: array
+          description: Its categories, ordered by slug.
+          items:
+            $ref: '#/components/schemas/CategoryRef'
+        tags:
+          type: array
+          description: Its tags, in alphabetical order.
+          items:
+            type: string
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When it went on sale, in UTC; null for a draft withdrawn before it was published.
+        updatedAt:
+          type: string
+          format: date-time
+          description: When it last changed, in UTC.
+        version:
+          type: integer
+          format: int64
+          description: Version of the product, raised by every change.
+        availability:
+          $ref: '#/components/schemas/Availability'
+    FacetValue:
+      type: object
+      description: One refinement option and how many products match it.
+      required:
+        - value
+        - label
+        - count
+      properties:
+        value:
+          type: string
+          description: Value to filter by, such as the slug of a category or the id of a seller.
+        label:
+          type: string
+          description: What the shopper sees.
+        count:
+          type: integer
+          format: int64
+          description: Products on sale that match the search and this value.
+    PriceRange:
+      type: object
+      description: Cheapest and most expensive price of the matching products.
+      required:
+        - min
+        - max
+      properties:
+        min:
+          type: number
+          nullable: true
+          description: Lowest price; null when nothing matches.
+        max:
+          type: number
+          nullable: true
+          description: Highest price; null when nothing matches.
+    CatalogFacets:
+      type: object
+      description: Counts that let shoppers refine a search, the commonest values first.
+      required:
+        - categories
+        - sellers
+        - tags
+        - price
+      properties:
+        categories:
+          type: array
+          description: Categories, valued by slug.
+          items:
+            $ref: '#/components/schemas/FacetValue'
+        sellers:
+          type: array
+          description: Sellers, valued by id and labelled with their display name.
+          items:
+            $ref: '#/components/schemas/FacetValue'
+        tags:
+          type: array
+          description: Tags.
+          items:
+            $ref: '#/components/schemas/FacetValue'
+        price:
+          $ref: '#/components/schemas/PriceRange'
+    Category:
+      type: object
+      description: A category with the number of products on sale in it.
+      required:
+        - slug
+        - name
+        - activeProducts
+      properties:
+        slug:
+          type: string
+          description: Slug of the category.
+          example: cafe-e-infusiones
+        name:
+          type: string
+          description: Name of the category.
+        activeProducts:
+          type: integer
+          format: int64
+          description: Products on sale in the category.
+    CreateProductRequest:
+      type: object
+      description: A new product, saved as a draft of the seller who sends it.
+      required:
+        - sku
+        - name
+        - price
+        - currency
+      properties:
+        sku:
+          type: string
+          description: Stock keeping unit, not blank; the catalog stores it in upper case.
+          maxLength: 40
+          pattern: &notBlank '^[\s\S]*[^\t\n\u000B\f\r\u001C-\u001F \u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000][\s\S]*$'
+          x-pattern-message: must not be blank
+          example: CAF-900
+        name:
+          type: string
+          description: Name of the product, not blank.
+          maxLength: 160
+          pattern: *notBlank
+          x-pattern-message: must not be blank
+          example: Café de Honduras
+        description:
+          type: string
+          nullable: true
+          description: Description of the product; none when null or absent.
+          maxLength: 4000
+        price:
+          type: number
+          description: Selling price, above 0, with up to 10 integer digits and 2 decimals.
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9999999999.99
+          x-field-extra-annotation: '@jakarta.validation.constraints.Digits(integer = 10, fraction = 2)'
+          example: 14.2
+        currency:
+          type: string
+          description: ISO 4217 code of the currency of the price, not blank.
+          minLength: 3
+          maxLength: 3
+          pattern: *notBlank
+          x-pattern-message: must not be blank
+          example: EUR
+        categories:
+          type: array
+          nullable: true
+          description: Slugs of its categories, up to 5 and without repeats; the server counts a repeated slug once.
+          uniqueItems: true
+          maxItems: 5
+          items:
+            type: string
+          example:
+            - cafe-e-infusiones
+        tags:
+          type: array
+          nullable: true
+          description: Its tags, up to 10 and without repeats; the server counts a repeated tag once.
+          uniqueItems: true
+          maxItems: 10
+          items:
+            type: string
+          example:
+            - ecologico
+    CreatedProduct:
+      type: object
+      description: The product just created.
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the new product.
+    ChangePriceRequest:
+      type: object
+      description: The new price of a product.
+      required:
+        - price
+        - currency
+      properties:
+        price:
+          type: number
+          description: Selling price, above 0, with up to 10 integer digits and 2 decimals.
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9999999999.99
+          x-field-extra-annotation: '@jakarta.validation.constraints.Digits(integer = 10, fraction = 2)'
+          example: 16.5
+        currency:
+          type: string
+          description: ISO 4217 code of the currency the product is priced in, not blank.
+          minLength: 3
+          maxLength: 3
+          pattern: *notBlank
+          x-pattern-message: must not be blank
+          example: EUR
+    DiscontinueRequest:
+      type: object
+      description: Why a product is withdrawn.
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Reason for withdrawing the product, not blank.
+          maxLength: 200
+          pattern: *notBlank
+          x-pattern-message: must not be blank
+          example: Out of production

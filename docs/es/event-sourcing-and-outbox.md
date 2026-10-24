@@ -1,6 +1,6 @@
 # Event sourcing y outbox transaccional
 
-Cada servicio que publica eventos los guarda en una única tabla, `event_store`, proporcionada por [`platform/es-kit`](../../platform/es-kit). Para orders y payments esa tabla es la fuente de verdad: un pedido o un pago es su stream de eventos, y su estado se reconstruye reproduciéndolos. Para catalog e inventory, que guardan su estado en tablas normales, la misma tabla es solo el outbox. En ambos casos, escribir un evento y "enviarlo" es el mismo insert, en la misma transacción que el cambio de negocio, de modo que un evento se publica si y solo si el cambio se confirma. Un relay publica las filas pendientes en Kafka en orden global una vez que el broker las confirma, la entrega es at-least-once (al menos una vez) y todos los consumidores son idempotentes y toleran que los eventos lleguen desordenados entre tipos.
+Cada servicio que publica eventos los guarda en una única tabla, `event_store`, proporcionada por [`platform/es-kit`](../../platform/es-kit). Para orders y payments esa tabla es la fuente de verdad: un pedido o un pago es su stream de eventos, y su estado se reconstruye reproduciéndolos. Para inventory, que guarda su estado en tablas normales, la misma tabla es solo el outbox. El catálogo también guarda su estado en tablas normales; conserva los eventos de dominio de sus productos en `event_store` como traza de auditoría y publica sus eventos de integración por el outbox transaccional de spring-boot-cqrs (`cqrs_outbox`). En todos los casos el evento, o su fila de outbox, se escribe en la misma transacción que el cambio de negocio, de modo que un evento se publica si y solo si el cambio se confirma. Un relay publica las filas pendientes en Kafka una vez que el broker las confirma (en orden global el relay del event store, en orden de `id` el relay del outbox de cqrs), la entrega es at-least-once (al menos una vez) y todos los consumidores son idempotentes y toleran que los eventos lleguen desordenados entre tipos.
 
 <p align="center"><img src="../assets/diagrams/outbox.svg" alt="Outbox transaccional: la transacción de negocio escribe el cambio y sus eventos, el relay publica las filas pendientes en Kafka y los consumidores idempotentes aplican cada evento una sola vez" width="100%"></p>
 
@@ -33,7 +33,7 @@ La siguiente migración de es-kit, [`V1000_1__cqrs_processed_message.sql`](../..
 
 | | Con event sourcing | Basado en estado con outbox |
 |---|---|---|
-| Servicios | orders ([`Order`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/domain/Order.java)), payments ([`Payment`](../../services/payments-service/src/main/java/com/borjaglez/shop/payments/domain/Payment.java)) | catalog (`Product`), inventory (`StockItem`, `Reservation`) |
+| Servicios | orders ([`Order`](../../services/orders-service/src/main/java/com/borjaglez/shop/orders/domain/Order.java)), payments ([`Payment`](../../services/payments-service/src/main/java/com/borjaglez/shop/payments/domain/Payment.java)) | inventory (`StockItem`, `Reservation`) |
 | Fuente de verdad | el stream en `event_store` | las tablas de las entidades |
 | API | `AggregateStore.load` / `save` -> `EventStore.append` | `EventStore.record` |
 | `version` | 1, 2, 3... por stream | `null` |
@@ -88,18 +88,22 @@ orders.save(order);
 
 ### Agregados basados en estado
 
-El catálogo guarda los productos como entidades JPA normales y registra en la misma transacción los eventos que ha acumulado el agregado:
+Inventory guarda sus entidades como entidades JPA normales y registra en la misma transacción, con `EventStore.record`, los eventos que han acumulado; su relay (más abajo) los publica. `StockReserved` y `StockReleased` van al stream `reservation`, `StockAdjusted` al stream `stock`. Al relay, al explorador y a los consumidores les da igual qué estilo escribió una fila.
+
+### Eventos de dominio y outbox de cqrs
+
+El catálogo también guarda los productos como entidades JPA normales, pero registra los eventos de dominio del agregado (`ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`, los records de la interfaz sealed `ProductEvent`) con [`DomainEventStore`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/DomainEventStore.java), y los eventos de integración llegan a Kafka por el outbox transaccional de spring-boot-cqrs:
 
 ```java
-private void publish(Product product) {
-  var events = product.pullEvents();
-  if (!events.isEmpty()) {
-    eventStore.record("product", product.getId().toString(), events);
-  }
+List<ProductEvent> recorded = product.pullEvents();
+if (!recorded.isEmpty()) {
+  events.record(STREAM_TYPE, state.id().value().toString(), recorded);
 }
 ```
 
-Inventory hace lo mismo con `StockReserved`, `StockReleased` (stream `reservation`) y `StockAdjusted` (stream `stock`). Mantener ambos estilos sobre la misma infraestructura hace visible la diferencia: al relay, al explorador y a los consumidores les da igual cuál de los dos escribió una fila.
+En la transacción del llamante, `DomainEventStore` inserta una fila de `event_store` por evento de dominio, con el nombre registrado en `DomainEventTypes` (`product-published.v1`, `product-price-changed.v1`, `product-discontinued.v1`), y pasa cada evento de dominio al `IntegrationEventTranslator` del servicio ([`CatalogIntegrationEvents`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/messaging/CatalogIntegrationEvents.java)), que lo convierte en el evento de `platform/contracts` que reciben los demás servicios. Esos eventos se publican con `OutboxEventBus`, así que quedan en `cqrs_outbox` en la misma transacción. Las filas de `event_store` se escriben ya como publicadas (`published_at` es el instante de escritura), de modo que el relay del event store nunca las envía dos veces. Tras el commit, el relay de spring-boot-cqrs lee `cqrs_outbox` y publica por el bus con caos (`cqrs.outbox.relay.event-bus=chaosEventBus`). El catálogo no declara ningún `OutboxDestination`, así que no ejecuta el relay del event store.
+
+Cualquier servicio que declare `DomainEventTypes` (un `static @Bean`) y un `IntegrationEventTranslator` recibe un `DomainEventStore` y este camino de publicación; los demás conservan `EventStore` y el relay del event store.
 
 ## Concurrencia optimista
 
@@ -109,7 +113,7 @@ Inventory hace lo mismo con `StockReserved`, `StockReleased` (stream `reservatio
 
 <p align="center"><img src="../assets/diagrams/cqrs-event-sourcing.svg" alt="Lado de escritura y lado de lectura de orders: agregado con event sourcing, event store, relay hacia Kafka, proyección y consultas" width="100%"></p>
 
-Un servicio activa el relay declarando un bean [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java); catalog, orders, inventory y payments declaran `KafkaOutboxDestination`. Reporting incluye es-kit solo por sus marcas de idempotencia y sus métricas de consumidores, y no declara ninguno.
+Un servicio activa el relay del event store declarando un bean [`OutboxDestination`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxDestination.java); orders, inventory y payments declaran `KafkaOutboxDestination`. Reporting incluye es-kit solo por sus marcas de idempotencia y sus métricas de consumidores, y no declara ninguno. El catálogo publica por el outbox de cqrs en su lugar (véase arriba).
 
 [`OutboxRelay`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/OutboxRelay.java) se ejecuta en su propio hilo (`OutboxRelayScheduler`, un `SmartLifecycle` que arranca cuando el contexto está listo y se detiene antes de que desaparezca la base de datos), cada `shop.outbox.relay.interval` (500 ms por defecto):
 
@@ -135,7 +139,7 @@ El relay registra además dos fallos de demostración, `relay.paused` (deja de p
 | `shop.outbox.relay.batch-size` | `100` | Filas bloqueadas y publicadas por transacción |
 | `shop.event-store.event-packages` | `com.borjaglez.shop.contracts` | Dónde se buscan los eventos `@CqrsMessage` |
 
-spring-boot-cqrs incluye su propio outbox transaccional en `spring-boot-cqrs-jdbc` (`OutboxEventBus` más un relay sobre una tabla `cqrs_outbox`, `cqrs.outbox.enabled`), pensado para aplicaciones cuyos eventos no se guardan de todos modos. Mercado publica desde su event store: para orders y payments el event store ya es la fuente de verdad, y escribir cada evento en una segunda tabla no aportaría nada. Un servicio basado en estado sin event store usaría `OutboxEventBus`.
+spring-boot-cqrs incluye su propio outbox transaccional en `spring-boot-cqrs-jdbc` (`OutboxEventBus` más un relay sobre una tabla `cqrs_outbox`, `cqrs.outbox.enabled`), pensado para aplicaciones cuyos eventos no se guardan de todos modos. Mercado usa los dos. El catálogo, con `DomainEventStore`, publica sus eventos de integración con `OutboxEventBus` y guarda a su lado los eventos de dominio. Orders y payments publican desde su event store: ya es la fuente de verdad, y escribir cada evento en una segunda tabla no aportaría nada. Inventory publica las filas que registra con `EventStore.record` por el relay del event store. El relay del outbox de cqrs se activa con `cqrs.outbox.enabled=true`; publica en orden de `id`, reintenta en cada ejecución una publicación que falla y cuenta lo que hace en las métricas `cqrs.outbox.*` (véase [Observabilidad](observability.md)).
 
 ## Entrega at-least-once y consumidores idempotentes
 
@@ -198,7 +202,7 @@ spring:
 - Las migraciones del servicio viven en `db/migration` y se numeran `V1`, `V2`...
 - Las de es-kit viven en `db/eskit` y empiezan en `V1000`, y cualquier migración posterior de es-kit continúa esa serie, de modo que las dos secuencias nunca colisionan.
 - Como una nueva migración del servicio tiene un número inferior a las de es-kit y aun así debe aplicarse, los servicios fijan `out-of-order: true`.
-- Una migración del servicio que escribe en tablas de es-kit se numera a partir de `V1001`, para que se ejecute después de `V1000` en una base de datos nueva. La migración [`V1001__publish_seed_products.sql`](../../services/catalog-service/src/main/resources/db/migration/V1001__publish_seed_products.sql) del catálogo registra un `ProductPublished` por cada producto inicial, y el relay los envía a Kafka como cualquier otro evento, de modo que orders, inventory y reporting construyen sus propias copias del catálogo inicial.
+- Una migración del servicio que escribe en tablas de es-kit se numera a partir de `V1001`, para que se ejecute después de `V1000` en una base de datos nueva. La migración [`V1001__publish_seed_products.sql`](../../services/catalog-service/src/main/resources/db/migration/V1001__publish_seed_products.sql) del catálogo registra un `ProductPublished` por cada producto inicial, y [`V1002__hand_seed_publications_to_the_outbox.sql`](../../services/catalog-service/src/main/resources/db/migration/V1002__hand_seed_publications_to_the_outbox.sql) entrega cada uno a `cqrs_outbox` una sola vez, de modo que el relay los envía a Kafka como cualquier otro evento y orders, inventory y reporting construyen sus propias copias del catálogo inicial.
 - Las migraciones aplicadas nunca se editan: Flyway valida sus checksums.
 
 Las imágenes nativas solo contienen los recursos registrados en tiempo de build; [`EsKitRuntimeHints`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EsKitRuntimeHints.java) registra `db/eskit/**` junto al propio `db/migration` de Spring Boot.

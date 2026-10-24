@@ -1,147 +1,115 @@
 package com.borjaglez.shop.catalog.domain;
 
 import java.time.Clock;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
-import java.util.regex.Pattern;
 
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Embedded;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
-import jakarta.persistence.Version;
-
-import com.borjaglez.cqrs.event.Event;
-import com.borjaglez.shop.contracts.catalog.ProductDiscontinued;
-import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
-import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
-
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import com.borjaglez.shop.catalog.domain.event.ProductDiscontinued;
+import com.borjaglez.shop.catalog.domain.event.ProductEvent;
+import com.borjaglez.shop.catalog.domain.event.ProductPriceChanged;
+import com.borjaglez.shop.catalog.domain.event.ProductPublished;
+import com.borjaglez.shop.catalog.domain.exception.CurrencyMismatchException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidDescriptionException;
+import com.borjaglez.shop.catalog.domain.exception.InvalidNameException;
+import com.borjaglez.shop.catalog.domain.exception.ProductAlreadyPublishedException;
+import com.borjaglez.shop.catalog.domain.exception.ProductDiscontinuedException;
+import com.borjaglez.shop.catalog.domain.exception.TooManyTagsException;
+import com.borjaglez.shop.kernel.domain.AggregateRoot;
 
 /**
- * A product offered by a seller. Aggregate root of the catalog.
+ * [DDD · Aggregate Root] A product offered by a seller.
  *
  * <p>State changes go through intention-revealing methods that enforce the lifecycle ({@code DRAFT
- * → ACTIVE → DISCONTINUED}) and record the integration events other services need. Events are
- * drained with {@link #pullEvents()} once the change is persisted.
+ * -> ACTIVE -> DISCONTINUED}) and record the {@link ProductEvent}s other contexts need. Events are
+ * drained with {@link #pullEvents()} once the change is stored.
  */
-@Entity
-@Table(name = "product")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Product {
+public final class Product extends AggregateRoot<ProductEvent> {
 
   static final int MAX_TAGS = 10;
-  private static final Pattern SKU = Pattern.compile("[A-Z0-9-]{3,40}");
   private static final int MAX_NAME = 160;
   private static final int MAX_DESCRIPTION = 4000;
-  private static final int MAX_TAG = 30;
 
-  @Id private UUID id;
-
-  @Column(nullable = false, unique = true, length = 40)
-  private String sku;
-
-  @Column(nullable = false, unique = true, length = 220)
-  private String slug;
-
-  @Column(nullable = false, length = MAX_NAME)
-  private String name;
-
-  @Column(nullable = false, length = MAX_DESCRIPTION)
-  private String description;
-
-  @Embedded private Money price;
-
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 20)
+  private final ProductId id;
+  private final Sku sku;
+  private final Slug slug;
+  private final String name;
+  private final String description;
+  private Money price;
   private ProductStatus status;
+  private final SellerId seller;
+  private final Set<CategoryId> categories;
+  private final Set<Tag> tags;
+  private final Instant createdAt;
+  private Instant publishedAt;
+  private Instant updatedAt;
+  private final Long version;
 
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "seller_id", nullable = false)
-  private Seller seller;
+  private Product(ProductState state) {
+    this.id = state.id();
+    this.sku = state.sku();
+    this.slug = state.slug();
+    this.name = state.name();
+    this.description = state.description();
+    this.price = state.price();
+    this.status = state.status();
+    this.seller = state.seller();
+    this.categories = new LinkedHashSet<>(state.categories());
+    this.tags = new LinkedHashSet<>(state.tags());
+    this.createdAt = state.createdAt();
+    this.publishedAt = state.publishedAt();
+    this.updatedAt = state.updatedAt();
+    this.version = state.version();
+  }
 
-  @ManyToMany
-  @JoinTable(
-      name = "product_category",
-      joinColumns = @JoinColumn(name = "product_id"),
-      inverseJoinColumns = @JoinColumn(name = "category_id"))
-  private Set<Category> categories = new LinkedHashSet<>();
-
-  @ElementCollection
-  @CollectionTable(name = "product_tag", joinColumns = @JoinColumn(name = "product_id"))
-  @Column(name = "tag", nullable = false, length = MAX_TAG)
-  private Set<String> tags = new LinkedHashSet<>();
-
-  @Column(name = "created_at", nullable = false)
-  private OffsetDateTime createdAt;
-
-  @Column(name = "published_at")
-  private OffsetDateTime publishedAt;
-
-  @Column(name = "updated_at", nullable = false)
-  private OffsetDateTime updatedAt;
-
-  @Version private Long version;
-
-  @Transient private final List<Event> events = new ArrayList<>();
-
-  /** Creates an unpublished product. */
+  /** Creates an unpublished product. Checks the name, then the description, then the tags. */
   public static Product draft(ProductDraft draft, Clock clock) {
     Objects.requireNonNull(draft.seller(), "seller must not be null");
+    Objects.requireNonNull(draft.sku(), "sku must not be null");
     Objects.requireNonNull(draft.price(), "price must not be null");
-    Product product = new Product();
-    product.id = UUID.randomUUID();
-    product.sku = validSku(draft.sku());
-    product.name = validName(draft.name());
-    product.slug = Slugs.slugify(product.name) + "-" + product.sku.toLowerCase(Locale.ROOT);
-    product.description = validDescription(draft.description());
-    product.price = draft.price();
-    product.status = ProductStatus.DRAFT;
-    product.seller = draft.seller();
-    product.categories = new LinkedHashSet<>(orEmpty(draft.categories()));
-    product.tags = validTags(orEmpty(draft.tags()));
-    product.createdAt = OffsetDateTime.now(clock);
-    product.updatedAt = product.createdAt;
-    return product;
+    String name = validName(draft.name());
+    String description = validDescription(draft.description());
+    Set<Tag> tags = validTags(orEmpty(draft.tags()));
+    Instant now = clock.instant();
+    return new Product(
+        new ProductState(
+            ProductId.newId(),
+            draft.sku(),
+            Slug.of(name, draft.sku()),
+            name,
+            description,
+            draft.price(),
+            ProductStatus.DRAFT,
+            draft.seller(),
+            orEmpty(draft.categories()),
+            tags,
+            now,
+            null,
+            now,
+            null));
+  }
+
+  /** Rebuilds a stored product without validating or recording anything. */
+  public static Product reconstitute(ProductState state) {
+    return new Product(state);
   }
 
   /** Puts the product on sale. */
   public void publish(Clock clock) {
-    switch (status) {
-      case DISCONTINUED -> throw discontinued();
-      case ACTIVE ->
-          throw new BusinessRuleViolationException(
-              "product-already-published", "Product " + sku + " is already published");
-      case DRAFT -> {
-        status = ProductStatus.ACTIVE;
-        publishedAt = OffsetDateTime.now(clock);
-        touch(clock);
-        events.add(
-            new ProductPublished(id, sku, name, price.amount(), price.currency(), seller.getId()));
-      }
+    if (status == ProductStatus.DISCONTINUED) {
+      throw discontinued();
     }
+    if (status == ProductStatus.ACTIVE) {
+      throw new ProductAlreadyPublishedException(
+          "Product " + sku.value() + " is already published");
+    }
+    Instant now = clock.instant();
+    status = ProductStatus.ACTIVE;
+    publishedAt = now;
+    updatedAt = now;
+    record(new ProductPublished(id, sku, name, price, seller, now));
   }
 
   /** Changes the selling price. Only published products announce the change. */
@@ -151,18 +119,18 @@ public class Product {
       throw discontinued();
     }
     if (!newPrice.sameCurrencyAs(price)) {
-      throw new BusinessRuleViolationException(
-          "currency-mismatch", "Product " + sku + " is priced in " + price.currency());
+      throw new CurrencyMismatchException(
+          "Product " + sku.value() + " is priced in " + price.currency());
     }
     if (newPrice.equals(price)) {
       return;
     }
     Money oldPrice = price;
+    Instant now = clock.instant();
     price = newPrice;
-    touch(clock);
+    updatedAt = now;
     if (status == ProductStatus.ACTIVE) {
-      events.add(
-          new ProductPriceChanged(id, oldPrice.amount(), newPrice.amount(), price.currency()));
+      record(new ProductPriceChanged(id, oldPrice, newPrice, now));
     }
   }
 
@@ -172,51 +140,103 @@ public class Product {
       return;
     }
     boolean wasPublic = status == ProductStatus.ACTIVE;
+    Instant now = clock.instant();
     status = ProductStatus.DISCONTINUED;
-    touch(clock);
+    updatedAt = now;
     if (wasPublic) {
-      events.add(new ProductDiscontinued(id, reason));
+      record(new ProductDiscontinued(id, reason, now));
     }
   }
 
-  /** Returns the events recorded since the last call and forgets them. */
-  public List<Event> pullEvents() {
-    List<Event> drained = List.copyOf(events);
-    events.clear();
-    return drained;
+  public boolean belongsTo(SellerId candidate) {
+    return seller.equals(candidate);
   }
 
-  public Set<Category> getCategories() {
+  public ProductId getId() {
+    return id;
+  }
+
+  public Sku getSku() {
+    return sku;
+  }
+
+  public Slug getSlug() {
+    return slug;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public Money getPrice() {
+    return price;
+  }
+
+  public ProductStatus getStatus() {
+    return status;
+  }
+
+  public SellerId getSeller() {
+    return seller;
+  }
+
+  public Set<CategoryId> getCategories() {
     return Collections.unmodifiableSet(categories);
   }
 
-  public Set<String> getTags() {
+  public Set<Tag> getTags() {
     return Collections.unmodifiableSet(tags);
   }
 
-  private void touch(Clock clock) {
-    updatedAt = OffsetDateTime.now(clock);
+  public Instant getCreatedAt() {
+    return createdAt;
   }
 
-  private BusinessRuleViolationException discontinued() {
-    return new BusinessRuleViolationException(
-        "product-discontinued", "Product " + sku + " is discontinued");
+  /** {@code null} until the product is published. */
+  public Instant getPublishedAt() {
+    return publishedAt;
   }
 
-  private static String validSku(String raw) {
-    String sku = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
-    if (!SKU.matcher(sku).matches()) {
-      throw new BusinessRuleViolationException(
-          "invalid-sku", "SKU must be 3-40 characters from A-Z, 0-9 and '-'");
-    }
-    return sku;
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  /** The version the product was read with; {@code null} for a product not stored yet. */
+  public Long getVersion() {
+    return version;
+  }
+
+  /** Snapshot of every field, for the persistence adapter. */
+  public ProductState state() {
+    return new ProductState(
+        id,
+        sku,
+        slug,
+        name,
+        description,
+        price,
+        status,
+        seller,
+        categories,
+        tags,
+        createdAt,
+        publishedAt,
+        updatedAt,
+        version);
+  }
+
+  private ProductDiscontinuedException discontinued() {
+    return new ProductDiscontinuedException("Product " + sku.value() + " is discontinued");
   }
 
   private static String validName(String raw) {
     String name = raw == null ? "" : raw.strip();
     if (name.isEmpty() || name.length() > MAX_NAME) {
-      throw new BusinessRuleViolationException(
-          "invalid-name", "Name must have between 1 and " + MAX_NAME + " characters");
+      throw new InvalidNameException("Name must have between 1 and " + MAX_NAME + " characters");
     }
     return name;
   }
@@ -224,31 +244,48 @@ public class Product {
   private static String validDescription(String raw) {
     String description = raw == null ? "" : raw.strip();
     if (description.length() > MAX_DESCRIPTION) {
-      throw new BusinessRuleViolationException(
-          "invalid-description",
+      throw new InvalidDescriptionException(
           "Description must have at most " + MAX_DESCRIPTION + " characters");
     }
     return description;
   }
 
-  private static Set<String> validTags(Set<String> raw) {
-    Set<String> tags = new LinkedHashSet<>();
+  /** Each tag is checked first; tags that read the same once slugified count once. */
+  private static Set<Tag> validTags(Set<String> raw) {
+    Set<Tag> tags = new LinkedHashSet<>();
     for (String candidate : raw) {
-      String tag = candidate == null ? "" : Slugs.slugify(candidate);
-      if (tag.isEmpty() || tag.length() > MAX_TAG) {
-        throw new BusinessRuleViolationException(
-            "invalid-tag", "Tags must have between 1 and " + MAX_TAG + " characters");
-      }
-      tags.add(tag);
+      tags.add(new Tag(candidate));
     }
     if (tags.size() > MAX_TAGS) {
-      throw new BusinessRuleViolationException(
-          "too-many-tags", "A product can have at most " + MAX_TAGS + " tags");
+      throw new TooManyTagsException("A product can have at most " + MAX_TAGS + " tags");
     }
     return tags;
   }
 
   private static <T> Set<T> orEmpty(Set<T> values) {
     return values == null ? Set.of() : values;
+  }
+
+  /** Every field of a {@link Product}, as the persistence adapter stores and restores it. */
+  public record ProductState(
+      ProductId id,
+      Sku sku,
+      Slug slug,
+      String name,
+      String description,
+      Money price,
+      ProductStatus status,
+      SellerId seller,
+      Set<CategoryId> categories,
+      Set<Tag> tags,
+      Instant createdAt,
+      Instant publishedAt,
+      Instant updatedAt,
+      Long version) {
+
+    public ProductState {
+      categories = Collections.unmodifiableSet(new LinkedHashSet<>(categories));
+      tags = Collections.unmodifiableSet(new LinkedHashSet<>(tags));
+    }
   }
 }

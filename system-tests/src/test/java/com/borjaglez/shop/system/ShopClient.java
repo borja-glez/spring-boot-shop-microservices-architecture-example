@@ -96,7 +96,7 @@ public final class ShopClient {
     JsonNode created =
         call(
                 "POST",
-                "/api/catalog/products",
+                "/api/v1/catalog/products",
                 Map.of(
                     "sku",
                     sku,
@@ -112,7 +112,7 @@ public final class ShopClient {
             .expect(201)
             .body();
     UUID id = UUID.fromString(created.get("id").asString());
-    call("POST", "/api/catalog/products/" + id + "/publish", null, seller).expect(204);
+    call("POST", "/api/v1/catalog/products/" + id + "/publish", null, seller).expect(204);
     return id;
   }
 
@@ -124,9 +124,9 @@ public final class ShopClient {
 
   /** The product page of a product, with the stock the catalog asked inventory for. */
   public JsonNode productPage(String sku) {
-    JsonNode page = get("/api/catalog/products?filter=" + encode("sku:eq:" + sku), "anonymous");
+    JsonNode page = get("/api/v1/catalog/products?filter=" + encode("sku:eq:" + sku), "anonymous");
     String slug = page.get("content").get(0).get("slug").asString();
-    return get("/api/catalog/products/" + slug, "anonymous");
+    return get("/api/v1/catalog/products/" + slug, "anonymous");
   }
 
   public Response countStock(UUID productId, int onHand) {

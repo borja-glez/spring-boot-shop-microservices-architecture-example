@@ -10,6 +10,7 @@ import com.tngtech.archunit.lang.ArchRule;
 public final class LayoutRules {
 
   private static final String EVENT_HANDLER = "com.borjaglez.cqrs.event.annotation.EventHandler";
+  private static final String DOMAIN_EXCEPTION = "com.borjaglez.shop.kernel.error.DomainException";
 
   private LayoutRules() {}
 
@@ -83,6 +84,21 @@ public final class LayoutRules {
                       javaClass.isInterface() || javaClass.isRecord() || javaClass.isEnum()))
           .because(
               "an outbound port is a contract, with records and enums for the values it exchanges")
+          .allowEmptyShould(true);
+
+  /**
+   * The name of every domain exception of a service ends in {@code Exception}, as the kernel's do
+   * ({@code NotFoundException}, {@code ConflictException}...), whichever layer raises it.
+   */
+  @ArchTest
+  public static final ArchRule DOMAIN_EXCEPTIONS_ARE_NAMED_EXCEPTION =
+      classes()
+          .that(Layers.areInAService())
+          .and()
+          .areAssignableTo(DOMAIN_EXCEPTION)
+          .should()
+          .haveSimpleNameEndingWith("Exception")
+          .because("one suffix names every failure, in the domain and in the application alike")
           .allowEmptyShould(true);
 
   /**

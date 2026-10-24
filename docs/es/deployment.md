@@ -44,7 +44,7 @@ SHOP_IMAGE_SUFFIX=-native docker compose -f deploy/compose/compose.yaml up -d
 | URL | Qué es |
 |---|---|
 | http://localhost:4200 | La tienda (nginx + Angular) |
-| http://localhost:8080 | Gateway, por ejemplo http://localhost:8080/api/catalog/products |
+| http://localhost:8080 | Gateway, por ejemplo http://localhost:8080/api/v1/catalog/products |
 | http://localhost:8081 ... 8086 | catalog, orders, inventory, payments, notifications y reporting directamente (Actuator incluido) |
 | http://localhost:15672 | Gestión de RabbitMQ (`shop` / `shop-dev`) |
 | http://localhost:8090 | Kafka UI |

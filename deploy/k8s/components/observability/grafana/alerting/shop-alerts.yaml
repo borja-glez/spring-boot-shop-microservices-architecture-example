@@ -51,11 +51,12 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "The oldest unpublished event of {{ $labels.service_name }} has waited over a minute"
+          summary: "The oldest unpublished event of {{ $labels.service_name }} has not been published for over a minute (event store relay or cqrs outbox relay)"
           description: >-
             The transactional outbox keeps every event safe in the service's database, but other
             services (read models, reports, notifications) stop seeing changes until Kafka is back.
-            Check the broker and the relay's "Could not publish event" warnings.
+            Check the broker, the event store relay's "Could not publish event" warnings and the
+            logs of the cqrs outbox relay.
         data:
           - refId: A
             relativeTimeRange: { from: 300, to: 0 }
@@ -63,7 +64,7 @@ groups:
             model:
               refId: A
               instant: true
-              expr: max by (service_name) (shop_outbox_oldest_age_seconds)
+              expr: max by (service_name) (shop_outbox_oldest_age_seconds) or max by (service_name) (cqrs_outbox_oldest_pending_age_milliseconds) / 1000
           - refId: C
             datasourceUid: __expr__
             model:
@@ -72,6 +73,38 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [60] }
+
+      - uid: shop-outbox-set-aside
+        title: Events were set aside by the outbox relay
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service_name }} has outbox events the relay gave up on"
+          description: >-
+            The cqrs outbox relay could not read these rows (an event class it no longer knows, or
+            a payload that does not deserialize) and skipped them, so they do not reach Kafka and
+            the services that depend on them keep stale data. The alert lasts until each row is
+            retried or removed. Check the relay's ERROR logs for the row ids.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max by (service_name) (cqrs_outbox_set_aside)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
 
   - orgId: 1
     name: shop-checkout

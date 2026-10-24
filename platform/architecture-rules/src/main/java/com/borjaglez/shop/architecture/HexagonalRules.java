@@ -1,14 +1,19 @@
 package com.borjaglez.shop.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 
 import java.util.Set;
 
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 /**
  * Hexagonal architecture of a service: a framework-free core ({@code domain}, {@code application})
@@ -25,6 +30,8 @@ public final class HexagonalRules {
   private static final String INFRASTRUCTURE = "infrastructure";
   private static final String INBOUND = "infrastructure.in";
   private static final String OUTBOUND = "infrastructure.out";
+  private static final String CONFIG = "infrastructure.config";
+  private static final String PORTS = "application.port";
 
   /** The packages of the cqrs API an application service may use, without their sub-packages. */
   private static final Set<String> CQRS_API =
@@ -142,6 +149,40 @@ public final class HexagonalRules {
           .orShould()
           .beAnnotatedWith("jakarta.persistence.PersistenceContext")
           .because("dependencies are injected through constructors so they can be final")
+          .allowEmptyShould(true);
+
+  /**
+   * A {@code @Bean} method of the composition root declares the adapter class it returns, never a
+   * port or domain interface of its service. Spring AOT generates the proxies of a native image
+   * ahead of time from the declared type of each bean: an adapter declared as the interface it
+   * implements gets none of the proxies its annotations ask for, such as the transactions of
+   * {@code @Transactional}, because the interface carries none of them.
+   */
+  @ArchTest
+  public static final ArchRule BEANS_DECLARE_THEIR_ADAPTER_TYPE =
+      methods()
+          .that()
+          .areAnnotatedWith("org.springframework.context.annotation.Bean")
+          .and()
+          .areDeclaredInClassesThat(Layers.reside(CONFIG))
+          .should(
+              new ArchCondition<JavaMethod>(
+                  "declare the class they return, not a port or domain interface of the service") {
+                @Override
+                public void check(JavaMethod method, ConditionEvents events) {
+                  JavaClass declared = method.getRawReturnType();
+                  boolean coreInterface =
+                      declared.isInterface()
+                          && (Layers.inLayerOfSameService(method.getOwner(), declared, PORTS)
+                              || Layers.inLayerOfSameService(method.getOwner(), declared, DOMAIN));
+                  events.add(
+                      new SimpleConditionEvent(
+                          method,
+                          !coreInterface,
+                          method.getFullName() + " declares " + declared.getName()));
+                }
+              })
+          .because("Spring AOT generates the proxies of a native image from the declared bean type")
           .allowEmptyShould(true);
 
   @ArchTest

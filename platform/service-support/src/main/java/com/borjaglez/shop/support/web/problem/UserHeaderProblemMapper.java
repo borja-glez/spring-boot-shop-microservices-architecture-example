@@ -18,6 +18,11 @@ import com.borjaglez.shop.support.web.CurrentUserArgumentResolver.MissingUserExc
  * {@code @CurrentUser} or declared as a constrained {@code @RequestHeader}, as the interfaces
  * generated from the contracts do: an absent header is a 401 {@code missing-user}, an invalid one a
  * 400 {@code invalid-user}.
+ *
+ * <p>A declared header is checked by {@code UserHeaderInterceptor} before the rest of the request,
+ * which raises the exceptions of {@code @CurrentUser}. Where that interceptor is not registered (a
+ * standalone MockMvc, for instance), this mapper finds the header among the binding and validation
+ * errors.
  */
 public class UserHeaderProblemMapper implements ProblemMapper {
 

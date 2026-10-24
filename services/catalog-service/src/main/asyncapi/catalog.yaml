@@ -1,0 +1,108 @@
+asyncapi: 3.0.0
+info:
+  title: Mercado catalog messages
+  version: 1.0.0
+  description: |
+    The messages of the catalog service. It publishes its product events to Kafka, through the
+    transactional outbox, and reads them back in its own listener; it asks the inventory service for
+    the free stock of the products over RabbitMQ (request and reply).
+
+    The `name` of each message is its logical name; the reply has none, so the contract names it.
+servers:
+  kafka:
+    $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/servers/kafka'
+  rabbitmq:
+    $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/servers/rabbitmq'
+channels:
+  catalogEvents:
+    address: shop.events
+    description: |
+      The shared events topic of the platform (`cqrs.kafka.prefix=shop`), shared with the other
+      services.
+    servers:
+      - $ref: '#/servers/kafka'
+    messages:
+      productPublished:
+        name: shop.catalog.1.event.product.product-published
+        title: Product published
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'
+        payload:
+          $ref: '../../../../../platform/contracts/src/main/resources/schemas/catalog/product-published.v1.json'
+      productPriceChanged:
+        name: shop.catalog.1.event.product.product-price-changed
+        title: Product price changed
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'
+        payload:
+          $ref: '../../../../../platform/contracts/src/main/resources/schemas/catalog/product-price-changed.v1.json'
+      productDiscontinued:
+        name: shop.catalog.1.event.product.product-discontinued
+        title: Product discontinued
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'
+        payload:
+          $ref: '../../../../../platform/contracts/src/main/resources/schemas/catalog/product-discontinued.v1.json'
+    bindings:
+      $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/channelBindings/KafkaEvents'
+  stockLevelsQuery:
+    address: shop.inventory.1.query.stock.get-stock-levels
+    description: |
+      The routing key of the stock-levels query, on the `shop.queries` topic exchange
+      (`cqrs.rabbitmq.prefix=shop`).
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      getStockLevels:
+        name: shop.inventory.1.query.stock.get-stock-levels
+        title: Get stock levels
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/RabbitMqMessage'
+        payload:
+          $ref: '../../../../../platform/contracts/src/main/resources/schemas/inventory/get-stock-levels.v1.json'
+    bindings:
+      $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/channelBindings/RabbitMqQueries'
+  stockLevelsReply:
+    address: null
+    description: Reply to the stock-levels query, on the reply queue of the requesting application.
+    servers:
+      - $ref: '#/servers/rabbitmq'
+    messages:
+      stockLevels:
+        name: inventory.stock-levels
+        title: Stock levels
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/RabbitMqMessage'
+        payload:
+          $ref: '../../../../../platform/contracts/src/main/resources/schemas/inventory/stock-levels.v1.json'
+operations:
+  publishCatalogEvents:
+    action: send
+    summary: Publishes the product events through the outbox relay.
+    channel:
+      $ref: '#/channels/catalogEvents'
+    messages:
+      - $ref: '#/channels/catalogEvents/messages/productPublished'
+      - $ref: '#/channels/catalogEvents/messages/productPriceChanged'
+      - $ref: '#/channels/catalogEvents/messages/productDiscontinued'
+  receiveCatalogEvents:
+    action: receive
+    summary: Reads the product events back to log them.
+    channel:
+      $ref: '#/channels/catalogEvents'
+    messages:
+      - $ref: '#/channels/catalogEvents/messages/productPublished'
+      - $ref: '#/channels/catalogEvents/messages/productPriceChanged'
+      - $ref: '#/channels/catalogEvents/messages/productDiscontinued'
+  askStockLevels:
+    action: send
+    summary: Asks the inventory for the free stock of the products on a product page.
+    channel:
+      $ref: '#/channels/stockLevelsQuery'
+    messages:
+      - $ref: '#/channels/stockLevelsQuery/messages/getStockLevels'
+    reply:
+      channel:
+        $ref: '#/channels/stockLevelsReply'
+      messages:
+        - $ref: '#/channels/stockLevelsReply/messages/stockLevels'

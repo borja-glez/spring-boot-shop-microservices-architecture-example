@@ -8,7 +8,7 @@ Mercado is a marketplace split into six business services and a gateway, each an
 
 | Service | Port | Responsibility | Database | Messaging in | Messaging out | Spring Boot |
 |---|---|---|---|---|---|---|
-| `gateway-service` | 8080 | Single public entry point; routes `/api/<service>/**` | none | HTTP from nginx | HTTP to the services | 4 (Jackson 3) |
+| `gateway-service` | 8080 | Single public entry point; routes `/api/v1/<service>/**` for every service, `/api/<service>/**` for the services whose API is not versioned (all but the catalog) and `/api/v1/chaos/<service>/**` for the chaos endpoints | none | HTTP from nginx | HTTP to the services | 4 (Jackson 3) |
 | `catalog-service` | 8081 | Sellers publish, reprice and discontinue products; public search and facets; product pages with live stock | `catalog` | Kafka: its own catalog events (logged) | Kafka: `ProductPublished`, `ProductPriceChanged`, `ProductDiscontinued`; RabbitMQ queries: `GetStockLevels` | 4 (Jackson 3) |
 | `orders-service` | 8082 | Event-sourced orders, checkout saga orchestration, local catalog copy, order read model, event store explorer | `orders` | Kafka: catalog events, order events | Kafka: `OrderPlaced`, `OrderConfirmed`, `OrderRejected`, `OrderCancelled`; RabbitMQ requests: `ReserveStock`, `ReleaseStock`, `AuthorizePayment`, `RefundPayment`; RabbitMQ queries: `GetStockLevels`, `GetOrderNotices` | 4 (Jackson 3) |
 | `inventory-service` | 8083 | Stock per product, all-or-nothing reservations, stock backoffice | `inventory` | RabbitMQ: `ReserveStock`, `ReleaseStock`, `GetStockLevels`; Kafka: `ProductPublished` | Kafka: `StockReserved`, `StockReleased`, `StockAdjusted` | 4 (Jackson 3) |
@@ -47,7 +47,7 @@ An HTTP interceptor ([`shop-headers.interceptor.ts`](../../frontend/src/app/core
 
 ## Layers inside a service
 
-Every service uses the package `com.borjaglez.shop.<service>` with four layers:
+Every service uses the package `com.borjaglez.shop.<service>`. The services other than the catalog have four layers:
 
 ```
 com.borjaglez.shop.<service>
@@ -57,20 +57,39 @@ com.borjaglez.shop.<service>
 └── api/             REST controllers and DTOs
 ```
 
-[`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java) encodes the rules and each service checks them in its own `ArchitectureTest`:
+[`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java) encodes the rules and each of them checks them in its own `ArchitectureTest`:
 
 - `domain` depends on no other layer.
 - `application` is used only by `api` and `infrastructure`.
 - `api` and `infrastructure` are leaves: nothing depends on them.
 - Dependencies are injected through constructors, never with `@Autowired` fields.
 
-Controllers contain no logic: they translate HTTP into a command or a query and send it through the spring-boot-cqrs buses. Repositories live in `domain` and extend `SpecificationRepository`; every read goes through the specification-repository DSL or a `QueryPlan`. See [The libraries in practice](libraries.md).
+Their controllers contain no logic: they translate HTTP into a command or a query and send it through the spring-boot-cqrs buses. Their repositories live in `domain` and extend `SpecificationRepository`.
+
+The [catalog](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog) is hexagonal:
+
+```
+com.borjaglez.shop.catalog
+├── domain/                  aggregate, value objects, domain events, the product repository
+├── application/
+│   ├── port/in/             commands, queries and the views they answer
+│   ├── port/out/            what the use cases need from the outside (read model, stock levels, sellers, categories)
+│   └── service/             one handler per use case
+└── infrastructure/
+    ├── in/                  driving adapters: REST (generated from the contract), messaging
+    ├── out/                 driven adapters: persistence, messaging
+    └── config/              composition root
+```
+
+Its core, `domain` and `application`, depends on no framework (not Spring, JPA, Jackson or specification-repository); the ports in `application.port` are the only way in or out of it, and the adapters in `infrastructure` implement them. The shared rules of [`platform/architecture-rules`](../../platform/architecture-rules) (`ShopArchitecture`) check it in the catalog's `ArchitectureTest`. Its REST adapters only translate HTTP into a command or a query and send it through the buses, like the controllers of the other services. The repository interface of the domain is a port; `infrastructure.out.persistence` implements it over a `SpecificationRepository`.
+
+In every service, every read goes through the specification-repository DSL or a `QueryPlan`. See [The libraries in practice](libraries.md).
 
 ## Platform modules
 
 | Module | Contents |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-api`, the framework-free API of spring-boot-cqrs; no Spring or Jackson types, checked by `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-api`, the framework-free API of spring-boot-cqrs; `ContractsConventionsTest` applies the boundary rules of spring-boot-cqrs (wire name, no-argument constructor, no framework types in messages) and a rule of the shop that keeps every class of the module free of Spring, Jackson, JPA and Hibernate types, so Boot 3 and Boot 4 services can share it. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, consumer metrics, outbox metrics, native-image hints. |
 | [`platform/service-support`](../../platform/service-support) | RFC 9457 errors, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, OTLP export, chaos registry and endpoint, shared defaults. Auto-configured. |
 | [`platform/test-support`](../../platform/test-support) | Testcontainers configurations (PostgreSQL 17, Kafka, RabbitMQ) and the ArchUnit rules. |
@@ -110,7 +129,7 @@ Every Boot 4 service answers errors as RFC 9457 problem details (`application/pr
   "title": "Conflict",
   "status": 409,
   "detail": "Another product already uses SKU CAF-001",
-  "instance": "/api/catalog/products",
+  "instance": "/api/v1/catalog/products",
   "code": "duplicate-sku",
   "correlationId": "3f0c9a52-5d1e-4a57-9b43-2f0d5c6b7e11"
 }
@@ -146,13 +165,22 @@ Correlation ids identify a business request; trace ids identify a technical trac
 
 ## The demo user
 
-The example has no authentication. The shop lets the visitor pick a demo customer or seller and sends its id in the `X-Shop-User` header. Controllers receive it with [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
+The example has no authentication. The shop lets the visitor pick a demo customer or seller and sends its id in the `X-Shop-User` header. The controllers of the layered services receive it with [`@CurrentUser`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/CurrentUser.java):
 
 ```java
 @PostMapping
 @ResponseStatus(HttpStatus.CREATED)
 CreatedResponse place(@CurrentUser String customer, @Valid @RequestBody PlaceOrderRequest body) {
 ```
+
+In the catalog the header is a parameter of the contract (`ShopUser` in `common.v1.yaml`), so the interfaces generated from it declare it as a `@RequestHeader("X-Shop-User")` argument and the controller receives a plain `String`:
+
+```java
+@Override
+public ResponseEntity<Void> publishProduct(String seller, UUID id) {
+```
+
+[`UserHeaderInterceptor`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/UserHeaderInterceptor.java) checks that header before Spring MVC reads the path variables and the body, and answers as `@CurrentUser` does: 401 `missing-user` without it, 400 `invalid-user` for a value that is not a user id. Only the rejections Spring MVC makes while it picks the handler (405, 406 and 415) come before it.
 
 Ownership is still enforced on the server: customers only see their own orders, and a seller who touches another seller's product gets a 404, so the product's existence is not revealed. `notifications-service` reads the same header, and its SSE stream takes the user as a query parameter because the browser's `EventSource` cannot send headers.
 

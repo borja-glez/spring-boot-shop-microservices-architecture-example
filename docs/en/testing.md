@@ -20,7 +20,7 @@ Examples: [`OrderTest`](../../services/orders-service/src/test/java/com/borjagle
 
 ## Architecture tests
 
-Each service has an `ArchitectureTest` that applies the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
+The catalog, inventory, orders, payments and reporting services each have an `ArchitectureTest`. The layered ones (all but the catalog) apply the shared rules from [`ShopArchitectureRules`](../../platform/test-support/src/main/java/com/borjaglez/shop/testsupport/architecture/ShopArchitectureRules.java):
 
 ```java
 class ArchitectureTest {
@@ -32,11 +32,29 @@ class ArchitectureTest {
 }
 ```
 
-[`ContractsConventionsTest`](../../platform/contracts/src/test/java/com/borjaglez/shop/contracts/ContractsConventionsTest.java) checks every message in `platform/contracts`: public, annotated with `@CqrsMessage`, instantiable by deserializers (no-argument constructor) and free of Spring, Jackson (2 or 3) and JPA types.
+The hexagonal catalog applies the rules of [`platform/architecture-rules`](../../platform/architecture-rules) instead. Its [`ArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/ArchitectureTest.java) imports the production classes and applies `ShopArchitecture.all()` (the hexagonal, DDD and layout rules) and three rules of `CqrsArchitectureRules` from spring-boot-cqrs for the code of a service (`handlersDoNotDependOnSpring`, `handlerMethodsAreInHandlerClasses`, `messagesDoNotDependOnFrameworks`). Its [`UnitTestsArchitectureTest`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/UnitTestsArchitectureTest.java) imports the classes of the `test` suite and applies `ShopArchitecture.unitTests()`, so no unit test depends on Spring:
+
+```java
+@AnalyzeClasses(
+    packages = "com.borjaglez.shop.catalog",
+    importOptions = ImportOption.DoNotIncludeTests.class)
+class ArchitectureTest {
+
+  @ArchTest static final ArchTests rules = ShopArchitecture.all();
+
+  @ArchTest
+  static final ArchRule handlersDoNotDependOnSpring =
+      CqrsArchitectureRules.handlersDoNotDependOnSpring();
+
+  // ... handlerMethodsAreInHandlerClasses(), messagesDoNotDependOnFrameworks()
+}
+```
+
+[`ContractsConventionsTest`](../../platform/contracts/src/test/java/com/borjaglez/shop/contracts/ContractsConventionsTest.java) applies the three message rules of spring-boot-cqrs to every message in `platform/contracts` (annotated with `@CqrsMessage`, instantiable by deserializers through a no-argument constructor, free of framework types) and a rule of the shop on top: no class of the module, replies and values included, depends on Spring, Jackson (2 or 3), JPA or Hibernate, so Boot 3 and Boot 4 services can share the contracts.
 
 ## Web slices
 
-`ProductControllerTest`, `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` and `NotificationControllerTest` run the controller alone with mocked `CommandBus` and `QueryBus`, checking which message is dispatched for each request and how the answer is rendered. `service-support` registers its web auto-configuration for the `@WebMvcTest` slice, so these tests see the real correlation filter, `@CurrentUser` resolution and problem details; specification-repository does the same with `HttpFilterAutoConfiguration`, so `@FilterableQuery` parameters, including composed annotations such as `@ProductFilter`, resolve and reject disallowed fields as in the running service. `service-support` itself tests them with `ProblemDetailsExceptionHandlerTest`, `HttpFilterLimitsTest` (the `specrepository.http.*` limits and operators of the shop defaults, answered with 400 `invalid-filter`), `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` and `ShopDefaultsTest`.
+`ProductsControllerIT` and `CategoriesControllerIT` (the catalog, checked against its OpenAPI contract), `OrderControllerTest`, `InventoryControllerTest`, `PaymentControllerTest`, `ReportingControllerTest` and `NotificationControllerTest` run the controller alone with mocked `CommandBus` and `QueryBus`, checking which message is dispatched for each request and how the answer is rendered. `service-support` registers its web auto-configuration for the `@WebMvcTest` slice, so these tests see the real correlation filter, `@CurrentUser` resolution and problem details; specification-repository does the same with `HttpFilterAutoConfiguration`, so `@FilterableQuery` parameters, including composed annotations such as `@OrderReportFilter`, resolve and reject disallowed fields as in the running service. `service-support` itself tests them with `ProblemDetailsExceptionHandlerTest`, `HttpFilterLimitsTest` (the `specrepository.http.*` limits and operators of the shop defaults, answered with 400 `invalid-filter`), `CorrelationIdFilterTest`, `CurrentUserArgumentResolverTest`, `ChaosControllerTest`, `ChaosDisabledTest` and `ShopDefaultsTest`.
 
 ## Integration tests
 
@@ -67,7 +85,7 @@ Spring's test context cache keeps one set of containers per distinct configurati
 | Area | Tests |
 |---|---|
 | es-kit | `EventStoreIT`, `AggregateStoreIT` (optimistic concurrency), `OutboxRelayIT` (global order, stop on failure and retry, correlation id and trace of each event, chaos faults, metrics), `IdempotentConsumersIT` (a redelivered event applied once, a failed event leaves no marker and is applied on redelivery, applied and duplicate counts, lag) |
-| catalog | `CatalogApiIT` (HTTP to PostgreSQL end to end), `CatalogCommandsIT`, `CatalogQueriesIT`, `ProductRepositoryIT` and `ProductQueryIT` (DSL semantics on PostgreSQL), `CatalogEventsOverKafkaIT`, `StockLevelsOverRabbitIT` (stock asked over RabbitMQ, timeouts and remote failures) |
+| catalog | Unit suite: one `*HandlerTest` per use case over in-memory fakes, the domain model, `FilterWhitelistMatchesContractTest` (the contract lists the whitelist of `ProductFilters`). Slices in `src/integrationTest`: `ProductsControllerIT` and `CategoriesControllerIT` (`@WebMvcTest` checked against `catalog-api.v1.yaml` with `OpenApiContract`), `JpaCatalogReadModelIT`, `JpaProductRepositoryIT` and the other persistence adapters (DSL semantics on PostgreSQL), `SeedPublicationsIT`, `RabbitStockLevelsIT` (stock asked over RabbitMQ, timeouts and remote failures), `CatalogMessageContractsIT` (messages against `catalog.yaml`). Component tests in `src/componentTest`: the `@CatalogComponentTest` classes (`ProductLifecycleComponentTest`, `CatalogSearchComponentTest`, `CatalogMessagesComponentTest`, `StockLevelsOverRabbitComponentTest`...) start the whole application with PostgreSQL, Kafka and RabbitMQ in containers |
 | orders | `OrdersApiIT`, `OrderCommandsIT`, `OrderQueriesIT`, `OrderViewProjectorIT` and `CatalogProductProjectorIT` (out-of-order catalog events, redeliveries dispatched through `EventHandlerRegistry` as the Kafka consumer does), `OrdersOverKafkaIT`, `RemoteQueriesOverRabbitIT` (stock and notices asked over RabbitMQ with the short timeout), `CqrsActuatorIT` |
 | checkout saga | `CheckoutSagaIT`, `CheckoutOverRabbitIT`, `DueCheckoutsIT`, `CheckoutTracingIT`; see [Checkout saga](checkout-saga.md#tests) |
 | inventory | `InventoryCommandsIT`, `InventoryMessagingIT` (products from Kafka, commands and `GetStockLevels` over RabbitMQ) |
@@ -76,7 +94,7 @@ Spring's test context cache keeps one set of containers per distinct configurati
 | notifications | `NotificationsIT`, `CqrsActuatorIT` (Boot 3 starter), `CrossGenerationIT`, `OrderNoticesOverRabbitIT` (a query written by Jackson 3, answered by Jackson 2, and read by its logical name whatever class name the sender gave it) |
 | gateway | `GatewayRoutingIT` (routing, user header, correlation id, 404 and 503 problems); `ExternalTraceHeadersFilterTest` for the trace headers |
 
-The saga tests replace inventory and payments with [`FakeCheckout`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/FakeCheckout.java), which answers per order as each test scripts it, and drive the saga one step at a time with [`CheckoutDriver`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/CheckoutDriver.java) while the scheduled runner is off (`shop.checkout.enabled=false`). In the same way, [`FakeStockLevels`](../../services/catalog-service/src/test/java/com/borjaglez/shop/catalog/FakeStockLevels.java) and [`FakeRemoteReads`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/FakeRemoteReads.java) stand in for the services that catalog and orders query over RabbitMQ, answering per product and per order.
+The saga tests replace inventory and payments with [`FakeCheckout`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/FakeCheckout.java), which answers per order as each test scripts it, and drive the saga one step at a time with [`CheckoutDriver`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/checkout/CheckoutDriver.java) while the scheduled runner is off (`shop.checkout.enabled=false`). In the same way, [`InventoryStandIn`](../../services/catalog-service/src/componentTest/java/com/borjaglez/shop/catalog/InventoryStandIn.java) and [`FakeRemoteReads`](../../services/orders-service/src/test/java/com/borjaglez/shop/orders/FakeRemoteReads.java) stand in for the services that catalog and orders query over RabbitMQ, answering per product and per order.
 
 ### notifications-service
 
@@ -130,7 +148,7 @@ A change that touches the saga, the outbox or concurrency should come with a sce
 | `./gradlew build` | Compile, Spotless check, unit, ArchUnit, slice and integration tests (Docker required) |
 | `./gradlew test` | Tests only |
 | `./gradlew :services:orders-service:test --tests "*CheckoutSagaIT"` | One test class |
-| `./gradlew :services:catalog-service:test --tests "*ProductControllerTest.searchTurnsHttpFiltersIntoAQueryPlan"` | One test method |
+| `./gradlew :services:catalog-service:integrationTest --tests "*ProductsControllerIT.aFilterOutsideTheWhitelistIsABadRequestNamingTheField"` | One test method |
 | `./gradlew :platform:es-kit:test` | Tests of one module |
 | `./gradlew spotlessApply` | Format Java code (Google Java Format) |
 | `./gradlew :system-tests:systemTest -Pshop.baseUrl=http://localhost:8080` | System and stress tests against a running platform |

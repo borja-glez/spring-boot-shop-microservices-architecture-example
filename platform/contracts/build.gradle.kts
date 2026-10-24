@@ -13,5 +13,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.archunit.junit5)
+    // CqrsArchitectureRules; on the test classpath only, so the module stays BOM-free at runtime.
+    testImplementation(libs.cqrs.test)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

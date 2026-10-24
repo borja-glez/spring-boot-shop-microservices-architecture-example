@@ -13,9 +13,11 @@ import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 // Each document is named after its major version (v1, v2...) and gets a task openApiGenerate<Version>
 // that writes the interfaces to <basePackage>.rest.<version>.api and the DTOs to
 // <basePackage>.rest.<version>.model, under build/generated/openapi/<version>, a source directory of
-// the document's source set (`main` unless `sourceSet` names another one). The generated code is not
-// committed, formatted or measured by the coverage gate. It compiles against Spring MVC and Bean
-// Validation (the webmvc or web starter and the validation starter). Boot 3 modules
+// the document's source set (`main` unless `sourceSet` names another one). Each DTO is named after its
+// schema with the suffix `Dto` (ProductCard -> ProductCardDto), so it never clashes with the views and
+// messages of the core; the JSON and the TypeScript types of the frontend keep the schema names. The
+// generated code is not committed, formatted or measured by the coverage gate. It compiles against Spring
+// MVC and Bean Validation (the webmvc or web starter and the validation starter). Boot 3 modules
 // (shop.boot3-service-conventions) get Boot 3 / Jackson 2 code.
 //
 // The task regenerates when the document, a file in its folder or a file in
@@ -129,6 +131,7 @@ shopOpenApi.specs.all {
         workerIsolation.set("process")
         apiPackage.set(basePackage.map { "$it.rest.$version.api" })
         modelPackage.set(basePackage.map { "$it.rest.$version.model" })
+        modelNameSuffix.set("Dto")
         configOptions.set(shopOpenApi.springBoot.map(::generatorOptions))
         // Interfaces and models only: no README, pom, ApiUtil or enum converter configuration (hence
         // the binding of enum parameters by constant name).

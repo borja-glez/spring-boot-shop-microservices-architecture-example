@@ -1,6 +1,6 @@
 # Consultas: la búsqueda del catálogo de extremo a extremo
 
-La búsqueda pública del catálogo es el ejemplo más completo de cómo Mercado convierte una petición HTTP en SQL con spring-boot-specification-repository. El cliente describe lo que quiere con los parámetros repetibles `filter`, `orFilter` y `sort`; `@FilterableQuery` los convierte en un `QueryPlan` restringido a una lista blanca de campos, con búsqueda de texto sin distinguir mayúsculas; el controlador envía el plan por el bus de consultas; y el handler lo deriva con las condiciones que el cliente no debe controlar (solo productos a la venta, el vendedor cargado en la misma consulta) antes de ejecutarlo. Las facetas reutilizan el mismo plan con consultas agrupadas. Una entrada no válida nunca llega a la base de datos: se responde con un problema 400 `invalid-filter`. Esta página sigue una petición a través de cada paso y enumera el contrato en el que se apoya el frontend.
+La búsqueda pública del catálogo es el ejemplo más completo de cómo Mercado convierte una petición HTTP en SQL con spring-boot-specification-repository. El cliente describe lo que quiere con los parámetros repetibles `filter`, `orFilter` y `sort`; el controlador los lee enteros de la petición y los envía por el bus de consultas; el lado de lectura los convierte en un `QueryPlan` restringido a una lista blanca de campos, con búsqueda de texto sin distinguir mayúsculas, y lo deriva con las condiciones que el cliente no debe controlar (solo productos a la venta, el vendedor cargado en la misma consulta) antes de ejecutarlo. Las facetas reutilizan el mismo plan con consultas agrupadas. Una entrada no válida nunca llega a la base de datos: se responde con un problema 400 `invalid-filter`. Esta página sigue una petición a través de cada paso y enumera el contrato en el que se apoya el frontend.
 
 ## Flujo de una petición
 
@@ -9,26 +9,28 @@ sequenceDiagram
   participant UI as Angular shop
   participant N as nginx
   participant G as gateway-service
-  participant C as ProductController
+  participant C as ProductsController
   participant Q as QueryBus
-  participant H as CatalogQueryHandler
-  participant R as ProductRepository
-  UI->>N: GET /api/catalog/products?filter=...&sort=...&page=0&size=24
+  participant H as SearchProductsHandler
+  participant R as JpaCatalogReadModel
+  UI->>N: GET /api/v1/catalog/products?filter=...&sort=...&page=0&size=24
   N->>G: proxy /api/ (X-Shop-User, X-Correlation-Id)
-  G->>C: route /api/catalog/** (same X-Correlation-Id)
-  C->>C: @ProductFilter parses filter/orFilter/sort into QueryPlan<Product> and checks its whitelist
-  C->>Q: ask(new SearchProductsQuery(plan, pageable))
+  G->>C: route /api/v1/catalog/** (same X-Correlation-Id)
+  C->>C: ClientFilters reads filter/orFilter/sort whole from the request
+  C->>Q: ask(new SearchProductsQuery(clientFilter, pageRequest))
   Q->>H: middleware (context, tracing, metrics)
-  H->>R: query(plan).where(status = ACTIVE).leftFetch(seller).sortedByDefault(newest).findAll(pageable)
-  R-->>H: Page<Product> (whitelist checked, one SQL query)
+  H->>R: search(clientFilter, pageRequest)
+  R->>R: parse into QueryPlan<ProductEntity>, whitelist of ProductFilters
+  R->>R: query(plan).where(status = ACTIVE).leftFetch(seller).sortedByDefault(newest).findAll(page)
+  R-->>H: Page<ProductCard> (whitelist checked, one SQL query)
   H-->>C: Page<ProductCard>
-  C-->>UI: PageResponse JSON
+  C-->>UI: ProductPage JSON
 ```
 
 ## El contrato HTTP
 
 ```
-GET /api/catalog/products
+GET /api/v1/catalog/products
     ?filter=categories.slug:eq:cafe-e-infusiones      # every filter must match (AND)
     &filter=price.amount:between:5|20                 # lists and ranges separated by |
     &orFilter=name:contains:tueste;tags:eq:ecologico  # one condition of the group is enough (OR)
@@ -61,65 +63,70 @@ Las fechas van en ISO-8601 con offset, porque `publishedAt` es un `OffsetDateTim
 
 La sintaxis no tiene escapado: `|` separa los valores de una lista y `;` separa las alternativas, y los valores vacíos no se pueden expresar. El [`filter-serializer.ts`](../../frontend/src/app/core/filters/filter-serializer.ts) del frontend rechaza esos valores antes de enviarlos, en lugar de dejar que el servidor los divida.
 
-La respuesta es un [`PageResponse`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/PageResponse.java): `content`, `page`, `size`, `totalElements`, `totalPages`.
+La respuesta es un `ProductPage` del contrato, [`catalog-api.v1.yaml`](../../services/catalog-service/src/main/openapi/catalog-api.v1.yaml): `content`, `page`, `size`, `totalElements`, `totalPages`.
 
 ## Campos en la lista blanca
 
-[`ProductController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductController.java) declara los campos con [`@ProductFilter`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/api/ProductFilter.java), una anotación compuesta meta-anotada con `@FilterableQuery` que comparten la búsqueda y las facetas:
+[`ProductFilters`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/persistence/ProductFilters.java) declara los campos una sola vez, para la búsqueda y las facetas, y el lado de lectura comprueba cada plan del cliente contra ellos:
 
 ```java
-@FilterableQuery(
-    value = Product.class,
-    filterableFields = {
-      "name", "description", "sku", "price.amount", "status",
-      "categories.slug", "tags", "seller.id", "seller.city", "publishedAt"
-    },
-    caseInsensitiveFields = {"name", "description"})
-@interface ProductFilter {
+public static final List<String> FILTERABLE_FIELDS =
+    List.of("name", "description", "sku", "price.amount", "status",
+            "categories.slug", "tags", "seller.id", "seller.city", "publishedAt");
 
-  @AliasFor(annotation = FilterableQuery.class)
-  String[] sortableFields() default {};
+public static final List<String> SORTABLE_FIELDS =
+    List.of("name", "sku", "price.amount", "publishedAt");
+
+public static final List<String> CASE_INSENSITIVE_FIELDS = List.of("name", "description");
+
+static final AllowedFieldsPolicy SEARCH =
+    AllowedFieldsPolicy.of(Set.copyOf(FILTERABLE_FIELDS), Set.copyOf(SORTABLE_FIELDS));
+
+static final AllowedFieldsPolicy FACETS =
+    AllowedFieldsPolicy.of(Set.copyOf(FILTERABLE_FIELDS), Set.of());
+```
+
+El contrato enumera los mismos campos en los `x-specrepo-filterable-fields` y `x-specrepo-sortable-fields` de ambas operaciones y en los patrones de sus parámetros `filter`, `orFilter` y `sort`, y `FilterWhitelistMatchesContractTest` falla si se desvían de `ProductFilters`. [`ProductsController`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/in/rest/v1/ProductsController.java) implementa la interfaz generada desde el contrato y lee los filtros enteros con [`ClientFilters`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ClientFilters.java): las listas que enlaza la interfaz generada partirían `sort=price.amount,desc` por la coma. Los envía como un `ClientFilter`, junto con la página que la interfaz enlaza como un `Pageable` de Spring Data (`x-spring-paginated`):
+
+```java
+@Override
+public ResponseEntity<ProductPageDto> searchProducts(
+    List<String> filter, List<String> orFilter, Pageable pageable, HttpServletRequest request) {
+  Page<ProductCard> page =
+      queries.ask(CatalogRestMapper.searchQuery(clientFilters.from(request), pageable));
+  return ResponseEntity.ok(CatalogRestMapper.page(page));
+}
+
+@Override
+public ResponseEntity<CatalogFacetsDto> getCatalogFacets(
+    List<String> filter, List<String> orFilter, HttpServletRequest request) {
+  ...
 }
 ```
 
-```java
-@GetMapping
-PageResponse<ProductCard> search(
-    @ProductFilter(sortableFields = {"name", "sku", "price.amount", "publishedAt"})
-        QueryPlan<Product> plan,
-    Pageable pageable) {
-  Page<ProductCard> page = queries.ask(new SearchProductsQuery(plan, pageable));
-  return PageResponse.of(page);
-}
+`seller.email` existe en la entidad pero es privado: no está en ninguna de las dos listas, así que nunca se puede filtrar ni ordenar por él, y las vistas de producto nunca lo exponen. El lado de lectura comprueba la lista blanca al ejecutar el plan, de modo que un campo no permitido se rechaza antes de lanzar ningún SQL. Las facetas no admiten ordenación, así que un `sort` sobre ellas también se rechaza.
 
-@GetMapping("/facets")
-CatalogFacets facets(@ProductFilter QueryPlan<Product> plan) {
-  return queries.ask(new GetCatalogFacetsQuery(plan));
-}
-```
-
-`seller.email` existe en la entidad pero es privado: no está en ninguna de las dos listas, así que nunca se puede filtrar ni ordenar por él, y las vistas de producto nunca lo exponen. La lista blanca se comprueba al resolver el argumento, de modo que un campo no permitido se rechaza antes de que se ejecute el método del controlador. El `Pageable` se pasa tal cual: su ordenación sale del mismo parámetro `sort` y el repositorio la comprueba contra la misma lista blanca. Las facetas no declaran campos ordenables, así que un `sort` sobre ellas también se rechaza.
-
-Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servidor lo decide para los campos que sabe que son texto: `caseInsensitiveFields` hace que `eq`, `neq`, `contains`, `notcontains`, `startswith` y `endswith` sobre `name` y `description` comparen `unaccent(upper(...))` en ambos lados, lo que en PostgreSQL ignora mayúsculas y acentos (la primera migración del catálogo crea la extensión `unaccent`). El término de búsqueda llega a la base de datos como parámetro enlazado, así que `filter=name:contains:d'oliva` encuentra "Aceite d'Oliva de l'Empordà" como cualquier otro término.
+Los compradores escriben "cafe" y esperan encontrar "Café". La sintaxis HTTP no permite pedir coincidencias sin distinguir mayúsculas, así que el servidor lo decide para los campos que sabe que son texto: `CASE_INSENSITIVE_FIELDS` hace que `eq`, `neq`, `contains`, `notcontains`, `startswith` y `endswith` sobre `name` y `description` comparen `unaccent(upper(...))` en ambos lados, lo que en PostgreSQL ignora mayúsculas y acentos (la primera migración del catálogo crea la extensión `unaccent`). El término de búsqueda llega a la base de datos como parámetro enlazado, así que `filter=name:contains:d'oliva` encuentra "Aceite d'Oliva de l'Empordà" como cualquier otro término.
 
 ## Lo que añade el servidor
 
-[`CatalogQueryHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/query/CatalogQueryHandler.java) recibe el plan del cliente y lo deriva con `products.query(plan)`:
+[`SearchProductsHandler`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/application/service/SearchProductsHandler.java) pasa el filtro y la página del cliente al modelo de lectura, y [`JpaCatalogReadModel`](../../services/catalog-service/src/main/java/com/borjaglez/shop/catalog/infrastructure/out/persistence/JpaCatalogReadModel.java) convierte el filtro en un plan del cliente y lo deriva con `products.query(plan)`:
 
 ```java
 static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("id"));
 
-@HandleQuery
-@Transactional(readOnly = true, timeout = SEARCH_TIMEOUT_SECONDS) // 5 s
-public Page<ProductCard> search(SearchProductsQuery query) {
-  return onSale(query.getPlan())
-      .leftFetch("seller")
-      .sortedByDefault(NEWEST_FIRST)
-      .findAll(query.getPageable())
-      .map(ProductViews::card);
+@Override
+@Transactional(readOnly = true, timeout = TIMEOUT_SECONDS) // 5 s
+public Page<ProductCard> search(ClientFilter filter, PageRequest page) {
+  org.springframework.data.domain.Page<ProductEntity> found =
+      onSale(clientPlan(filter, ProductFilters.SEARCH))
+          .leftFetch("seller")
+          .sortedByDefault(NEWEST_FIRST)
+          .findAll(org.springframework.data.domain.PageRequest.of(page.page(), page.size()));
+  ...
 }
 
-private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPlan) {
+private SpecificationExecutableQuery<ProductEntity> onSale(QueryPlan<ProductEntity> clientPlan) {
   return products.query(clientPlan).where("status", Operators.EQUALS, ProductStatus.ACTIVE);
 }
 ```
@@ -133,7 +140,7 @@ private SpecificationExecutableQuery<Product> onSale(QueryPlan<Product> clientPl
 
 ## Facetas
 
-`GET /api/catalog/products/facets` acepta los mismos filtros y responde cuántos productos a la venta coinciden por categoría, por vendedor y por etiqueta, además del rango de precios (forma de la respuesta; los valores son ilustrativos):
+`GET /api/v1/catalog/products/facets` acepta los mismos filtros y responde cuántos productos a la venta coinciden por categoría, por vendedor y por etiqueta, además del rango de precios (forma de la respuesta; los valores son ilustrativos):
 
 ```json
 {
@@ -158,7 +165,7 @@ return new CatalogFacets(
 
 ```java
 private static List<FacetValue> countBy(
-    SpecificationExecutableQuery<Product> query, String valueField, String labelField) {
+    SpecificationExecutableQuery<ProductEntity> query, String valueField, String labelField) {
   String[] groupBy =
       labelField == null ? new String[] {valueField} : new String[] {valueField, labelField};
   List<GroupedRow> rows =
@@ -167,7 +174,7 @@ private static List<FacetValue> countBy(
 }
 ```
 
-`GET /api/catalog/categories` usa la misma agrupación para devolver cada categoría con su número de productos activos.
+`GET /api/v1/catalog/categories` usa la misma agrupación para devolver cada categoría con su número de productos activos.
 
 ![Catálogo con facetas](../assets/screenshots/shop-catalog.png)
 
@@ -177,7 +184,7 @@ Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; 
 
 | Petición | Lo detecta | Detalle del problema |
 |---|---|---|
-| `filter=seller.email:startswith:ana` | lista blanca, al resolver el argumento (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
+| `filter=seller.email:startswith:ana` | lista blanca, cuando el lado de lectura ejecuta el plan (`DisallowedFieldException`) | `Field 'seller.email' is not allowed for filtering` |
 | `sort=seller.email,asc` | lista blanca | `Field 'seller.email' is not allowed for sorting` |
 | `filter=price.amount:gte:abc` | conversión de valores (`InvalidFilterValueException`) | `Invalid filter on field 'price.amount': cannot convert 'abc' to BigDecimal` |
 | `filter=name:like:cafe` | parser HTTP, operador fuera de `allowed-operators` (`HttpUnknownOperatorException`) | `Unknown filter operator 'like'` |
@@ -191,14 +198,14 @@ Todo filtro rechazado es un problema RFC 9457 400 con código `invalid-filter`; 
   "title": "Bad Request",
   "status": 400,
   "detail": "Field 'seller.email' is not allowed for filtering",
-  "instance": "/api/catalog/products",
+  "instance": "/api/v1/catalog/products",
   "code": "invalid-filter",
   "field": "seller.email",
   "correlationId": "5b1d0c9e-2f4a-4b7e-8a61-0f3c2d9e7a44"
 }
 ```
 
-[`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java), de `service-support`, genera estas respuestas: para los errores encontrados al parsear (`HttpFilterSyntaxException`, `HttpUnknownOperatorException`), los campos no permitidos (`DisallowedFieldException`) y los filtros que el motor de consultas rechaza al ejecutarse, como los valores no convertibles (`InvalidFilterException`). Cuando la excepción nombra un campo, el problema lo lleva en `field`, como los problem details de la propia librería. Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas. El advice de la librería para estas excepciones está desactivado (`specrepository.http.problem-details.enabled=false`) para que todos los errores de la tienda tengan la misma forma.
+[`SpecificationProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/SpecificationProblemMapper.java), de `service-support`, genera estas respuestas: para los errores encontrados al parsear (`HttpFilterSyntaxException`, `HttpUnknownOperatorException`), los campos no permitidos (`DisallowedFieldException`) y los filtros que el motor de consultas rechaza al ejecutarse, como los valores no convertibles (`InvalidFilterException`). Cuando la excepción nombra un campo, el problema lo lleva en `field`, como los problem details de la propia librería. Como el handler recorre la cadena de causas, la respuesta es la misma tanto si la excepción se lanza en el controlador como dentro del bus de consultas, envuelta o no. El advice de la librería para estas excepciones está desactivado (`specrepository.http.problem-details.enabled=false`) para que todos los errores de la tienda tengan la misma forma.
 
 ## El Filter Lab
 
@@ -227,14 +234,14 @@ La tienda incluye una página Filter Lab (laboratorio de filtros, `/lab`) para e
 Las mismas peticiones funcionan desde la línea de comandos a través del gateway:
 
 ```bash
-curl -s 'http://localhost:8080/api/catalog/products?filter=name:contains:cafe&sort=price.amount,asc'
-curl -s 'http://localhost:8080/api/catalog/products/facets?filter=tags:eq:ecologico'
-curl -s 'http://localhost:8080/api/catalog/products?filter=seller.email:startswith:ana'   # 400 invalid-filter
+curl -s 'http://localhost:8080/api/v1/catalog/products?filter=name:contains:cafe&sort=price.amount,asc'
+curl -s 'http://localhost:8080/api/v1/catalog/products/facets?filter=tags:eq:ecologico'
+curl -s 'http://localhost:8080/api/v1/catalog/products?filter=seller.email:startswith:ana'   # 400 invalid-filter
 ```
 
 ## El mismo patrón en el resto de la plataforma
 
-Todos los endpoints de listado de la plataforma siguen el patrón del catálogo: `@FilterableQuery` con una lista blanca (compartida mediante una anotación compuesta cuando varios endpoints exponen la misma entidad), el `Pageable` pasado tal cual, y condiciones y ordenaciones por defecto del servidor añadidas al derivar el plan con `repository.query(plan)`. Las listas blancas de todos los endpoints aparecen en [Las librerías en la práctica](libraries.md#filtros-http-con-filterablequery).
+Los demás endpoints de listado de la plataforma declaran el mismo tipo de lista blanca con `@FilterableQuery` (compartida mediante una anotación compuesta cuando varios endpoints exponen la misma entidad), pasan el `Pageable` tal cual, y añaden condiciones y ordenaciones por defecto del servidor al derivar el plan con `repository.query(plan)`. Las listas blancas de todos los endpoints aparecen en [Las librerías en la práctica](libraries.md#filtros-http-con-filterablequery).
 
 ## Relacionado
 

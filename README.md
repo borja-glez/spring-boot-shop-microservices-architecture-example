@@ -104,7 +104,7 @@ Read [how the libraries are integrated](docs/en/libraries.md) for the code behin
 | **Service design** | Database per service, hexagonal layers enforced with ArchUnit, RFC 9457 errors with stable codes | [Architecture](docs/en/architecture.md) |
 | **CQRS** | Controllers dispatch commands and queries; separate write models and read models | [Libraries](docs/en/libraries.md) |
 | **Event sourcing** | Orders and payments stored as event streams with optimistic concurrency; full history per order | [Event sourcing and outbox](docs/en/event-sourcing-and-outbox.md) |
-| **Reliable messaging** | Transactional outbox (the event store itself), `SKIP LOCKED` relay, at-least-once delivery, idempotent consumers | [Event sourcing and outbox](docs/en/event-sourcing-and-outbox.md) |
+| **Reliable messaging** | Transactional outbox in two forms, the event store itself (orders, payments, inventory) and the outbox table of spring-boot-cqrs (catalog), `SKIP LOCKED` relays, at-least-once delivery, idempotent consumers | [Event sourcing and outbox](docs/en/event-sourcing-and-outbox.md) |
 | **Distributed transactions** | Orchestrated, persisted checkout saga over RabbitMQ with retries, backoff and compensations | [Checkout saga](docs/en/checkout-saga.md) |
 | **Read models** | Projections tolerant to out-of-order events, reports rebuilt by replaying Kafka from offset 0, live notifications over SSE | [Read models](docs/en/read-models.md) |
 | **Querying** | HTTP filters, whitelists, server-side conditions, facets and aggregated reports | [Querying](docs/en/querying.md) |
@@ -135,7 +135,7 @@ The first run downloads the base images and takes a few minutes. Then open:
 |---|---|
 | <http://localhost:4200> | **The shop**: catalog, cart, orders with the live saga, notifications, backoffice, filter lab, chaos panel |
 | <http://localhost:3000> | **Grafana**: *Dashboards > Shop*, traces in Tempo, logs in Loki, alert rules |
-| <http://localhost:8080/api/catalog/products> | The public API, through the gateway |
+| <http://localhost:8080/api/v1/catalog/products> | The public API, through the gateway |
 | <http://localhost:15672> | RabbitMQ management (`shop` / `shop-dev`) |
 | <http://localhost:8090> | Kafka UI: the `shop.events` topic |
 

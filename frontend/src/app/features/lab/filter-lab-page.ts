@@ -133,7 +133,7 @@ export class FilterLabPage {
 
   protected send(): void {
     this.sending.set(true);
-    this.api.raw('/api/catalog/products', this.effectiveQuery()).subscribe((response) => {
+    this.api.raw('/api/v1/catalog/products', this.effectiveQuery()).subscribe((response) => {
       this.response.set(response);
       this.sending.set(false);
     });
