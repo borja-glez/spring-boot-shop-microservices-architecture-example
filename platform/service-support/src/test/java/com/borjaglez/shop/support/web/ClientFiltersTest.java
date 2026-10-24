@@ -18,14 +18,14 @@ class ClientFiltersTest {
   @Test
   void readsEveryValueOfEachParameterWhole() {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/things");
-    request.addParameter("filter", "name:contains:sal, aceite", "price.amount:between:10,20");
+    request.addParameter("filter", "name:contains:sal, aceite", "name:in:sal, fina|sal, gruesa");
     request.addParameter("orFilter", "city:eq:Madrid;tags:eq:a,b");
     request.addParameter("sort", "price.amount,desc");
 
     assertThat(defaults.from(request))
         .isEqualTo(
             new ClientFilter(
-                List.of("name:contains:sal, aceite", "price.amount:between:10,20"),
+                List.of("name:contains:sal, aceite", "name:in:sal, fina|sal, gruesa"),
                 List.of("city:eq:Madrid;tags:eq:a,b"),
                 List.of("price.amount,desc")));
   }

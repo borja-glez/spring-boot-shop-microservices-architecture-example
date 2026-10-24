@@ -248,21 +248,21 @@ class ProductsControllerIT {
   }
 
   @Test
-  void aSingleBetweenWithACommaReachesTheReadSideWhole() throws Exception {
+  void aSingleListOfValuesWithCommasReachesTheReadSideWhole() throws Exception {
     when(queries.ask(any(Query.class))).thenReturn(new Page<>(List.of(), 0, 20, 0));
 
     mvc.perform(
             get(PRODUCTS)
-                .param("filter", "price.amount:between:10,20")
-                .param("orFilter", "tags:in:a,b;seller.city:eq:Madrid"))
+                .param("filter", "name:in:sal, fina|sal, gruesa")
+                .param("orFilter", "seller.city:in:Madrid|Sevilla;name:contains:sal, aceite"))
         .andExpect(status().isOk())
         .andExpect(CONTRACT.matches());
 
     assertThat(((SearchProductsQuery) asked()).getFilter())
         .isEqualTo(
             new ClientFilter(
-                List.of("price.amount:between:10,20"),
-                List.of("tags:in:a,b;seller.city:eq:Madrid"),
+                List.of("name:in:sal, fina|sal, gruesa"),
+                List.of("seller.city:in:Madrid|Sevilla;name:contains:sal, aceite"),
                 List.of()));
   }
 
@@ -448,12 +448,12 @@ class ProductsControllerIT {
     when(queries.ask(any(Query.class)))
         .thenReturn(new CatalogFacets(List.of(), List.of(), List.of(), new PriceRange(null, null)));
 
-    mvc.perform(get(PRODUCTS + "/facets").param("filter", "price.amount:between:10,20"))
+    mvc.perform(get(PRODUCTS + "/facets").param("filter", "name:contains:sal, aceite"))
         .andExpect(status().isOk())
         .andExpect(CONTRACT.matches());
 
     assertThat(((GetCatalogFacetsQuery) asked()).getFilter().filters())
-        .containsExactly("price.amount:between:10,20");
+        .containsExactly("name:contains:sal, aceite");
   }
 
   @Test
