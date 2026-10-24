@@ -1,0 +1,24 @@
+# Stands as deep in the repository as a service document,
+# services/<service>/src/main/asyncapi/<service>.yaml, so it reaches the shared components of
+# platform/api-contracts/asyncapi/common.yaml with the relative path a service document uses.
+asyncapi: 3.0.0
+info:
+  title: Widgets on Kafka
+  version: 1.0.0
+channels:
+  widgetEvents:
+    address: shop.widgets.event
+    messages:
+      widgetCreated:
+        name: shop.widgets.1.event.widget.widget-created
+        traits:
+          - $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/messageTraits/KafkaEvent'
+        payload:
+          $ref: 'asyncapi/schemas/widget-created.v1.json'
+    bindings:
+      $ref: '../../../../../platform/api-contracts/asyncapi/common.yaml#/components/channelBindings/KafkaEvents'
+operations:
+  publishWidgetCreated:
+    action: send
+    channel:
+      $ref: '#/channels/widgetEvents'

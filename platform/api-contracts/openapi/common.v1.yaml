@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Mercado common HTTP components
+  version: 1.0.0
+  description: |
+    Components shared by the Mercado APIs: the RFC 9457 problem every service answers errors with
+    and its responses by status, the paging parameters and metadata, and the `X-Correlation-Id`
+    and `X-Shop-User` headers. Reference them from a service contract with a relative `$ref`,
+    for example
+    `$ref: '../../../../../platform/api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'`.
+    The filter parameters (`filter`, `orFilter`, `sort`) are in `specrepo-filters.yaml`, next to
+    this file.
+
+    Every operation accepts an optional `X-Correlation-Id` request header (1 to 64 characters from
+    `[A-Za-z0-9._-]`), carried by the commands, events and logs the request causes. It is not
+    declared as an operation parameter because no value is rejected: a missing or invalid one is
+    replaced by a new UUID. Every response returns the id used in its `X-Correlation-Id` header
+    (`#/components/headers/CorrelationId`) and, in a problem, in `correlationId`.
+
+    Every error response of `#/components/responses` is a `Problem`, sent as
+    `application/problem+json`, or as `application/json` to a client that accepts only JSON. Both
+    media types are listed so that such a client can call any operation, including one whose
+    success response has no body.
+
+    `info.version` is the version of these components; a change that breaks a contract that
+    references them goes to a new file, `common.v2.yaml`.
+paths: {}
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero-based index of the page to return.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Number of elements per page.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+    ShopUser:
+      name: X-Shop-User
+      in: header
+      required: true
+      description: |
+        Id of the user making the request (customer or seller). Without it the request is
+        answered with 401 `missing-user`; with an invalid value, with 400 `invalid-user`.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._@-]{1,64}$'
+  headers:
+    CorrelationId:
+      description: Correlation id of the request, the one received or a new UUID.
+      schema:
+        $ref: '#/components/schemas/CorrelationId'
+  schemas:
+    CorrelationId:
+      type: string
+      description: Correlation id, 1 to 64 characters from `[A-Za-z0-9._-]`.
+      pattern: '^[A-Za-z0-9._-]{1,64}$'
+    Problem:
+      type: object
+      description: |
+        RFC 9457 problem details, the body of every error response
+        (`application/problem+json`, or `application/json` for a client that accepts only JSON).
+        `code` is a stable kebab-case identifier for clients to branch on; `type` is derived from
+        it. Some problems add members of their own, such as `field` for an invalid filter.
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Problem type, `https://shop.borjaglez.com/problems/<code>`.
+          pattern: '^https://shop\.borjaglez\.com/problems/[a-z0-9]+(-[a-z0-9]+)*$'
+          example: https://shop.borjaglez.com/problems/product-not-found
+        title:
+          type: string
+          description: Short summary of the status, such as `Not Found`.
+          example: Not Found
+        status:
+          type: integer
+          format: int32
+          description: HTTP status code of the response.
+          minimum: 400
+          maximum: 599
+          example: 404
+        detail:
+          type: string
+          description: Explanation of this occurrence, safe to show to the user.
+        instance:
+          type: string
+          format: uri-reference
+          description: Path of the request that caused the problem.
+          example: /api/v1/catalog/products/7d0f
+        code:
+          type: string
+          description: Stable kebab-case identifier of the problem.
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          example: product-not-found
+        correlationId:
+          $ref: '#/components/schemas/CorrelationId'
+        errors:
+          type: array
+          description: Invalid inputs, present only when the request failed validation.
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FieldViolation'
+        field:
+          type: string
+          description: Field an invalid filter or sort refers to, when the error names one.
+    FieldViolation:
+      type: object
+      description: One invalid input of a request.
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          description: Property path of a body field, or name of a parameter.
+          example: name
+        message:
+          type: string
+          nullable: true
+          description: Why the value is invalid.
+          example: must not be blank
+    PageMetadata:
+      type: object
+      description: |
+        Position of a page of results. A page schema combines it with its `content` through
+        `allOf`.
+      required:
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Zero-based index of this page.
+        size:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Requested number of elements per page.
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of elements across all pages.
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of pages.
+    SliceMetadata:
+      type: object
+      description: |
+        Position of a slice of results: a page without totals, for lists that only grow. A slice
+        schema combines it with its `content` through `allOf`.
+      required:
+        - page
+        - size
+        - hasNext
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Zero-based index of this slice.
+        size:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Requested number of elements per slice.
+        hasNext:
+          type: boolean
+          description: Whether a next slice exists.
+  responses:
+    BadRequest:
+      description: |
+        The request is not valid: `validation-failed` (with `errors`), `invalid-filter` (with
+        `field` when known), `invalid-user`, or a code derived from the status for malformed
+        requests (`bad-request`).
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: The operation needs the `X-Shop-User` header (`missing-user`).
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: The resource does not exist; the code names it, such as `product-not-found`.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: |
+        The request conflicts with the current state: a domain conflict, another request modified
+        the resource first (`concurrent-modification`), or the data already exists
+        (`data-integrity-violation`).
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableContent:
+      description: The request is valid but breaks a business rule; the code names the rule.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: |
+        Unexpected failure (`internal-error`). The detail never includes the cause; quote the
+        correlation id when reporting it.
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'

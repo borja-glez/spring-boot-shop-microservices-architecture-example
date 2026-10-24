@@ -33,7 +33,7 @@ import com.borjaglez.cqrs.event.Event;
 import com.borjaglez.shop.contracts.catalog.ProductDiscontinued;
 import com.borjaglez.shop.contracts.catalog.ProductPriceChanged;
 import com.borjaglez.shop.contracts.catalog.ProductPublished;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
 import lombok.AccessLevel;
 import lombok.Getter;

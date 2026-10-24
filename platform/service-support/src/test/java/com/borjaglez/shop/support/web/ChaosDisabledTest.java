@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -16,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.borjaglez.shop.support.autoconfigure.ShopChaosAutoConfiguration;
 import com.borjaglez.shop.support.autoconfigure.ShopWebAutoConfiguration;
+import com.borjaglez.shop.testsupport.contract.OpenApiContract;
 
 /** Without {@code shop.chaos.enabled} nobody can turn a fault on. */
 @WebMvcTest(controllers = SampleController.class)
@@ -23,18 +26,25 @@ import com.borjaglez.shop.support.autoconfigure.ShopWebAutoConfiguration;
 @TestPropertySource(properties = "shop.chaos.service=payments")
 class ChaosDisabledTest {
 
+  private static final OpenApiContract CONTRACT =
+      OpenApiContract.of(Path.of("src/main/openapi/chaos-api.v1.yaml"));
+
   @Autowired MockMvc mvc;
 
   @Test
   void theChaosEndpointAnswersNotFound() throws Exception {
-    mvc.perform(get("/api/payments/chaos"))
+    mvc.perform(get("/api/v1/chaos/payments"))
         .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches())
         .andExpect(jsonPath("$.code").value("chaos-disabled"));
     mvc.perform(
-            put("/api/payments/chaos/x")
+            put("/api/v1/chaos/payments/x")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"value\":1}"))
-        .andExpect(status().isNotFound());
-    mvc.perform(delete("/api/payments/chaos")).andExpect(status().isNotFound());
+        .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches());
+    mvc.perform(delete("/api/v1/chaos/payments"))
+        .andExpect(status().isNotFound())
+        .andExpect(CONTRACT.matches());
   }
 }

@@ -85,11 +85,8 @@ public class OutboxRelay {
     this.batchSize = batchSize;
     this.traces = traces;
     this.meters = meters;
-    this.paused =
-        chaos.toggle(
-            "relay.paused", "Stops publishing events to Kafka, as if the broker were down");
-    this.duplicate =
-        chaos.toggle("relay.duplicate", "Publishes every event twice (at-least-once delivery)");
+    this.paused = RelayFaults.paused(chaos);
+    this.duplicate = RelayFaults.duplicate(chaos);
   }
 
   /**

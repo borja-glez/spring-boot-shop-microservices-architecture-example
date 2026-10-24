@@ -4,9 +4,9 @@ import java.util.List;
 
 import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.orders.application.query.OrderViews.OrderNoticesView;
 import com.borjaglez.shop.orders.domain.OrderViewRepository;
-import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.specrepository.core.Operators;
 
 /**

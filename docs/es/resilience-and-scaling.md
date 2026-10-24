@@ -39,13 +39,13 @@ Todos los fallos empiezan desactivados. Los componentes registran sus fallos en 
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) es un middleware de spring-boot-cqrs que registra un fallo `.delay-ms` y otro `.fail` por cada nombre simple de clase listado en `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` en inventory, `AuthorizePayment, RefundPayment` en payments). Se sitúa en los buses locales, así que también afecta a los comandos y consultas que llegan por RabbitMQ: quien llama ve un servicio lento o un error remoto, exactamente igual que en una caída real. Un fallo inyectado es una [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), que deliberadamente no se traduce a un 4xx.
 
-El endpoint, servido por [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), existe en los servicios que fijan `shop.chaos.service` (catalog, orders, inventory, payments), en `/api/<service>/chaos`:
+El endpoint, servido por [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), existe en los servicios que fijan `shop.chaos.service` (catalog, orders, inventory, payments), en `/api/v1/chaos/<service>`; el gateway enruta `/api/v1/chaos/<service>/**` a ese servicio:
 
 | Petición | Efecto |
 |---|---|
-| `GET /api/payments/chaos` | Lista los fallos con clave, descripción, tipo y valor |
-| `PUT /api/payments/chaos/AuthorizePayment.fail` con `{"value": 1}` | Activa un fallo (0 lo desactiva; los retrasos se indican en milisegundos) |
-| `DELETE /api/payments/chaos` | Desactiva todos los fallos del servicio |
+| `GET /api/v1/chaos/payments` | Lista los fallos con clave, descripción, tipo y valor |
+| `PUT /api/v1/chaos/payments/AuthorizePayment.fail` con `{"value": 1}` | Activa un fallo (0 lo desactiva; los retrasos se indican en milisegundos) |
+| `DELETE /api/v1/chaos/payments` | Desactiva todos los fallos del servicio |
 
 El endpoint solo responde cuando el servicio arrancó con `SHOP_CHAOS_ENABLED=true` (`shop.chaos.enabled`); en caso contrario, toda petición recibe 404 `chaos-disabled` y no se puede activar ningún fallo. El flag se lee al arrancar en lugar de usarse como condición de un bean, porque una imagen nativa fija sus condiciones en tiempo de build. Docker Compose y los overlays locales de Kubernetes lo activan, ya que son despliegues de demostración; el endpoint no tiene autenticación, como el resto de la API de la demo, y permanecería desactivado en cualquier otro entorno.
 
@@ -134,7 +134,7 @@ El overlay nativo reduce los requests y limits a 128/256 MiB y acorta en consecu
 
 Qué hace que los servicios estén preparados para imagen nativa:
 
-- **Hints junto al código que los necesita.** [`EsKitRuntimeHints`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EsKitRuntimeHints.java) registra las migraciones de Flyway de es-kit (`db/eskit/**`), los arrays de ids que Hibernate crea por reflexión cuando carga por lotes con `default_batch_fetch_size`, y las clases de excepción de Flyway que se usan para informar de los fallos de conexión. spring-boot-cqrs registra hints para todos los contratos mediante `cqrs.aot.message-packages`.
+- **Hints junto al código que los necesita.** [`EsKitRuntimeHints`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EsKitRuntimeHints.java) registra las migraciones de Flyway de es-kit (`db/eskit/**`), los arrays de ids que Hibernate crea por reflexión cuando carga por lotes con `default_batch_fetch_size`, y las clases de excepción de Flyway que se usan para informar de los fallos de conexión. [`ShopWebRuntimeHints`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/autoconfigure/ShopWebRuntimeHints.java) registra las violaciones de campo de un problema `validation-failed`: Jackson las lee por reflexión y Spring no las ve dentro de los miembros extra del problema. spring-boot-cqrs registra hints para todos los contratos mediante `cqrs.aot.message-packages`.
 - **Un índice de eventos generado en tiempo de build.** Una imagen nativa no puede escanear el classpath, así que [`EventTypeIndexAotProcessor`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EventTypeIndexAotProcessor.java) escanea los paquetes de eventos durante el procesamiento AOT, escribe las clases en `META-INF/shop/event-types.idx` y registra sus hints de binding; `EventTypeRegistry` lee el índice en tiempo de ejecución y, en la JVM, recurre al escaneo si no lo encuentra.
 - **Interruptores en tiempo de ejecución en lugar de `@Conditional`.** En una imagen nativa las condiciones se evalúan en tiempo de build, así que todo lo que deba poder activarse en tiempo de ejecución es una comprobación en tiempo de ejecución: los exportadores OTLP ([Observabilidad](observability.md#activar-la-exportación)) y el endpoint de caos.
 - **Enhancement de bytecode.** `shop.hibernate-enhancement-conventions` mejora las entidades JPA en tiempo de build, porque una imagen nativa no puede generar proxies de Hibernate en tiempo de ejecución; los builds JVM también se mejoran, para que ambos se comporten igual.

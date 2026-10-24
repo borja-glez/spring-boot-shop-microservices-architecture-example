@@ -4,10 +4,10 @@ plugins {
     id("shop.java-base-conventions")
 }
 
-description = "Messages exchanged between services. Framework-free apart from spring-boot-cqrs-core."
+description = "Messages exchanged between services. Framework-free apart from the spring-boot-cqrs API."
 
 dependencies {
-    api(libs.cqrs.core)
+    api(libs.cqrs.api)
 
     testImplementation(platform(libs.spring.boot.dependencies))
     testImplementation(libs.junit.jupiter)

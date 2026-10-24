@@ -38,21 +38,21 @@ describe('ChaosPage', () => {
   async function answer(orders: 'down' | 'off' = 'down'): Promise<HTMLElement> {
     // A refresh after an action starts new requests on the next change detection.
     TestBed.tick();
-    http.expectOne('/api/payments/chaos').flush([DECLINE]);
-    http.expectOne('/api/inventory/chaos').flush([]);
+    http.expectOne('/api/v1/chaos/payments').flush([DECLINE]);
+    http.expectOne('/api/v1/chaos/inventory').flush([]);
     if (orders === 'down') {
       http
-        .expectOne('/api/orders/chaos')
+        .expectOne('/api/v1/chaos/orders')
         .flush(
           { status: 503, title: 'Service Unavailable' },
           { status: 503, statusText: 'Unavailable' },
         );
     } else {
       http
-        .expectOne('/api/orders/chaos')
+        .expectOne('/api/v1/chaos/orders')
         .flush({ status: 404 }, { status: 404, statusText: 'Not Found' });
     }
-    http.expectOne('/api/catalog/chaos').flush([PAUSED]);
+    http.expectOne('/api/v1/chaos/catalog').flush([PAUSED]);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
   }
@@ -86,7 +86,7 @@ describe('ChaosPage', () => {
 
     toggle.checked = true;
     toggle.dispatchEvent(new Event('change'));
-    http.expectOne('/api/payments/chaos/payments.decline-all').flush(
+    http.expectOne('/api/v1/chaos/payments/payments.decline-all').flush(
       {
         status: 422,
         code: 'chaos-value-out-of-range',
@@ -112,7 +112,7 @@ describe('ChaosPage', () => {
 
     for (const service of ['payments', 'inventory', 'orders', 'catalog']) {
       const request = http.expectOne(
-        (r) => r.url === `/api/${service}/chaos` && r.method === 'DELETE',
+        (r) => r.url === `/api/v1/chaos/${service}` && r.method === 'DELETE',
       );
       if (service === 'orders') {
         request.flush({ status: 404 }, { status: 404, statusText: 'Not Found' });

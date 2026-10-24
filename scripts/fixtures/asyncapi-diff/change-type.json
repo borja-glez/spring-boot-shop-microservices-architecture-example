@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "action": "edit",
+      "path": "/operations/op/channel/messages/m/payload/properties/id/type",
+      "before": "string",
+      "after": "integer",
+      "type": "unclassified"
+    },
+    {
+      "action": "edit",
+      "path": "/channels/ch/messages/m/payload/properties/id/type",
+      "before": "string",
+      "after": "integer",
+      "type": "unclassified"
+    }
+  ]
+}

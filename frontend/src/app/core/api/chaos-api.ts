@@ -2,17 +2,14 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, of, throwError } from 'rxjs';
 
-/** Services that expose `/api/<service>/chaos` when `SHOP_CHAOS_ENABLED=true`. */
+import type { components } from './generated/chaos-api.v1';
+
+/** Services that expose `/api/v1/chaos/<service>` when `SHOP_CHAOS_ENABLED=true`. */
 export const CHAOS_SERVICES = ['payments', 'inventory', 'orders', 'catalog'] as const;
 export type ChaosService = (typeof CHAOS_SERVICES)[number];
 
-/** A fault of a service (see service-support `ChaosController.FaultView`). */
-export interface ChaosFault {
-  key: string;
-  description: string;
-  kind: 'TOGGLE' | 'DELAY';
-  value: number;
-}
+/** A fault of a service (the `Fault` schema of service-support `chaos-api.v1.yaml`). */
+export type ChaosFault = components['schemas']['Fault'];
 
 /** What the demo explains for each fault it knows. */
 export interface FaultGuide {
@@ -83,7 +80,7 @@ export class ChaosApi {
 
   faults(service: ChaosService): Observable<ChaosFault[] | null> {
     return this.http
-      .get<ChaosFault[]>(`/api/${service}/chaos`)
+      .get<ChaosFault[]>(`/api/v1/chaos/${service}`)
       .pipe(
         catchError((error: unknown) =>
           error instanceof HttpErrorResponse && error.status === 404
@@ -94,13 +91,15 @@ export class ChaosApi {
   }
 
   set(service: ChaosService, key: string, value: number): Observable<ChaosFault> {
-    return this.http.put<ChaosFault>(`/api/${service}/chaos/${encodeURIComponent(key)}`, { value });
+    return this.http.put<ChaosFault>(`/api/v1/chaos/${service}/${encodeURIComponent(key)}`, {
+      value,
+    });
   }
 
   /** Turns every fault of a service off; a service without chaos has nothing to turn off. */
   reset(service: ChaosService): Observable<void> {
     return this.http
-      .delete<void>(`/api/${service}/chaos`)
+      .delete<void>(`/api/v1/chaos/${service}`)
       .pipe(
         catchError((error: unknown) =>
           error instanceof HttpErrorResponse && error.status === 404

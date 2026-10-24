@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Widgets API
+  version: 1.0.0
+  description: Contract of the test controllers of OpenApiContractTest.
+tags:
+  - name: widgets
+    description: Widgets.
+paths:
+  /api/v1/widgets:
+    get:
+      tags:
+        - widgets
+      operationId: listWidgets
+      summary: Lists widgets.
+      description: Lists widgets, filtered and sorted with the specification-repository syntax.
+      x-specrepo-filterable-fields:
+        - name
+        - status
+      x-specrepo-sortable-fields:
+        - name
+      parameters:
+        - $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/parameters/Page'
+        - $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/parameters/Size'
+        - $ref: '../../../../../api-contracts/openapi/specrepo-filters.yaml#/components/parameters/SpecrepoFilter'
+        - $ref: '../../../../../api-contracts/openapi/specrepo-filters.yaml#/components/parameters/SpecrepoOrFilter'
+        - $ref: '../../../../../api-contracts/openapi/specrepo-filters.yaml#/components/parameters/SpecrepoSort'
+      responses:
+        '200':
+          description: A page of widgets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WidgetPage'
+        '400':
+          $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+    post:
+      tags:
+        - widgets
+      operationId: createWidget
+      summary: Creates a widget.
+      description: Creates a widget owned by the user.
+      parameters:
+        - $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/parameters/ShopUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewWidget'
+      responses:
+        '201':
+          description: The widget created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+        '400':
+          $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/responses/BadRequest'
+        '401':
+          $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/responses/Unauthorized'
+  /api/v1/widgets/{id}:
+    get:
+      tags:
+        - widgets
+      operationId: getWidget
+      summary: Reads a widget.
+      description: Reads a widget by id.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the widget.
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]{1,36}$'
+      responses:
+        '200':
+          description: The widget.
+          headers:
+            X-Correlation-Id:
+              $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+        '404':
+          $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/responses/NotFound'
+components:
+  schemas:
+    WidgetStatus:
+      type: string
+      description: Lifecycle of a widget.
+      enum:
+        - ACTIVE
+        - RETIRED
+    NewWidget:
+      type: object
+      description: Data of a new widget.
+      required:
+        - name
+        - price
+      properties:
+        name:
+          type: string
+          description: Display name.
+          minLength: 1
+          maxLength: 80
+        price:
+          type: number
+          description: Unit price.
+          minimum: 0
+        color:
+          type: string
+          nullable: true
+          description: Color, if it has one.
+    Widget:
+      type: object
+      description: A widget.
+      required:
+        - id
+        - name
+        - price
+        - status
+        - tags
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Id of the widget.
+        name:
+          type: string
+          description: Display name.
+        price:
+          type: number
+          description: Unit price.
+        status:
+          $ref: '#/components/schemas/WidgetStatus'
+        tags:
+          type: array
+          description: Labels of the widget.
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+          description: When the widget was created.
+        color:
+          type: string
+          nullable: true
+          description: Color, if it has one.
+        owner:
+          type: string
+          nullable: true
+          description: User that created the widget, if it was created through the API.
+    WidgetPage:
+      description: A page of widgets.
+      allOf:
+        - $ref: '../../../../../api-contracts/openapi/common.v1.yaml#/components/schemas/PageMetadata'
+        - type: object
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              description: Widgets of this page.
+              items:
+                $ref: '#/components/schemas/Widget'

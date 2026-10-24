@@ -209,14 +209,14 @@ public final class ShopClient {
       List.of("payments", "inventory", "orders", "catalog");
 
   public void chaos(String service, String fault, long value) {
-    call("PUT", "/api/" + service + "/chaos/" + fault, Map.of("value", value), "backoffice")
+    call("PUT", "/api/v1/chaos/" + service + "/" + fault, Map.of("value", value), "backoffice")
         .expect(200);
   }
 
   /** Turns every fault off; a service without chaos answers 404, which is fine too. */
   public void calm() {
     for (String service : CHAOS_SERVICES) {
-      int status = call("DELETE", "/api/" + service + "/chaos", null, "backoffice").status();
+      int status = call("DELETE", "/api/v1/chaos/" + service, null, "backoffice").status();
       if (status != 204 && status != 404) {
         throw new AssertionError("Could not calm " + service + ": HTTP " + status);
       }
@@ -224,6 +224,6 @@ public final class ShopClient {
   }
 
   public boolean chaosEnabled() {
-    return call("GET", "/api/payments/chaos", null, "backoffice").status() == 200;
+    return call("GET", "/api/v1/chaos/payments", null, "backoffice").status() == 200;
   }
 }

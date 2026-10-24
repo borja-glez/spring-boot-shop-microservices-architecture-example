@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "action": "remove",
+      "path": "/operations/op/channel/messages/m/payload/properties/status/enum/2",
+      "isArrayIndex": true,
+      "before": "SHIPPED",
+      "type": "unclassified"
+    },
+    {
+      "action": "remove",
+      "path": "/channels/ch/messages/m/payload/properties/status/enum/2",
+      "isArrayIndex": true,
+      "before": "SHIPPED",
+      "type": "unclassified"
+    }
+  ]
+}

@@ -20,9 +20,9 @@ import com.borjaglez.shop.catalog.domain.ProductRepository;
 import com.borjaglez.shop.catalog.domain.Seller;
 import com.borjaglez.shop.catalog.domain.SellerRepository;
 import com.borjaglez.shop.eskit.EventStore;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.ConflictException;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.ConflictException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.specrepository.core.Operators;
 
 /**

@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.borjaglez.cqrs.query.annotation.HandleQuery;
 import com.borjaglez.cqrs.query.annotation.QueryHandler;
 import com.borjaglez.shop.eskit.EventStore;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.GetPaymentHistoryQuery;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentEvent;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.PaymentSummary;
 import com.borjaglez.shop.payments.application.query.PaymentQueries.SearchPaymentsQuery;
 import com.borjaglez.shop.payments.domain.Payment;
 import com.borjaglez.shop.payments.domain.PaymentViewRepository;
-import com.borjaglez.shop.support.error.NotFoundException;
 
 /** Read side of the payments backoffice. Every read uses specification-repository. */
 @QueryHandler

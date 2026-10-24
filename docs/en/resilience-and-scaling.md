@@ -39,13 +39,13 @@ Every fault starts off. Components register their faults in the [`Chaos`](../../
 
 [`MessageChaosMiddleware`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/MessageChaosMiddleware.java) is a spring-boot-cqrs middleware registering a `.delay-ms` and a `.fail` fault for each simple class name listed in `shop.chaos.messages` (`ReserveStock, ReleaseStock, GetStockLevels` in inventory, `AuthorizePayment, RefundPayment` in payments). It sits on the local buses, so it also affects the commands and queries that arrive over RabbitMQ: the caller sees a slow service or a remote error, exactly as in a real outage. An injected failure is a [`ChaosException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosException.java), deliberately not mapped to a 4xx.
 
-The endpoint, served by [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), exists in the services that set `shop.chaos.service` (catalog, orders, inventory, payments) at `/api/<service>/chaos`:
+The endpoint, served by [`ChaosController`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/chaos/ChaosController.java), exists in the services that set `shop.chaos.service` (catalog, orders, inventory, payments) at `/api/v1/chaos/<service>`; the gateway routes `/api/v1/chaos/<service>/**` to that service:
 
 | Request | Effect |
 |---|---|
-| `GET /api/payments/chaos` | Lists the faults with key, description, kind and value |
-| `PUT /api/payments/chaos/AuthorizePayment.fail` with `{"value": 1}` | Turns a fault on (0 turns it off; delays take milliseconds) |
-| `DELETE /api/payments/chaos` | Turns every fault of the service off |
+| `GET /api/v1/chaos/payments` | Lists the faults with key, description, kind and value |
+| `PUT /api/v1/chaos/payments/AuthorizePayment.fail` with `{"value": 1}` | Turns a fault on (0 turns it off; delays take milliseconds) |
+| `DELETE /api/v1/chaos/payments` | Turns every fault of the service off |
 
 The endpoint answers only when the service started with `SHOP_CHAOS_ENABLED=true` (`shop.chaos.enabled`); otherwise every request gets 404 `chaos-disabled` and no fault can be turned on. The flag is read at startup rather than used as a bean condition, because a native image fixes its conditions at build time. Docker Compose and the local Kubernetes overlays enable it, since they are demo deployments; the endpoint is unauthenticated like the rest of the demo API and would stay disabled anywhere else.
 
@@ -134,7 +134,7 @@ The native overlay lowers requests and limits to 128/256 MiB and shortens the st
 
 What makes the services native-ready:
 
-- **Hints next to the code that needs them.** [`EsKitRuntimeHints`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EsKitRuntimeHints.java) registers es-kit's Flyway migrations (`db/eskit/**`), the id arrays Hibernate creates reflectively when it batch-loads with `default_batch_fetch_size`, and the Flyway exception classes used to report connection failures. spring-boot-cqrs registers hints for every contract through `cqrs.aot.message-packages`.
+- **Hints next to the code that needs them.** [`EsKitRuntimeHints`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EsKitRuntimeHints.java) registers es-kit's Flyway migrations (`db/eskit/**`), the id arrays Hibernate creates reflectively when it batch-loads with `default_batch_fetch_size`, and the Flyway exception classes used to report connection failures. [`ShopWebRuntimeHints`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/autoconfigure/ShopWebRuntimeHints.java) registers the field violations of a `validation-failed` problem: Jackson reads them reflectively, and Spring cannot see them inside the problem's extra members. spring-boot-cqrs registers hints for every contract through `cqrs.aot.message-packages`.
 - **A build-time event index.** A native image cannot scan the classpath, so [`EventTypeIndexAotProcessor`](../../platform/es-kit/src/main/java/com/borjaglez/shop/eskit/EventTypeIndexAotProcessor.java) scans the event packages during AOT processing, writes the classes to `META-INF/shop/event-types.idx` and registers their binding hints; `EventTypeRegistry` reads the index at runtime and falls back to scanning on the JVM.
 - **Runtime switches instead of `@Conditional`.** Conditions are evaluated at build time in a native image, so anything that must be switchable at runtime is a runtime check: the OTLP exporters ([Observability](observability.md#turning-export-on)) and the chaos endpoint.
 - **Bytecode enhancement.** `shop.hibernate-enhancement-conventions` enhances the JPA entities at build time, because a native image cannot generate Hibernate proxies at runtime; JVM builds are enhanced too, so both behave alike.

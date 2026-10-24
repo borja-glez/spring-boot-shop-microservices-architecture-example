@@ -70,7 +70,7 @@ Controllers contain no logic: they translate HTTP into a command or a query and 
 
 | Module | Contents |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-core`; no Spring or Jackson types, checked by `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Messages exchanged between services (`@CqrsMessage` events, commands and their reply records). Depends only on `spring-boot-cqrs-api`, the framework-free API of spring-boot-cqrs; no Spring or Jackson types, checked by `ContractsConventionsTest`. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store that doubles as the transactional outbox, event-sourced aggregate base class, outbox relay, Kafka destination, consumer metrics, outbox metrics, native-image hints. |
 | [`platform/service-support`](../../platform/service-support) | RFC 9457 errors, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, OTLP export, chaos registry and endpoint, shared defaults. Auto-configured. |
 | [`platform/test-support`](../../platform/test-support) | Testcontainers configurations (PostgreSQL 17, Kafka, RabbitMQ) and the ArchUnit rules. |
@@ -102,7 +102,7 @@ Kafka carries events only (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.quer
 
 ## Error model
 
-Every Boot 4 service answers errors as RFC 9457 problem details (`application/problem+json`), rendered by [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
+Every Boot 4 service answers errors as RFC 9457 problem details (`application/problem+json`, or `application/json` for a client that accepts only JSON), rendered by [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
 
 ```json
 {
@@ -117,7 +117,7 @@ Every Boot 4 service answers errors as RFC 9457 problem details (`application/pr
 ```
 
 - `code` is a stable kebab-case identifier clients can rely on; `type` is derived from it. `correlationId` lets a user quote the request when reporting a problem. Validation failures add an `errors` array of `{field, message}`.
-- Domain code throws [`DomainException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/error/DomainException.java) subtypes, which carry the code and have no dependency on HTTP: `NotFoundException` (404), `ConflictException` (409) and `BusinessRuleViolationException` (422).
+- Domain code throws [`DomainException`](../../platform/domain-kernel/src/main/java/com/borjaglez/shop/kernel/error/DomainException.java) subtypes, which carry the code and have no dependency on HTTP: `NotFoundException` (404), `ConflictException` (409) and `BusinessRuleViolationException` (422).
 - The handler walks the cause chain (outermost first, up to ten levels) and asks a chain of [`ProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/ProblemMapper.java) beans, so wrappers added by the command bus or by Spring Data never hide the real reason:
 
 | Order | Mapper | Maps |

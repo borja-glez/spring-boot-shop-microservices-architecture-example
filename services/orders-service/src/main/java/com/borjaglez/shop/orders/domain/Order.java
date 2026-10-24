@@ -13,8 +13,8 @@ import com.borjaglez.shop.contracts.orders.OrderLine;
 import com.borjaglez.shop.contracts.orders.OrderPlaced;
 import com.borjaglez.shop.contracts.orders.OrderRejected;
 import com.borjaglez.shop.eskit.EventSourcedAggregate;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.ConflictException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.ConflictException;
 
 /**
  * An order, stored as its stream of events. Its state is never saved directly: it is whatever the

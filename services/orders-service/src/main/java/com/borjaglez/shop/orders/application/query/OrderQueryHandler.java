@@ -13,6 +13,7 @@ import com.borjaglez.cqrs.query.annotation.QueryHandler;
 import com.borjaglez.shop.eskit.EventStore;
 import com.borjaglez.shop.eskit.RecordedEvent;
 import com.borjaglez.shop.eskit.StoredEventRepository;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.orders.application.query.OrderViews.CheckoutView;
 import com.borjaglez.shop.orders.application.query.OrderViews.HistoryEntry;
 import com.borjaglez.shop.orders.application.query.OrderViews.OrderDetail;
@@ -21,7 +22,6 @@ import com.borjaglez.shop.orders.application.query.OrderViews.StoredEventView;
 import com.borjaglez.shop.orders.domain.CheckoutSagaRepository;
 import com.borjaglez.shop.orders.domain.Order;
 import com.borjaglez.shop.orders.domain.OrderViewRepository;
-import com.borjaglez.shop.support.error.NotFoundException;
 import com.borjaglez.specrepository.core.Operators;
 
 /**

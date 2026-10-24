@@ -61,7 +61,7 @@ cqrs:
 
 shop:
   chaos:
-    # Demo fault injection (/api/payments/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    # Demo fault injection (/api/v1/chaos/payments); off unless SHOP_CHAOS_ENABLED=true.
     service: payments
     messages: AuthorizePayment, RefundPayment
   payments:

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 
 /**
  * The faults a service can inject on purpose, to show how the platform absorbs them. Components

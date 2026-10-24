@@ -15,8 +15,8 @@ import com.borjaglez.shop.contracts.orders.OrderCancelled;
 import com.borjaglez.shop.contracts.orders.OrderConfirmed;
 import com.borjaglez.shop.contracts.orders.OrderPlaced;
 import com.borjaglez.shop.contracts.orders.OrderRejected;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.ConflictException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.ConflictException;
 
 class OrderTest {
 

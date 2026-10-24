@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -27,10 +28,14 @@ class GatewayRoutingIT {
       new ParameterizedTypeReference<>() {};
 
   static StubService catalog;
+  static StubService ordersV1;
+  static StubService ordersV2;
 
   @DynamicPropertySource
   static void routes(DynamicPropertyRegistry registry) throws IOException {
     catalog = new StubService();
+    ordersV1 = new StubService();
+    ordersV2 = new StubService();
     registry.add("shop.gateway.routes[0].id", () -> "catalog");
     registry.add("shop.gateway.routes[0].path", () -> "/api/catalog/**");
     registry.add("shop.gateway.routes[0].uri", catalog::baseUrl);
@@ -38,11 +43,22 @@ class GatewayRoutingIT {
     registry.add("shop.gateway.routes[1].path", () -> "/api/orders/**");
     // Nothing listens on port 9: the orders service is "down".
     registry.add("shop.gateway.routes[1].uri", () -> "http://localhost:9");
+    registry.add("shop.gateway.routes[2].id", () -> "catalog-v1");
+    registry.add("shop.gateway.routes[2].path", () -> "/api/v1/catalog/**");
+    registry.add("shop.gateway.routes[2].uri", catalog::baseUrl);
+    registry.add("shop.gateway.routes[3].id", () -> "orders-v1");
+    registry.add("shop.gateway.routes[3].path", () -> "/api/v1/orders/**");
+    registry.add("shop.gateway.routes[3].uri", ordersV1::baseUrl);
+    registry.add("shop.gateway.routes[4].id", () -> "orders-v2");
+    registry.add("shop.gateway.routes[4].path", () -> "/api/v2/orders/**");
+    registry.add("shop.gateway.routes[4].uri", ordersV2::baseUrl);
   }
 
   @AfterAll
   static void stop() {
     catalog.close();
+    ordersV1.close();
+    ordersV2.close();
   }
 
   @LocalServerPort int port;
@@ -51,6 +67,8 @@ class GatewayRoutingIT {
   @BeforeEach
   void client() {
     catalog.received().clear();
+    ordersV1.received().clear();
+    ordersV2.received().clear();
     http =
         RestClient.builder()
             .baseUrl("http://localhost:" + port)
@@ -124,10 +142,42 @@ class GatewayRoutingIT {
   }
 
   @Test
+  void unknownPathsAreJsonProblemsForAJsonOnlyClient() {
+    var response =
+        http.get()
+            .uri("/api/nothing-here")
+            .accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .toEntity(String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON))
+        .isTrue();
+    assertThat(response.getBody()).contains("\"code\":\"not-found\"").contains("\"correlationId\"");
+  }
+
+  @Test
   void unreachableServiceIsAServiceUnavailableProblem() {
     var response = http.get().uri("/api/orders/mine").retrieve().toEntity(JSON);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     assertThat(response.getBody()).containsEntry("code", "service-unavailable");
+  }
+
+  @Test
+  void versionedRoutesForwardTheUnchangedPathToTheirService() {
+    http.get().uri("/api/v1/catalog/products").retrieve().toBodilessEntity();
+    http.get().uri("/api/v1/orders/mine").retrieve().toBodilessEntity();
+    http.get().uri("/api/v2/orders/mine").retrieve().toBodilessEntity();
+
+    assertThat(catalog.received())
+        .singleElement()
+        .satisfies(r -> assertThat(r.pathAndQuery()).isEqualTo("/api/v1/catalog/products"));
+    assertThat(ordersV1.received())
+        .singleElement()
+        .satisfies(r -> assertThat(r.pathAndQuery()).isEqualTo("/api/v1/orders/mine"));
+    assertThat(ordersV2.received())
+        .singleElement()
+        .satisfies(r -> assertThat(r.pathAndQuery()).isEqualTo("/api/v2/orders/mine"));
   }
 }

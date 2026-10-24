@@ -36,6 +36,22 @@ jobs:
       - run: npm ci
       - run: npm run check
 
+  contracts:
+    name: Contracts (OpenAPI lint, AsyncAPI validation, breaking changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff against the base branch needs its history and its remote ref.
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: bash scripts/check-contracts.sh
+        env:
+          # The target branch of a pull request; origin/main on a push.
+          CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
+
   manifests:
     name: Kubernetes manifests
     runs-on: ubuntu-latest

@@ -6,7 +6,9 @@ import java.util.Set;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 import org.slf4j.MDC;
@@ -14,15 +16,18 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.borjaglez.cqrs.command.CommandHandlerExecutionException;
 import com.borjaglez.cqrs.context.MessageContext;
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
-import com.borjaglez.shop.support.error.ConflictException;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.ConflictException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.specrepository.core.DisallowedFieldException;
 import com.borjaglez.specrepository.core.InvalidFilterException;
 import com.borjaglez.specrepository.core.InvalidFilterValueException;
@@ -108,14 +113,54 @@ class SampleController {
     throw new ConstraintViolationException("invalid", Set.of());
   }
 
+  @GetMapping("/things/{id}")
+  Map<String, String> thing(@PathVariable String id) {
+    return Map.of("id", id);
+  }
+
   @PostMapping("/things")
   Map<String, Object> create(@Valid @RequestBody CreateThing body) {
     return Map.of("name", body.name());
   }
 
+  /**
+   * A constrained parameter next to the body, as in the interfaces generated from the contracts:
+   * Spring MVC validates the whole method, body included.
+   */
+  @PostMapping("/owned-things")
+  Map<String, Object> createOwned(
+      @RequestHeader("X-Owner") @Pattern(regexp = "[a-z-]+") String owner,
+      @Valid @RequestBody CreateThing body) {
+    return Map.of("owner", owner, "name", body.name());
+  }
+
+  @GetMapping("/sized")
+  Map<String, Integer> sized(@RequestParam @Min(1) int size) {
+    return Map.of("size", size);
+  }
+
   @GetMapping("/whoami")
   Map<String, String> whoami(@CurrentUser String user) {
     return Map.of("user", user);
+  }
+
+  /** The user header declared as the generated interfaces declare it. */
+  @GetMapping("/declared-user")
+  Map<String, String> declaredUser(
+      @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user) {
+    return Map.of("user", user);
+  }
+
+  @GetMapping("/declared-user-sized")
+  Map<String, Integer> declaredUserSized(
+      @RequestHeader("X-Shop-User") @Pattern(regexp = "^[A-Za-z0-9._@-]{1,64}$") String user,
+      @RequestParam @Min(1) int size) {
+    return Map.of("size", size);
+  }
+
+  @GetMapping("/declared-other-header")
+  Map<String, String> declaredOtherHeader(@RequestHeader("X-Other") String other) {
+    return Map.of("other", other);
   }
 
   @GetMapping("/whoami-optional")

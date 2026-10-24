@@ -32,7 +32,7 @@ import com.borjaglez.shop.catalog.application.query.ProductViews.StockStatus;
 import com.borjaglez.shop.catalog.application.query.SearchProductsQuery;
 import com.borjaglez.shop.catalog.domain.Product;
 import com.borjaglez.shop.catalog.domain.ProductStatus;
-import com.borjaglez.shop.support.error.NotFoundException;
+import com.borjaglez.shop.kernel.error.NotFoundException;
 import com.borjaglez.shop.testsupport.KafkaTestConfiguration;
 import com.borjaglez.shop.testsupport.PostgresTestConfiguration;
 import com.borjaglez.shop.testsupport.RabbitTestConfiguration;

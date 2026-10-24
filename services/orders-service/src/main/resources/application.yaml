@@ -64,7 +64,7 @@ cqrs:
 
 shop:
   chaos:
-    # Demo fault injection (/api/orders/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    # Demo fault injection (/api/v1/chaos/orders); off unless SHOP_CHAOS_ENABLED=true.
     service: orders
   checkout:
     # Each step is retried with growing waits; see CheckoutProperties.

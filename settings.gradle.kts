@@ -29,7 +29,9 @@ if (localLibs) {
 }
 
 include(
+    ":platform:architecture-rules",
     ":platform:contracts",
+    ":platform:domain-kernel",
     ":platform:es-kit",
     ":platform:service-support",
     ":platform:test-support",

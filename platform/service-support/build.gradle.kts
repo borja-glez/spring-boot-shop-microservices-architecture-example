@@ -1,10 +1,13 @@
 plugins {
     id("shop.library-conventions")
+    id("shop.openapi-conventions")
+    id("shop.coverage-conventions")
 }
 
 description = "Cross-cutting web support shared by every service: problem details, correlation ids, current user"
 
 dependencies {
+    api(project(":platform:domain-kernel"))
     api(libs.spring.boot.starter.webmvc)
 
     // Optional integrations, activated only when the service has them on its classpath.
@@ -19,6 +22,7 @@ dependencies {
 
     annotationProcessor(libs.spring.boot.autoconfigure.processor)
 
+    testImplementation(project(":platform:test-support"))
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.validation)
     testImplementation(libs.spring.boot.data.commons)
@@ -30,4 +34,13 @@ dependencies {
     testImplementation(libs.opentelemetry.logback.appender)
     testImplementation(libs.micrometer.tracing)
     testImplementation(libs.micrometer.tracing.bridge.otel)
+}
+
+shopOpenApi {
+    basePackage.set("com.borjaglez.shop.support.chaos")
+    specs {
+        register("v1") {
+            file.set(layout.projectDirectory.file("src/main/openapi/chaos-api.v1.yaml"))
+        }
+    }
 }

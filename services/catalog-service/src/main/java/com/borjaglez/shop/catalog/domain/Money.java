@@ -9,7 +9,7 @@ import java.util.Objects;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 
-import com.borjaglez.shop.support.error.BusinessRuleViolationException;
+import com.borjaglez.shop.kernel.error.BusinessRuleViolationException;
 
 /**
  * A positive amount of money with at most two decimals, stored with exactly two.

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mercado API contracts</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui.css" />
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      header { padding: 12px 16px; background: #1f2937; color: #fff; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      header h1 { font-size: 18px; margin: 0 12px 0 0; }
+      #contracts { display: flex; gap: 8px; flex-wrap: wrap; }
+      #contracts button { padding: 4px 10px; border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
+      #contracts button[aria-current="true"] { background: #2563eb; color: #fff; border-color: #2563eb; }
+      #viewer { padding: 0 16px 16px; }
+      #message { padding: 16px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Mercado API contracts</h1>
+      <nav id="contracts" aria-label="Contracts"></nav>
+    </header>
+    <p id="message">Select a contract.</p>
+    <div id="viewer"></div>
+
+    <script src="/api/docs/webjars/swagger-ui/@swaggerUiVersion@/swagger-ui-bundle.js"></script>
+    <!-- The version comes from gradle/libs.versions.toml (asyncapi-web-component); the integrity
+         hashes are those of its files (ContractsPageIntegrityTest pins the pair). -->
+    <script
+      id="asyncapi-viewer"
+      src="https://cdn.jsdelivr.net/npm/@asyncapi/web-component@@asyncapiWebComponentVersion@/lib/asyncapi-web-component.js"
+      integrity="sha384-1lhhmwYf1Eif0PQgDyo9eNFJLiRmcSgsv4mkpEtxLPzd+gEPIjxuoEdCQq9PsSm5"
+      crossorigin="anonymous"
+      defer
+    ></script>
+    <script>
+      const ASYNCAPI_CSS = 'https://cdn.jsdelivr.net/npm/@asyncapi/react-component@@asyncapiWebComponentVersion@/styles/default.min.css';
+      const ASYNCAPI_CSS_INTEGRITY = 'sha384-oo9RoQcacP++XdMX6CjTucTvASEORHX3chFik0/V2kHcsHiVboGyWZztGeq/0bum';
+      // Used when the stylesheet cannot be loaded, so the component does not fetch its default one.
+      const NO_STYLESHEET = 'data:text/css,';
+      const viewer = document.getElementById('viewer');
+      const message = document.getElementById('message');
+      const nav = document.getElementById('contracts');
+      // Each selection gets a number, so a document still loading is dropped once another is chosen.
+      let selection = 0;
+      // Blob URL of the stylesheet handed to the AsyncAPI component on screen.
+      let stylesheetUrl = null;
+      // Set when the AsyncAPI web component cannot be loaded or fails its integrity check.
+      let viewerFailure = null;
+
+      document.getElementById('asyncapi-viewer').addEventListener('error', () => {
+        viewerFailure =
+          'The AsyncAPI viewer could not be loaded or failed its integrity check; ' +
+          'AsyncAPI contracts cannot be shown.';
+        message.textContent = viewerFailure;
+      });
+
+      function releaseStylesheet() {
+        if (stylesheetUrl) {
+          URL.revokeObjectURL(stylesheetUrl);
+          stylesheetUrl = null;
+        }
+      }
+
+      function show(entry, button) {
+        const current = ++selection;
+        nav.querySelectorAll('button').forEach((b) => b.removeAttribute('aria-current'));
+        button.setAttribute('aria-current', 'true');
+        message.textContent = '';
+        viewer.replaceChildren();
+        releaseStylesheet();
+        const url = new URL('/api/docs/contracts/' + entry.path, location.href).href;
+        if (entry.kind === 'openapi') {
+          const target = document.createElement('div');
+          target.id = 'swagger-ui';
+          viewer.append(target);
+          SwaggerUIBundle({ url, dom_id: '#swagger-ui' });
+        } else {
+          showAsyncApi(url, current);
+        }
+      }
+
+      // The component loads its stylesheet itself, from cssImportPath. The stylesheet is fetched
+      // here with an integrity check and handed over as a blob URL, set before the component is
+      // attached so that it never renders against its default stylesheet path.
+      function showAsyncApi(url, current) {
+        if (viewerFailure) {
+          message.textContent = viewerFailure;
+          return;
+        }
+        fetch(ASYNCAPI_CSS, { integrity: ASYNCAPI_CSS_INTEGRITY, mode: 'cors' })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error('HTTP ' + response.status);
+            }
+            return response.blob();
+          })
+          .then((blob) => URL.createObjectURL(blob))
+          .catch(() => {
+            if (current === selection) {
+              message.textContent =
+                'The AsyncAPI stylesheet could not be loaded or failed its integrity check; ' +
+                'the contract is shown without it.';
+            }
+            return NO_STYLESHEET;
+          })
+          .then((cssUrl) => {
+            if (current !== selection) {
+              if (cssUrl !== NO_STYLESHEET) {
+                URL.revokeObjectURL(cssUrl);
+              }
+              return;
+            }
+            if (cssUrl !== NO_STYLESHEET) {
+              stylesheetUrl = cssUrl;
+            }
+            const component = document.createElement('asyncapi-component');
+            component.setAttribute('cssImportPath', cssUrl);
+            component.setAttribute('schemaUrl', url);
+            viewer.append(component);
+          });
+      }
+
+      fetch('/api/docs/contracts/index.json')
+        .then((response) => response.json())
+        .then((entries) => {
+          if (entries.length === 0) {
+            message.textContent = 'No contracts published.';
+            return;
+          }
+          entries.forEach((entry) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = entry.path.split('/').pop() + ' (' + entry.kind + ')';
+            button.title = entry.path;
+            button.addEventListener('click', () => show(entry, button));
+            nav.append(button);
+          });
+        })
+        .catch(() => {
+          message.textContent = 'The contracts index could not be loaded.';
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "action": "add",
+      "path": "/operations/op/channel/messages/m/payload/properties/required",
+      "after": {
+        "type": "string",
+        "x-parser-schema-id": "<anonymous-schema-5>"
+      },
+      "type": "unclassified"
+    },
+    {
+      "action": "add",
+      "path": "/channels/ch/messages/m/payload/properties/required",
+      "after": {
+        "type": "string",
+        "x-parser-schema-id": "<anonymous-schema-5>"
+      },
+      "type": "unclassified"
+    }
+  ]
+}

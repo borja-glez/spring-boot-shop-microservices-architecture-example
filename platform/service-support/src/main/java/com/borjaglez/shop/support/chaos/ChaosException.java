@@ -6,4 +6,12 @@ public class ChaosException extends RuntimeException {
   public ChaosException(String message) {
     super(message);
   }
+
+  /**
+   * A failure without a stack trace when {@code writableStackTrace} is false, for a fault that
+   * fails every run of a scheduled task: the task logs one line per run instead of a full trace.
+   */
+  public ChaosException(String message, boolean writableStackTrace) {
+    super(message, null, false, writableStackTrace);
+  }
 }

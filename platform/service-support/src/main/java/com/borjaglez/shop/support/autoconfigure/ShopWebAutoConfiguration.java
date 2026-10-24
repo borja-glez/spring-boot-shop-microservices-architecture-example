@@ -7,14 +7,18 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.borjaglez.shop.support.web.ApiDeprecationFilter;
+import com.borjaglez.shop.support.web.ApiDeprecationProperties;
 import com.borjaglez.shop.support.web.CorrelationIdFilter;
 import com.borjaglez.shop.support.web.CorrelationScope;
 import com.borjaglez.shop.support.web.CurrentUserArgumentResolver;
@@ -34,6 +38,8 @@ import com.borjaglez.shop.support.web.problem.ValidationProblemMapper;
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@EnableConfigurationProperties(ApiDeprecationProperties.class)
+@ImportRuntimeHints(ShopWebRuntimeHints.class)
 public class ShopWebAutoConfiguration {
 
   @Bean
@@ -42,6 +48,15 @@ public class ShopWebAutoConfiguration {
     var registration =
         new FilterRegistrationBean<>(new CorrelationIdFilter(scopes.orderedStream().toList()));
     registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+    return registration;
+  }
+
+  @Bean
+  FilterRegistrationBean<ApiDeprecationFilter> apiDeprecationFilter(
+      ApiDeprecationProperties properties) {
+    var registration =
+        new FilterRegistrationBean<>(new ApiDeprecationFilter(properties.deprecations()));
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
     return registration;
   }
 

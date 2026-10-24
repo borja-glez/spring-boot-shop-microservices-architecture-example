@@ -70,7 +70,7 @@ Los controladores no contienen lógica: traducen HTTP a un comando o a una consu
 
 | Módulo | Contenido |
 |---|---|
-| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-core`; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
+| [`platform/contracts`](../../platform/contracts) | Mensajes intercambiados entre servicios (eventos `@CqrsMessage`, comandos y sus records de respuesta). Solo depende de `spring-boot-cqrs-api`, la API sin framework de spring-boot-cqrs; sin tipos de Spring ni de Jackson, comprobado por `ContractsConventionsTest`. |
 | [`platform/es-kit`](../../platform/es-kit) | Event store que hace también de outbox transaccional, clase base de agregado con event sourcing, relay del outbox, destino Kafka, métricas de consumidores, métricas del outbox, hints para imagen nativa. |
 | [`platform/service-support`](../../platform/service-support) | Errores RFC 9457, correlation ids, `@CurrentUser`, `PageResponse`, `QueryPlans`, `TraceCarrier`, exportación OTLP, registro y endpoint de caos, valores por defecto compartidos. Autoconfigurado. |
 | [`platform/test-support`](../../platform/test-support) | Configuraciones de Testcontainers (PostgreSQL 17, Kafka, RabbitMQ) y las reglas de ArchUnit. |
@@ -102,7 +102,7 @@ Kafka transporta solo eventos (`cqrs.kafka.commands.enabled=false`, `cqrs.kafka.
 
 ## Modelo de errores
 
-Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 (`application/problem+json`), generados por [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
+Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 (`application/problem+json`, o `application/json` para un cliente que solo acepta JSON), generados por [`ProblemDetailsExceptionHandler`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/ProblemDetailsExceptionHandler.java):
 
 ```json
 {
@@ -117,7 +117,7 @@ Todos los servicios Boot 4 responden a los errores con problem details RFC 9457 
 ```
 
 - `code` es un identificador estable en kebab-case en el que los clientes pueden confiar; `type` se deriva de él. `correlationId` permite al usuario citar la petición al informar de un problema. Los fallos de validación añaden un array `errors` de `{field, message}`.
-- El código de dominio lanza subtipos de [`DomainException`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/error/DomainException.java), que llevan el código y no dependen de HTTP: `NotFoundException` (404), `ConflictException` (409) y `BusinessRuleViolationException` (422).
+- El código de dominio lanza subtipos de [`DomainException`](../../platform/domain-kernel/src/main/java/com/borjaglez/shop/kernel/error/DomainException.java), que llevan el código y no dependen de HTTP: `NotFoundException` (404), `ConflictException` (409) y `BusinessRuleViolationException` (422).
 - El handler recorre la cadena de causas (de la más externa a la más interna, hasta diez niveles) y consulta una cadena de beans [`ProblemMapper`](../../platform/service-support/src/main/java/com/borjaglez/shop/support/web/problem/ProblemMapper.java), de modo que los envoltorios añadidos por el bus de comandos o por Spring Data nunca ocultan el motivo real:
 
 | Orden | Mapper | Traduce |

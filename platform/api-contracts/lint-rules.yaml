@@ -1,0 +1,94 @@
+# Style guide of the Mercado OpenAPI contracts, as Redocly rules.
+# scripts/check-contracts.sh runs `redocly lint --config platform/api-contracts/lint-rules.yaml`
+# over the service contracts and over the component libraries in platform/api-contracts/openapi.
+rules:
+  # Path segments are kebab-case; a path parameter is a camelCase name in braces. Whether a segment
+  # names a collection (`/products/{id}`), an action (`/{id}/cancel`) or a single view
+  # (`/summary`) is a design decision that a pattern cannot check.
+  rule/path-kebab-case:
+    message: 'Path {{problems}}'
+    severity: error
+    subject:
+      type: Paths
+    assertions:
+      pattern: '^(/([a-z0-9]+(-[a-z0-9]+)*|\{[a-z][A-Za-z0-9]*\}))+$'
+
+  rule/operation-id-camel-case:
+    message: 'operationId must be camelCase: {{problems}}'
+    severity: error
+    subject:
+      type: Operation
+      property: operationId
+    assertions:
+      defined: true
+      pattern: '^[a-z][a-zA-Z0-9]*$'
+
+  rule/operation-tags:
+    message: 'Every operation must have at least one tag.'
+    severity: error
+    subject:
+      type: Operation
+      property: tags
+    assertions:
+      defined: true
+      nonEmpty: true
+
+  # Every 4xx and 5xx response is an RFC 9457 problem. The `where` clause selects the responses by
+  # status code; its `required: [description]` only satisfies the mandatory assertion (every
+  # response has a description).
+  rule/error-response-has-content:
+    message: 'Every 4xx and 5xx response must declare content.'
+    severity: error
+    where:
+      - subject:
+          type: Response
+          matchParentKeys: '^([45][0-9]{2}|[45]XX)$'
+        assertions:
+          required: [description]
+    subject:
+      type: Response
+      property: content
+    assertions:
+      defined: true
+
+  rule/error-response-problem-json:
+    message: 'Every 4xx and 5xx response must have an application/problem+json body.'
+    severity: error
+    where:
+      - subject:
+          type: Response
+          matchParentKeys: '^([45][0-9]{2}|[45]XX)$'
+        assertions:
+          required: [description]
+    subject:
+      type: MediaTypesMap
+    assertions:
+      required:
+        - application/problem+json
+
+  # Applies to every schema declared in components.schemas and to the schemas nested in them. The
+  # inline schema of a parameter or header only gives its type; the parameter describes it.
+  rule/schema-description:
+    message: 'Every schema must have a description.'
+    severity: error
+    where:
+      - subject:
+          type: NamedSchemas
+        assertions:
+          defined: true
+    subject:
+      type: Schema
+      property: description
+    assertions:
+      defined: true
+      nonEmpty: true
+
+  # additionalProperties may be false or a schema, never true.
+  rule/no-additional-properties-true:
+    message: 'additionalProperties: true is forbidden.'
+    severity: error
+    subject:
+      type: Schema
+      property: additionalProperties
+    assertions:
+      notPattern: '^true$'

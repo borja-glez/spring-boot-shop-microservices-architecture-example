@@ -1,0 +1,50 @@
+{
+  "changes": [
+    {
+      "action": "edit",
+      "path": "/operations/op/channel/messages/m/payload/properties/status/x-parser-schema-id",
+      "before": "<anonymous-schema-5>",
+      "after": "<anonymous-schema-4>",
+      "type": "unclassified"
+    },
+    {
+      "action": "edit",
+      "path": "/operations/op/channel/messages/m/payload/properties/name/x-parser-schema-id",
+      "before": "<anonymous-schema-4>",
+      "after": "<anonymous-schema-3>",
+      "type": "unclassified"
+    },
+    {
+      "action": "remove",
+      "path": "/operations/op/channel/messages/m/payload/properties/title",
+      "before": {
+        "type": "string",
+        "x-parser-schema-id": "<anonymous-schema-3>"
+      },
+      "type": "unclassified"
+    },
+    {
+      "action": "edit",
+      "path": "/channels/ch/messages/m/payload/properties/status/x-parser-schema-id",
+      "before": "<anonymous-schema-5>",
+      "after": "<anonymous-schema-4>",
+      "type": "unclassified"
+    },
+    {
+      "action": "edit",
+      "path": "/channels/ch/messages/m/payload/properties/name/x-parser-schema-id",
+      "before": "<anonymous-schema-4>",
+      "after": "<anonymous-schema-3>",
+      "type": "unclassified"
+    },
+    {
+      "action": "remove",
+      "path": "/channels/ch/messages/m/payload/properties/title",
+      "before": {
+        "type": "string",
+        "x-parser-schema-id": "<anonymous-schema-3>"
+      },
+      "type": "unclassified"
+    }
+  ]
+}

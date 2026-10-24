@@ -81,5 +81,5 @@ info:
 
 shop:
   chaos:
-    # Demo fault injection (/api/catalog/chaos); off unless SHOP_CHAOS_ENABLED=true.
+    # Demo fault injection (/api/v1/chaos/catalog); off unless SHOP_CHAOS_ENABLED=true.
     service: catalog
